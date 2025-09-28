@@ -26,17 +26,18 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
+        scaffoldBackgroundColor: const Color(0xFFFAF9F6), // 🔹 fundo creme em todas as páginas
         appBarTheme: const AppBarTheme(
           backgroundColor: Color(0xFF1c2331),
-          iconTheme: IconThemeData(color: Colors.white), // 🔹 ícones brancos
+          iconTheme: IconThemeData(color: Colors.white),
           titleTextStyle: TextStyle(
             color: Colors.white,
             fontSize: 18,
             fontWeight: FontWeight.bold,
-          ), // 🔹 título branco
+          ),
         ),
       ),
-      home: const HomePage(),
+      home: const LoginPage(),
     );
   }
 }

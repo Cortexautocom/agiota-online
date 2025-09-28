@@ -27,66 +27,82 @@ class _ClientesPageState extends State<ClientesPage> {
   Widget build(BuildContext context) {
     return Stack(
       children: [
-        FutureBuilder<List<Map<String, dynamic>>>(
-          future: _clientesFuture,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            if (snapshot.hasError) {
-              return Center(
-                  child: Text("Erro ao carregar: ${snapshot.error}",
-                      style: const TextStyle(color: Colors.white)));
-            }
-            final clientes = snapshot.data ?? [];
-            if (clientes.isEmpty) {
-              return const Center(
-                  child: Text("Nenhum cliente encontrado.",
-                      style: TextStyle(color: Colors.white)));
-            }
-            return ListView.separated(
-              padding: const EdgeInsets.all(16),
-              itemCount: clientes.length,
-              separatorBuilder: (context, index) =>
-                  const Divider(height: 8, color: Colors.white24),
-              itemBuilder: (context, index) {
-                final cliente = clientes[index];
-                return ListTile(
-                  dense: true,
-                  leading:
-                      const Icon(Icons.person, size: 22, color: Colors.white),
-                  title: Text(cliente['nome'] ?? 'Sem nome',
-                      style: const TextStyle(color: Colors.white)),
-                  subtitle: Text(
-                    "CPF: ${cliente['cpf'] ?? '-'} | Cidade: ${cliente['cidade'] ?? '-'}",
-                    style: const TextStyle(color: Colors.white70),
-                  ),
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) =>
-                            FinanceiroPage(cliente: cliente),
-                      ),
-                    );
-                  },
-                  trailing: IconButton(
-                    icon: const Icon(Icons.delete, color: Colors.red),
-                    onPressed: () async {
-                      await Supabase.instance.client
-                          .from('clientes')
-                          .delete()
-                          .eq('id_cliente', cliente['id_cliente']);
-                      setState(() {
-                        _clientesFuture = _buscarClientes();
-                      });
-                    },
+        Container(
+          color: const Color(0xFFFAF9F6), // 🔹 fundo creme
+          child: FutureBuilder<List<Map<String, dynamic>>>(
+            future: _clientesFuture,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (snapshot.hasError) {
+                return Center(
+                  child: Text(
+                    "Erro ao carregar: ${snapshot.error}",
+                    style: const TextStyle(color: Colors.red),
                   ),
                 );
-              },
-            );
-          },
+              }
+              final clientes = snapshot.data ?? [];
+              if (clientes.isEmpty) {
+                return const Center(
+                  child: Text(
+                    "Nenhum cliente encontrado.",
+                    style: TextStyle(color: Colors.black87),
+                  ),
+                );
+              }
+              return ListView.separated(
+                padding: const EdgeInsets.all(16),
+                itemCount: clientes.length,
+                separatorBuilder: (context, index) =>
+                    const Divider(height: 8, color: Colors.black26),
+                itemBuilder: (context, index) {
+                  final cliente = clientes[index];
+                  return Card(
+                    color: Colors.white,
+                    child: ListTile(
+                      dense: true,
+                      leading: const Icon(Icons.person,
+                          size: 22, color: Colors.black87),
+                      title: Text(
+                        cliente['nome'] ?? 'Sem nome',
+                        style: const TextStyle(color: Colors.black87),
+                      ),
+                      subtitle: Text(
+                        "CPF: ${cliente['cpf'] ?? '-'} | Cidade: ${cliente['cidade'] ?? '-'}",
+                        style: const TextStyle(color: Colors.black54),
+                      ),
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) =>
+                                FinanceiroPage(cliente: cliente),
+                          ),
+                        );
+                      },
+                      trailing: IconButton(
+                        icon: const Icon(Icons.delete, color: Colors.red),
+                        onPressed: () async {
+                          await Supabase.instance.client
+                              .from('clientes')
+                              .delete()
+                              .eq('id_cliente', cliente['id_cliente']);
+                          setState(() {
+                            _clientesFuture = _buscarClientes();
+                          });
+                        },
+                      ),
+                    ),
+                  );
+                },
+              );
+            },
+          ),
         ),
+
+        // 🔹 Botão flutuante
         Positioned(
           bottom: 16,
           right: 16,
@@ -108,6 +124,7 @@ class _ClientesPageState extends State<ClientesPage> {
     );
   }
 }
+
 
 // 🔹 mantém a função de criar novo cliente
 Future<Map<String, dynamic>?> open_client_form(BuildContext context) async {
