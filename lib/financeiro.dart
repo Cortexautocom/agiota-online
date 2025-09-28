@@ -73,16 +73,14 @@ class FinanceiroPage extends StatelessWidget {
                     itemBuilder: (context, index) {
                       final emp = emprestimos[index];
                       return Card(
+                        margin: const EdgeInsets.symmetric(
+                            vertical: 6, horizontal: 4),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                         color: Colors.white,
-                        child: ListTile(
-                          title: Text(
-                            "Empréstimo de ${fmtMoeda(emp['capital'])}",
-                            style: const TextStyle(color: Colors.black87),
-                          ),
-                          subtitle: Text(
-                            "Meses: ${emp['meses'] ?? 0} | Juros: ${fmtMoeda(emp['juros'])}",
-                            style: const TextStyle(color: Colors.black54),
-                          ),
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(12),
                           onTap: () {
                             emp['cliente'] = cliente['nome'];
                             Navigator.push(
@@ -93,6 +91,32 @@ class FinanceiroPage extends StatelessWidget {
                               ),
                             );
                           },
+                          child: Padding(
+                            padding: const EdgeInsets.all(12.0),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // 🔹 Linha 1: número e data
+                                Text(
+                                  "Nº ${emp['numero']}  |  Data do empréstimo: ${emp['data_inicio'] ?? ''}",
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.black87,
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                // 🔹 Linha 2: montante e parcelas
+                                Text(
+                                  "Montante: ${fmtMoeda(emp['valor'])}  |  ${emp['parcelas']} parcelas de ${fmtMoeda(emp['prestacao'])}",
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    color: Colors.black54,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
                       );
                     },
