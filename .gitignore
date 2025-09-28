@@ -12,6 +12,9 @@
 .swiftpm/
 migrate_working_dir/
 
+# Adicionado para ignorar a subpasta aninhada
+agiota-online/
+
 # IntelliJ related
 *.iml
 *.ipr

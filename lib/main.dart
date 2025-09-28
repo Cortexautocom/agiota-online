@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:mask_text_input_formatter/mask_text_input_formatter.dart';
+import 'financeiro.dart'; // 🔹 importa a nova tela
+import 'home.dart'; // 🔹 vamos mover HomePage para arquivo separado
+import 'clientes_page.dart'; // 🔹 vamos mover ClientesPage para arquivo separado
+
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -20,12 +24,19 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'O Agiota Online',
+      debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        primarySwatch: Colors.blue,
-        scaffoldBackgroundColor: Colors.white,
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Color(0xFF1c2331),
+          iconTheme: IconThemeData(color: Colors.white), // 🔹 ícones brancos
+          titleTextStyle: TextStyle(
+            color: Colors.white,
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+          ), // 🔹 título branco
+        ),
       ),
-      home: const LoginPage(),
+      home: const HomePage(),
     );
   }
 }
@@ -337,9 +348,6 @@ Future<Map<String, dynamic>?> open_client_form(BuildContext context) async {
   );
 }
 
-
-
-
 // 🔹 Página de Clientes
 class ClientesPage extends StatefulWidget {
   const ClientesPage({super.key});
@@ -358,9 +366,8 @@ class _ClientesPageState extends State<ClientesPage> {
   }
 
   Future<List<Map<String, dynamic>>> _buscarClientes() async {
-  final response =
-      await Supabase.instance.client.from('clientes').select();
-  return (response as List).map((e) => e as Map<String, dynamic>).toList();
+    final response = await Supabase.instance.client.from('clientes').select();
+    return (response as List).map((e) => e as Map<String, dynamic>).toList();
   }
 
   @override
@@ -392,6 +399,16 @@ class _ClientesPageState extends State<ClientesPage> {
                 subtitle: Text(
                   "CPF: ${cliente['cpf'] ?? '-'} | Cidade: ${cliente['cidade'] ?? '-'}",
                 ),
+                onTap: () {
+                  // 🔹 Navega para o financeiro do cliente
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) =>
+                          FinanceiroPage(cliente: cliente),
+                    ),
+                  );
+                },
                 trailing: IconButton(
                   icon: const Icon(Icons.delete, color: Colors.red),
                   onPressed: () async {
