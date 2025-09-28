@@ -236,69 +236,79 @@ class _ParcelasPageState extends State<ParcelasPage> {
                               inputFormatters: [dateMaskFormatter()],
                               style: const TextStyle(fontSize: 13),
                               decoration: const InputDecoration(
-                                  border: InputBorder.none,
-                                  hintText: "dd/mm/aaaa"),
+                                  border: InputBorder.none, hintText: "dd/mm/aaaa"),
                             )),
-                            DataCell(TextField(
-                              controller: c['valor'],
-                              keyboardType: TextInputType.number,
-                              style: const TextStyle(fontSize: 13),
-                              onEditingComplete: () {
-                                c['valor']!.text =
-                                    fmtMoeda(parseMoeda(c['valor']!.text));
-                                setState(() {});
+                            DataCell(Focus(
+                              onFocusChange: (hasFocus) {
+                                if (!hasFocus) {
+                                  c['valor']!.text = fmtMoeda(parseMoeda(c['valor']!.text));
+                                  setState(() {});
+                                }
                               },
-                              decoration: const InputDecoration(
-                                  border: InputBorder.none),
+                              child: TextField(
+                                controller: c['valor'],
+                                keyboardType: TextInputType.number,
+                                style: const TextStyle(fontSize: 13),
+                                decoration: const InputDecoration(border: InputBorder.none),
+                              ),
                             )),
-                            DataCell(TextField(
-                              controller: c['juros'],
-                              keyboardType: TextInputType.number,
-                              style: const TextStyle(fontSize: 13),
-                              onEditingComplete: () {
-                                c['juros']!.text =
-                                    fmtMoeda(parseMoeda(c['juros']!.text));
-                                setState(() {});
+                            DataCell(Focus(
+                              onFocusChange: (hasFocus) {
+                                if (!hasFocus) {
+                                  c['juros']!.text = fmtMoeda(parseMoeda(c['juros']!.text));
+                                  setState(() {});
+                                }
                               },
-                              decoration: const InputDecoration(
-                                  border: InputBorder.none),
+                              child: TextField(
+                                controller: c['juros'],
+                                keyboardType: TextInputType.number,
+                                style: const TextStyle(fontSize: 13),
+                                decoration: const InputDecoration(border: InputBorder.none),
+                              ),
                             )),
-                            DataCell(TextField(
-                              controller: c['desconto'],
-                              keyboardType: TextInputType.number,
-                              style: const TextStyle(fontSize: 13),
-                              onEditingComplete: () {
-                                c['desconto']!.text =
-                                    fmtMoeda(parseMoeda(c['desconto']!.text));
-                                setState(() {});
+                            DataCell(Focus(
+                              onFocusChange: (hasFocus) {
+                                if (!hasFocus) {
+                                  c['desconto']!.text = fmtMoeda(parseMoeda(c['desconto']!.text));
+                                  setState(() {});
+                                }
                               },
-                              decoration: const InputDecoration(
-                                  border: InputBorder.none),
+                              child: TextField(
+                                controller: c['desconto'],
+                                keyboardType: TextInputType.number,
+                                style: const TextStyle(fontSize: 13),
+                                decoration: const InputDecoration(border: InputBorder.none),
+                              ),
                             )),
                             const DataCell(Text("")),
-                            DataCell(TextField(
-                              controller: c['pg_principal'],
-                              keyboardType: TextInputType.number,
-                              style: const TextStyle(fontSize: 13),
-                              onEditingComplete: () {
-                                c['pg_principal']!.text = fmtMoeda(
-                                    parseMoeda(c['pg_principal']!.text));
-                                setState(() {});
+                            DataCell(Focus(
+                              onFocusChange: (hasFocus) {
+                                if (!hasFocus) {
+                                  c['pg_principal']!.text =
+                                      fmtMoeda(parseMoeda(c['pg_principal']!.text));
+                                  setState(() {});
+                                }
                               },
-                              decoration: const InputDecoration(
-                                  border: InputBorder.none),
+                              child: TextField(
+                                controller: c['pg_principal'],
+                                keyboardType: TextInputType.number,
+                                style: const TextStyle(fontSize: 13),
+                                decoration: const InputDecoration(border: InputBorder.none),
+                              ),
                             )),
-                            DataCell(TextField(
-                              controller: c['pg_juros'],
-                              keyboardType: TextInputType.number,
-                              style: const TextStyle(fontSize: 13),
-                              onEditingComplete: () {
-                                c['pg_juros']!.text =
-                                    fmtMoeda(parseMoeda(c['pg_juros']!.text));
-                                setState(() {});
+                            DataCell(Focus(
+                              onFocusChange: (hasFocus) {
+                                if (!hasFocus) {
+                                  c['pg_juros']!.text = fmtMoeda(parseMoeda(c['pg_juros']!.text));
+                                  setState(() {});
+                                }
                               },
-                              decoration: const InputDecoration(
-                                  border: InputBorder.none),
+                              child: TextField(
+                                controller: c['pg_juros'],
+                                keyboardType: TextInputType.number,
+                                style: const TextStyle(fontSize: 13),
+                                decoration: const InputDecoration(border: InputBorder.none),
+                              ),
                             )),
                             DataCell(Text(fmtMoeda(p['valor_pago']),
                                 style: const TextStyle(fontSize: 13))),
@@ -309,8 +319,7 @@ class _ParcelasPageState extends State<ParcelasPage> {
                               inputFormatters: [dateMaskFormatter()],
                               style: const TextStyle(fontSize: 13),
                               decoration: const InputDecoration(
-                                  border: InputBorder.none,
-                                  hintText: "dd/mm/aaaa"),
+                                  border: InputBorder.none, hintText: "dd/mm/aaaa"),
                             )),
                           ]);
                         }),
