@@ -305,22 +305,21 @@ class _ParcelasPageState extends State<ParcelasPage> {
                               IconButton(
                                 icon: const Icon(Icons.calculate, size: 20, color: Colors.blue),
                                 onPressed: () {
-                                  final valor = parseMoeda(c['valor']!.text);
-                                  final juros = parseMoeda(c['juros']!.text);
+                                  // 🔹 pega dados do empréstimo
+                                  final capital = num.tryParse("${widget.emprestimo["valor"]}") ?? 0;
+                                  final jurosSupabase = num.tryParse("${widget.emprestimo["juros"]}") ?? 0;
+                                  final parcelas = num.tryParse("${widget.emprestimo["parcelas"]}") ?? 1;
+                                  final jurosDigitado = parseMoeda(c['juros']!.text);
                                   final desconto = parseMoeda(c['desconto']!.text);
+                                  
+                                  final pgPrincipal = capital / parcelas;
+                                  final pgJuros = jurosSupabase / parcelas + jurosDigitado - desconto;
 
-                                  final pgPrincipal = valor - juros - desconto;
-                                  final pgJuros = juros;
-                                  final saldo = valor - (pgPrincipal + pgJuros);
-
-                                  // 🔹 Atualiza os controladores da linha
+                                  // 🔹 atualiza células da linha
                                   c['pg_principal']!.text = fmtMoeda(pgPrincipal);
                                   c['pg_juros']!.text = fmtMoeda(pgJuros);
 
-                                  // saldo não tem campo editável, mas podemos atualizar a célula diretamente
-                                  p['saldo'] = saldo;
-
-                                  setState(() {}); // força a tabela e totalizadores a se atualizarem
+                                  setState(() {}); // força atualização dos totais
                                 },
                               ),
                             ),
@@ -353,10 +352,25 @@ class _ParcelasPageState extends State<ParcelasPage> {
                                 decoration: const InputDecoration(border: InputBorder.none),
                               ),
                             )),
-                            DataCell(Text(fmtMoeda(p['valor_pago']),
-                                style: const TextStyle(fontSize: 13))),
-                            DataCell(Text(fmtMoeda(p['saldo']),
-                                style: const TextStyle(fontSize: 13))),
+                            // 🔹 Valor Pago automático
+                            DataCell(Text(
+                              fmtMoeda(
+                                parseMoeda(c['pg_principal']!.text) + parseMoeda(c['pg_juros']!.text),
+                              ),
+                              style: const TextStyle(fontSize: 13),
+                            )),
+
+                            // 🔹 Saldo automático
+                            DataCell(Text(
+                              fmtMoeda(
+                                parseMoeda(c['valor']!.text) +
+                                parseMoeda(c['juros']!.text) -
+                                parseMoeda(c['desconto']!.text) -
+                                (parseMoeda(c['pg_principal']!.text) + parseMoeda(c['pg_juros']!.text)),
+                              ),
+                              style: const TextStyle(fontSize: 13),
+                            )),
+
                             DataCell(TextField(
                               controller: c['data_pag'],
                               inputFormatters: [dateMaskFormatter()],
