@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'utils.dart'; // seu formatador de moeda
 import 'package:uuid/uuid.dart';
 import 'dart:math';
+import 'parcelas.dart';
 
 class EmprestimoForm extends StatefulWidget {
   final String idCliente;   // vem do cliente selecionado
@@ -135,10 +136,9 @@ class _EmprestimoFormState extends State<EmprestimoForm> {
     await supabase.from('emprestimos').insert({
       'id': emprestimoId,
       'id_cliente': widget.idCliente,
-      'capital': capitalCtrl.text,
+      'valor': capitalCtrl.text,
       'data_inicio': dataStr,
-      'meses': mesesCtrl.text,
-      'taxa': taxaCtrl.text.isNotEmpty ? "Taxa ${taxaCtrl.text}%" : "",
+      'parcelas': mesesCtrl.text,
       'juros': totalJuros.toString(),
       'prestacao': prestacao.toString(),
       'id_usuario': widget.idUsuario,
@@ -188,8 +188,33 @@ class _EmprestimoFormState extends State<EmprestimoForm> {
     await supabase.from('parcelas').insert(parcelas);
 
     if (!mounted) return;
-    widget.onSaved();
+
+    // 🔹 busca o empréstimo salvo para abrir a tela de parcelas
+    final emprestimo = {
+      "id": emprestimoId,
+      "id_cliente": widget.idCliente,   // aqui funciona porque EmprestimoForm TEM idCliente
+      "capital": capitalCtrl.text,
+      "data_inicio": dataStr,
+      "meses": mesesCtrl.text,
+      "taxa": taxaCtrl.text.isNotEmpty ? "Taxa ${taxaCtrl.text}%" : "",
+      "juros": totalJuros.toString(),
+      "prestacao": prestacao.toString(),
+      "id_usuario": widget.idUsuario,
+      "ativo": "sim",
+      "cliente": "", // opcional
+    };
+
+    // primeiro fecha o form
     Navigator.pop(context);
+
+    // em seguida abre a tela de parcelas
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ParcelasPage(emprestimo: emprestimo),
+      ),
+    );
+
   }
 
   @override

@@ -421,11 +421,11 @@ class _ParcelasPageState extends State<ParcelasPage> {
                     'id_emprestimo': widget.emprestimo['id'] ?? widget.emprestimo['id_emprestimo'],
                     'numero': p['numero'],
                     'vencimento': c['vencimento']!.text,
-                    'valor': c['valor']!.text,
-                    'juros': c['juros']!.text,
-                    'desconto': c['desconto']!.text,
-                    'pg_principal': c['pg_principal']!.text,
-                    'pg_juros': c['pg_juros']!.text,
+                    'valor': parseMoeda(c['valor']!.text),
+                    'juros': parseMoeda(c['juros']!.text),
+                    'desconto': parseMoeda(c['desconto']!.text),
+                    'pg_principal': parseMoeda(c['pg_principal']!.text),
+                    'pg_juros': parseMoeda(c['pg_juros']!.text),
                     'valor_pago': (parseMoeda(c['pg_principal']!.text) +
                         parseMoeda(c['pg_juros']!.text)),
                     'residual': (parseMoeda(c['valor']!.text) +
@@ -438,24 +438,24 @@ class _ParcelasPageState extends State<ParcelasPage> {
                   });
                 }
 
+                // 🔹 Atualiza cada parcela no Supabase mantendo o mesmo id
                 await Future.wait(parcelasAtualizadas.map((p) async {
-                  if (p['id'] != null) {
-                    final id = p['id'];
-                    final dadosAtualizados = Map<String, dynamic>.from(p)..remove('id');
-                    await Supabase.instance.client
-                        .from('parcelas')
-                        .update(dadosAtualizados)
-                        .eq('id', id); // 🔹 update sem RETURNING
-                  } else {
-                    await Supabase.instance.client.from('parcelas').insert(p);
-                  }
+                  final id = p['id'];
+                  if (id == null) return;
+
+                  // remove id para não tentar atualizar a PK
+                  final dadosAtualizados = Map<String, dynamic>.from(p)..remove('id');
+
+                  await Supabase.instance.client
+                      .from('parcelas')
+                      .update(dadosAtualizados)
+                      .eq('id', id);
                 }));
 
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("Parcelas salvas com sucesso!")),
-                  );
-                }
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text("Parcelas salvas com sucesso!")),
+                );
               },
               icon: const Icon(Icons.save),
               label: const Text("Salvar Parcelas"),
