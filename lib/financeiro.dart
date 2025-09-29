@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'parcelas.dart';
+import 'emprestimo_form.dart';
 import 'utils.dart'; // 🔹 função fmtMoeda
 
 class FinanceiroPage extends StatelessWidget {
@@ -30,9 +31,44 @@ class FinanceiroPage extends StatelessWidget {
             ),
             const SizedBox(height: 12),
 
+            // 🔹 Botão Novo Empréstimo
+            ElevatedButton.icon(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => EmprestimoForm(
+                      idCliente: cliente['id_cliente'],
+                      idUsuario: Supabase.instance.client.auth.currentUser!.id,
+                      onSaved: () {
+                        // recarrega ao voltar
+                        Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => FinanceiroPage(cliente: cliente),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.add),
+              label: const Text("Novo Empréstimo"),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+            ),
+
+            const SizedBox(height: 12),
+
             // 🔹 Lista de empréstimos do cliente
             Expanded(
               child: FutureBuilder<List<Map<String, dynamic>>>(
+
                 future: Supabase.instance.client
                     .from('emprestimos')
                     .select()

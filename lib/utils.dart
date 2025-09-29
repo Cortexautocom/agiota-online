@@ -11,3 +11,14 @@ String fmtMoeda(dynamic valor) {
   if (numero == null) return txt;
   return _formatter.format(numero);
 }
+
+/// 🔹 Converte texto formatado (R$ 1.234,56) para número double
+double parseMoeda(String? txt) {
+  if (txt == null || txt.isEmpty) return 0.0;
+  final cleaned = txt
+      .replaceAll("R\$", "")
+      .replaceAll(".", "")
+      .replaceAll(",", ".")
+      .trim();
+  return double.tryParse(cleaned) ?? 0.0;
+}
