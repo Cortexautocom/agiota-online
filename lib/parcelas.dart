@@ -41,6 +41,21 @@ class _ParcelasPageState extends State<ParcelasPage> {
     final parcelas =
         (response as List).map((e) => e as Map<String, dynamic>).toList();
 
+    // 🔹 Calcula valor da parcela a partir do empréstimo
+    final capital = num.tryParse("${widget.emprestimo["capital"]}") ?? 0;
+    final juros = num.tryParse("${widget.emprestimo["juros"]}") ?? 0;
+    final qtdParcelas = num.tryParse("${widget.emprestimo["meses"]}") ?? 1;
+
+    final valorParcela = (capital + juros) / qtdParcelas;
+
+    // 🔹 Ajusta campos das parcelas
+    for (final p in parcelas) {
+      p['valor'] = valorParcela;
+      p['pg_principal'] ??= valorParcela - juros;
+      p['pg_juros'] ??= juros / qtdParcelas;
+    }
+
+    // 🔹 Preenche os controladores
     _controllers.clear();
     for (final p in parcelas) {
       _controllers.add({
@@ -133,8 +148,12 @@ class _ParcelasPageState extends State<ParcelasPage> {
     });
   }
 
+
+
   @override
   Widget build(BuildContext context) {
+    final valor = num.tryParse("${widget.emprestimo["valor"]}") ?? 0;
+    final parcelas = widget.emprestimo["parcelas"]?.toString() ?? "0";
     final cliente = widget.emprestimo["cliente"] ?? "";
     final numero = widget.emprestimo["numero"] ?? "";
     final dataInicio = widget.emprestimo["data_inicio"] ?? "";
@@ -156,7 +175,9 @@ class _ParcelasPageState extends State<ParcelasPage> {
             // 🔹 Resumo no padrão da tela Financeiro
             Text(
               "Nº $numero  |  Data do empréstimo: $dataInicio\n"
-              "Montante: ${fmtMoeda(capital)} | $meses parcelas de ${fmtMoeda(prestacao)}",
+              "Capital: ${fmtMoeda(valor)} | Juros: ${fmtMoeda(juros)} | "
+              "Montante: ${fmtMoeda(valor + juros)} | "
+              "$parcelas parcelas de ${fmtMoeda(prestacao)}",
               style: const TextStyle(color: Colors.black87, fontSize: 14),
             ),
             const SizedBox(height: 12),
@@ -280,7 +301,29 @@ class _ParcelasPageState extends State<ParcelasPage> {
                                 decoration: const InputDecoration(border: InputBorder.none),
                               ),
                             )),
-                            const DataCell(Text("")),
+                            DataCell(
+                              IconButton(
+                                icon: const Icon(Icons.calculate, size: 20, color: Colors.blue),
+                                onPressed: () {
+                                  final valor = parseMoeda(c['valor']!.text);
+                                  final juros = parseMoeda(c['juros']!.text);
+                                  final desconto = parseMoeda(c['desconto']!.text);
+
+                                  final pgPrincipal = valor - juros - desconto;
+                                  final pgJuros = juros;
+                                  final saldo = valor - (pgPrincipal + pgJuros);
+
+                                  // 🔹 Atualiza os controladores da linha
+                                  c['pg_principal']!.text = fmtMoeda(pgPrincipal);
+                                  c['pg_juros']!.text = fmtMoeda(pgJuros);
+
+                                  // saldo não tem campo editável, mas podemos atualizar a célula diretamente
+                                  p['saldo'] = saldo;
+
+                                  setState(() {}); // força a tabela e totalizadores a se atualizarem
+                                },
+                              ),
+                            ),
                             DataCell(Focus(
                               onFocusChange: (hasFocus) {
                                 if (!hasFocus) {

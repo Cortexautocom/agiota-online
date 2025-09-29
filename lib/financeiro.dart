@@ -108,11 +108,10 @@ class FinanceiroPage extends StatelessWidget {
                                 const SizedBox(height: 6),
                                 // 🔹 Linha 2: montante e parcelas
                                 Text(
-                                  "Montante: ${fmtMoeda(emp['valor'])}  |  ${emp['parcelas']} parcelas de ${fmtMoeda(emp['prestacao'])}",
-                                  style: const TextStyle(
-                                    fontSize: 13,
-                                    color: Colors.black54,
-                                  ),
+                                  "Capital: ${fmtMoeda(emp['valor'])} | Juros: ${fmtMoeda(emp['juros'])} | "
+                                  "Montante: ${fmtMoeda((num.tryParse("${emp['valor']}") ?? 0) + (num.tryParse("${emp['juros']}") ?? 0))} | "
+                                  "${emp['parcelas']} parcelas de ${fmtMoeda(emp['prestacao'])}",
+                                  style: const TextStyle(fontSize: 13, color: Colors.black54),
                                 ),
                               ],
                             ),
