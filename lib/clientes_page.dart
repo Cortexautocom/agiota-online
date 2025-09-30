@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'financeiro.dart';
 
+
 class ClientesPage extends StatefulWidget {
   const ClientesPage({super.key});
 

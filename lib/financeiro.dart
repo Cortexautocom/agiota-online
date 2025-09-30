@@ -65,10 +65,9 @@ class FinanceiroPage extends StatelessWidget {
 
             const SizedBox(height: 12),
 
-            // 🔹 Lista de empréstimos do cliente
+            // 🔹 Lista de empréstimos do cliente em formato tabela
             Expanded(
               child: FutureBuilder<List<Map<String, dynamic>>>(
-
                 future: Supabase.instance.client
                     .from('emprestimos')
                     .select()
@@ -102,59 +101,82 @@ class FinanceiroPage extends StatelessWidget {
                     );
                   }
 
-                  return ListView.separated(
-                    itemCount: emprestimos.length,
-                    separatorBuilder: (context, index) =>
-                        const Divider(color: Colors.black26),
-                    itemBuilder: (context, index) {
-                      final emp = emprestimos[index];
-                      return Card(
-                        margin: const EdgeInsets.symmetric(
-                            vertical: 6, horizontal: 4),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        color: Colors.white,
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(12),
-                          onTap: () {
-                            emp['cliente'] = cliente['nome'];
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) =>
-                                    ParcelasPage(emprestimo: emp),
-                              ),
-                            );
-                          },
-                          child: Padding(
-                            padding: const EdgeInsets.all(12.0),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                // 🔹 Linha 1: número e data
-                                Text(
-                                  "Nº ${emp['numero']}  |  Data do empréstimo: ${emp['data_inicio'] ?? ''}",
-                                  style: const TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.black87,
-                                  ),
-                                ),
-                                const SizedBox(height: 6),
-                                // 🔹 Linha 2: montante e parcelas
-                                Text(
-                                  "Capital: ${fmtMoeda(emp['valor'])} | Juros: ${fmtMoeda(emp['juros'])} | "
-                                  "Montante: ${fmtMoeda((num.tryParse("${emp['valor']}") ?? 0) + (num.tryParse("${emp['juros']}") ?? 0))} | "
-                                  "${emp['parcelas']} parcelas de ${fmtMoeda(emp['prestacao'])}",
-                                  style: const TextStyle(fontSize: 13, color: Colors.black54),
-                                ),
+                  return SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: SizedBox(
+                      width: MediaQuery.of(context).size.width,
+                      child: DataTable(
+                        headingRowColor: MaterialStateProperty.all(Colors.grey[300]),
+                        headingTextStyle: const TextStyle(
+                            color: Colors.black, fontWeight: FontWeight.bold),
+                        dataTextStyle: const TextStyle(color: Colors.black87, fontSize: 13),
+                        columns: const [
+                          DataColumn(label: SizedBox(width: 160, child: Text("Cliente"))),
+                          DataColumn(label: SizedBox(width: 100, child: Text("Nº Empr."))),
+                          DataColumn(label: SizedBox(width: 100, child: Text("Data Início"))),
+                          DataColumn(label: SizedBox(width: 110, child: Text("Capital"))),
+                          DataColumn(label: SizedBox(width: 110, child: Text("Juros"))),
+                          DataColumn(label: SizedBox(width: 110, child: Text("Montante"))),
+                          DataColumn(label: SizedBox(width: 120, child: Text("Prestação"))),
+                        ],
+                        rows: [
+                          ...emprestimos.map((emp) {
+                            return DataRow(
+                              cells: [
+                                DataCell(SizedBox(
+                                  width: 160,
+                                  child: Text(cliente['nome'],
+                                      style: const TextStyle(fontSize: 13)),
+                                )),
+                                DataCell(SizedBox(
+                                  width: 100,
+                                  child: Text("${emp['numero'] ?? ''}",
+                                      style: const TextStyle(fontSize: 13)),
+                                )),
+                                DataCell(SizedBox(
+                                  width: 100,
+                                  child: Text(emp['data_inicio'] ?? '',
+                                      style: const TextStyle(fontSize: 13)),
+                                )),
+                                DataCell(SizedBox(
+                                  width: 110,
+                                  child: Text(fmtMoeda(emp['valor']),
+                                      style: const TextStyle(fontSize: 13)),
+                                )),
+                                DataCell(SizedBox(
+                                  width: 110,
+                                  child: Text(fmtMoeda(emp['juros']),
+                                      style: const TextStyle(fontSize: 13)),
+                                )),
+                                DataCell(SizedBox(
+                                  width: 110,
+                                  child: Text(
+                                      fmtMoeda((num.tryParse("${emp['valor']}") ?? 0) +
+                                          (num.tryParse("${emp['juros']}") ?? 0)),
+                                      style: const TextStyle(fontSize: 13)),
+                                )),
+                                DataCell(SizedBox(
+                                  width: 120,
+                                  child: Text(
+                                      "${emp['parcelas']} x ${fmtMoeda(emp['prestacao'])}",
+                                      style: const TextStyle(fontSize: 13)),
+                                )),
                               ],
-                            ),
-                          ),
-                        ),
-                      );
-                    },
+                              onSelectChanged: (_) {
+                                emp['cliente'] = cliente['nome'];
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) =>
+                                        ParcelasPage(emprestimo: emp),
+                                  ),
+                                );
+                              },
+                            );
+                          }),
+                        ],
+                      ),
+                    ),
                   );
                 },
               ),
@@ -174,10 +196,8 @@ class FinanceiroPage extends StatelessWidget {
               label: const Text("Garantias"),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.blue,
-                padding:
-                    const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
-                textStyle:
-                    const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+                textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
             ),
             const SizedBox(height: 12),
@@ -192,10 +212,8 @@ class FinanceiroPage extends StatelessWidget {
               label: const Text("Arquivados"),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.orange,
-                padding:
-                    const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
-                textStyle:
-                    const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+                textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
             ),
           ],
