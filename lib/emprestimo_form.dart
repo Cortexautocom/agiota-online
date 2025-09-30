@@ -3,7 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'utils.dart'; // seu formatador de moeda
 import 'package:uuid/uuid.dart';
 import 'dart:math';
-import 'parcelas.dart';
+import 'parcelas_page.dart';
 
 class EmprestimoForm extends StatefulWidget {
   final String idCliente;   // vem do cliente selecionado

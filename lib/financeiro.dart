@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'parcelas.dart';
+import 'parcelas_page.dart';
 import 'emprestimo_form.dart';
 import 'utils.dart'; // 🔹 função fmtMoeda
 
