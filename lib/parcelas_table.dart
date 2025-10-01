@@ -55,6 +55,7 @@ class ParcelasTableState extends State<ParcelasTable> {
         final p = widget.parcelas[i];
         final c = _controllers[i];
 
+        // Extração e cálculo de valores
         final valor = service.parseMoeda(c['valor']!.text);
         final juros = service.parseMoeda(c['juros']!.text);
         final desconto = service.parseMoeda(c['desconto']!.text);
@@ -64,7 +65,12 @@ class ParcelasTableState extends State<ParcelasTable> {
         final residual = valor + juros - desconto - valorPago;
         final dataPag = c['data_pagamento']!.text.trim();
 
+        // CÁLCULO DO VALOR TOTAL ORIGINAL PARA NOVA VALIDAÇÃO
+        final valorTotalOriginal = valor + juros - desconto;
+
         // 🔹 Validações
+
+        // ITEM 1: Parcela Residual ZERO, mas SEM Data de Pagamento
         if (residual == 0 && dataPag.isEmpty) {
           if (!mounted) return false;
           await showDialog(
@@ -85,7 +91,10 @@ class ParcelasTableState extends State<ParcelasTable> {
           return false;
         }
 
-        if (dataPag.isNotEmpty && residual > 0) {
+        // ITEM 2 (Lógica CORRIGIDA): Pagamento Parcial Inválido
+        // O residual deve ser EXATAMENTE 0 (paga) OU EXATAMENTE o valor total original (não paga).
+        // Se for diferente dos dois, é um pagamento parcial inválido.
+        if (residual != 0 && residual != valorTotalOriginal) {
           if (!mounted) return false;
           await showDialog(
             context: context,
@@ -106,6 +115,7 @@ class ParcelasTableState extends State<ParcelasTable> {
           return false;
         }
 
+        // ITEM 3: Data Lançada, mas SEM Valor Pago
         if (dataPag.isNotEmpty && valorPago == 0) {
           if (!mounted) return false;
           await showDialog(
