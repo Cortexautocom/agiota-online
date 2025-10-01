@@ -55,25 +55,91 @@ class ParcelasTableState extends State<ParcelasTable> {
         final p = widget.parcelas[i];
         final c = _controllers[i];
 
+        final valor = service.parseMoeda(c['valor']!.text);
+        final juros = service.parseMoeda(c['juros']!.text);
+        final desconto = service.parseMoeda(c['desconto']!.text);
+        final pgPrincipal = service.parseMoeda(c['pg_principal']!.text);
+        final pgJuros = service.parseMoeda(c['pg_juros']!.text);
+        final valorPago = pgPrincipal + pgJuros;
+        final residual = valor + juros - desconto - valorPago;
+        final dataPag = c['data_pagamento']!.text.trim();
+
+        // 🔹 Validações
+        if (residual == 0 && dataPag.isEmpty) {
+          if (!mounted) return false;
+          await showDialog(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              content: const Text(
+                "Inclua a data do pagamento antes de sair da página.",
+                textAlign: TextAlign.center,
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text("OK"),
+                ),
+              ],
+            ),
+          );
+          return false;
+        }
+
+        if (dataPag.isNotEmpty && residual > 0) {
+          if (!mounted) return false;
+          await showDialog(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              content: const Text(
+                "Não é possível salvar com parcelas pagas parcialmente.\n\n"
+                "Faça os devidos ajustes antes de sair da página.",
+                textAlign: TextAlign.center,
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text("OK"),
+                ),
+              ],
+            ),
+          );
+          return false;
+        }
+
+        if (dataPag.isNotEmpty && valorPago == 0) {
+          if (!mounted) return false;
+          await showDialog(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              content: const Text(
+                "Existem parcelas com data lançada, mas sem o pagamento inserido.",
+                textAlign: TextAlign.center,
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text("OK"),
+                ),
+              ],
+            ),
+          );
+          return false;
+        }
+
         parcelasAtualizadas.add({
           'id': p['id'],
           'id_emprestimo':
               widget.emprestimo['id'] ?? widget.emprestimo['id_emprestimo'],
           'numero': p['numero'],
           'vencimento': c['vencimento']!.text,
-          'valor': service.parseMoeda(c['valor']!.text),
-          'juros': service.parseMoeda(c['juros']!.text),
-          'desconto': service.parseMoeda(c['desconto']!.text),
-          'pg_principal': service.parseMoeda(c['pg_principal']!.text),
-          'pg_juros': service.parseMoeda(c['pg_juros']!.text),
-          'valor_pago': (service.parseMoeda(c['pg_principal']!.text) +
-              service.parseMoeda(c['pg_juros']!.text)),
-          'residual': (service.parseMoeda(c['valor']!.text) +
-              service.parseMoeda(c['juros']!.text) -
-              service.parseMoeda(c['desconto']!.text) -
-              (service.parseMoeda(c['pg_principal']!.text) +
-                  service.parseMoeda(c['pg_juros']!.text))),
-          'data_pagamento': c['data_pagamento']!.text,
+          'valor': valor,
+          'juros': juros,
+          'desconto': desconto,
+          'pg_principal': pgPrincipal,
+          'pg_juros': pgJuros,
+          'valor_pago': valorPago,
+          'residual': residual,
+          'data_pagamento': dataPag,
           'id_usuario': widget.emprestimo['id_usuario'],
         });
       }
@@ -87,6 +153,22 @@ class ParcelasTableState extends State<ParcelasTable> {
       return true;
     } catch (e) {
       debugPrint("Erro ao salvar parcelas: $e");
+      if (!mounted) return false;
+      await showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          content: Text(
+            "Erro ao salvar parcelas: $e",
+            textAlign: TextAlign.center,
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text("OK"),
+            ),
+          ],
+        ),
+      );
       return false;
     }
   }
@@ -151,8 +233,8 @@ class ParcelasTableState extends State<ParcelasTable> {
                 DataCell(Focus(
                   onFocusChange: (hasFocus) {
                     if (!hasFocus) {
-                      c['valor']!.text = service.fmtMoeda(
-                          service.parseMoeda(c['valor']!.text));
+                      c['valor']!.text =
+                          service.fmtMoeda(service.parseMoeda(c['valor']!.text));
                       setState(() {});
                     }
                   },
@@ -166,8 +248,8 @@ class ParcelasTableState extends State<ParcelasTable> {
                 DataCell(Focus(
                   onFocusChange: (hasFocus) {
                     if (!hasFocus) {
-                      c['juros']!.text = service.fmtMoeda(
-                          service.parseMoeda(c['juros']!.text));
+                      c['juros']!.text =
+                          service.fmtMoeda(service.parseMoeda(c['juros']!.text));
                       setState(() {});
                     }
                   },
@@ -283,23 +365,23 @@ class ParcelasTableState extends State<ParcelasTable> {
               const DataCell(Text("")),
               const DataCell(Text("TOTAL",
                   style:
-                      TextStyle(fontSize: 15, fontWeight: FontWeight.bold))),
+                      TextStyle(fontSize: 14, fontWeight: FontWeight.bold))),
               DataCell(Text(service.fmtMoeda(totalValor),
                   style: const TextStyle(
-                      fontSize: 15, fontWeight: FontWeight.bold))),
+                      fontSize: 14, fontWeight: FontWeight.bold))),
               DataCell(Text(service.fmtMoeda(totalJuros),
                   style: const TextStyle(
-                      fontSize: 15, fontWeight: FontWeight.bold))),
+                      fontSize: 14, fontWeight: FontWeight.bold))),
               DataCell(Text(service.fmtMoeda(totalDesconto),
                   style: const TextStyle(
-                      fontSize: 15, fontWeight: FontWeight.bold))),
+                      fontSize: 14, fontWeight: FontWeight.bold))),
               const DataCell(Text("")),
               DataCell(Text(service.fmtMoeda(totalPgPrincipal),
                   style: const TextStyle(
-                      fontSize: 15, fontWeight: FontWeight.bold))),
+                      fontSize: 14, fontWeight: FontWeight.bold))),
               DataCell(Text(service.fmtMoeda(totalPgJuros),
                   style: const TextStyle(
-                      fontSize: 15, fontWeight: FontWeight.bold))),
+                      fontSize: 14, fontWeight: FontWeight.bold))),
               const DataCell(Text("")),
               const DataCell(Text("")),
               const DataCell(Text("")),

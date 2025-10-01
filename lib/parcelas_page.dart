@@ -66,16 +66,20 @@ class _ParcelasPageState extends State<ParcelasPage> {
                   }
                   if (snapshot.hasError) {
                     return Center(
-                      child: Text("Erro: ${snapshot.error}",
-                          style: const TextStyle(color: Colors.red)),
+                      child: Text(
+                        "Erro: ${snapshot.error}",
+                        style: const TextStyle(color: Colors.red),
+                      ),
                     );
                   }
 
                   final parcelas = snapshot.data ?? [];
                   if (parcelas.isEmpty) {
                     return const Center(
-                      child: Text("Nenhuma parcela encontrada.",
-                          style: TextStyle(color: Colors.black87)),
+                      child: Text(
+                        "Nenhuma parcela encontrada.",
+                        style: TextStyle(color: Colors.black87),
+                      ),
                     );
                   }
 
@@ -90,19 +94,74 @@ class _ParcelasPageState extends State<ParcelasPage> {
 
             const SizedBox(height: 12),
 
-            // 🔹 Botão salvar
-            ElevatedButton.icon(
-              onPressed: () async {
-                final ok = await _tableKey.currentState?.salvarParcelas();
-                if (ok == true && mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("Parcelas salvas com sucesso!")),
-                  );
-                }
-              },
-              icon: const Icon(Icons.save),
-              label: const Text("Salvar Parcelas"),
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+            // 🔹 Botões inferior direito
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                // Botão Arquivar
+                ElevatedButton.icon(
+                  onPressed: () async {
+                    if (!mounted) return;
+                    await showDialog(
+                      context: context,
+                      builder: (ctx) => AlertDialog(
+                        content: const Text(
+                          "Função de arquivar ainda não implementada.",
+                          textAlign: TextAlign.center,
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(ctx),
+                            child: const Text("OK"),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.archive),
+                  label: const Text("Arquivar Empréstimo"),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.grey.shade300,
+                    foregroundColor: Colors.black87,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                // Botão Salvar
+                ElevatedButton.icon(
+                  onPressed: () async {
+                    final ok = await _tableKey.currentState?.salvarParcelas();
+
+                    if (ok == null) return; // nada retornado
+
+                    if (ok == false && mounted) {
+                      // mensagens já são exibidas dentro de salvarParcelas()
+                      return;
+                    }
+
+                    if (ok == true && mounted) {
+                      await showDialog(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          content: const Text(
+                            "Parcelas salvas com sucesso",
+                            textAlign: TextAlign.center,
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(ctx),
+                              child: const Text("OK"),
+                            ),
+                          ],
+                        ),
+                      );
+                      Navigator.pop(context); // volta p/ financeiro
+                    }
+                  },
+                  icon: const Icon(Icons.save),
+                  label: const Text("Salvar Parcelas"),
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+                ),
+              ],
             ),
           ],
         ),

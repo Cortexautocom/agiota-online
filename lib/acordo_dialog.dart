@@ -1,14 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'parcelas_service.dart'; // 👈 importamos para usar a máscara
 
 /// 🔹 Abre o diálogo de acordo (adiamento da parcela)
-Future<void> abrirAcordoDialog(BuildContext context, Map<String, dynamic> parcela) async {
-  final comentarioCtrl = TextEditingController(text: parcela["comentario"] ?? "");
-  DateTime? dataPrevista = parcela["data_prevista"] != null &&
-          parcela["data_prevista"].toString().isNotEmpty
-      ? DateFormat("dd/MM/yyyy").parse(parcela["data_prevista"])
-      : null;
+Future<void> abrirAcordoDialog(
+    BuildContext context, Map<String, dynamic> parcela) async {
+  final service = ParcelasService();
+
+  final comentarioCtrl =
+      TextEditingController(text: parcela["comentario"] ?? "");
+  final dataCtrl = TextEditingController(text: parcela["data_prevista"] ?? "");
 
   await showDialog(
     context: context,
@@ -17,29 +19,46 @@ Future<void> abrirAcordoDialog(BuildContext context, Map<String, dynamic> parcel
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          // 🔹 Comentário com 3 linhas e limite de 100 caracteres
           TextField(
             controller: comentarioCtrl,
             maxLength: 100,
-            decoration: const InputDecoration(labelText: "Comentário"),
+            maxLines: 3,
+            decoration: const InputDecoration(
+              labelText: "Comentário",
+              border: OutlineInputBorder(),
+            ),
           ),
           const SizedBox(height: 12),
-          TextButton(
-            onPressed: () async {
+
+          // 🔹 Campo de data com máscara e seletor de calendário
+          TextField(
+            controller: dataCtrl,
+            readOnly: true,
+            inputFormatters: [service.dateMaskFormatter()],
+            decoration: const InputDecoration(
+              labelText: "Data prevista",
+              border: OutlineInputBorder(),
+              hintText: "dd/mm/aaaa",
+            ),
+            onTap: () async {
+              DateTime initialDate;
+              try {
+                initialDate = DateFormat("dd/MM/yyyy").parse(dataCtrl.text);
+              } catch (_) {
+                initialDate = DateTime.now();
+              }
+
               final picked = await showDatePicker(
                 context: context,
-                initialDate: dataPrevista ?? DateTime.now(),
+                initialDate: initialDate,
                 firstDate: DateTime(2000),
                 lastDate: DateTime(2100),
               );
               if (picked != null) {
-                dataPrevista = picked;
+                dataCtrl.text = DateFormat("dd/MM/yyyy").format(picked);
               }
             },
-            child: Text(
-              dataPrevista == null
-                  ? "Selecionar data prevista"
-                  : DateFormat("dd/MM/yyyy").format(dataPrevista!),
-            ),
           ),
         ],
       ),
@@ -56,10 +75,25 @@ Future<void> abrirAcordoDialog(BuildContext context, Map<String, dynamic> parcel
                   .from("parcelas")
                   .update({"data_prevista": null, "comentario": null})
                   .eq("id", parcela["id"]);
+
               if (!context.mounted) return;
               Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text("Acordo excluído!")),
+
+              // 🔹 Mensagem no centro da tela
+              await showDialog(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  content: const Text(
+                    "Acordo excluído!",
+                    textAlign: TextAlign.center,
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      child: const Text("OK"),
+                    ),
+                  ],
+                ),
               );
             },
             child: const Text("Excluir acordo",
@@ -67,23 +101,50 @@ Future<void> abrirAcordoDialog(BuildContext context, Map<String, dynamic> parcel
           ),
         ElevatedButton(
           onPressed: () async {
-            if (dataPrevista == null) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text("Escolha uma data prevista.")),
+            if (dataCtrl.text.isEmpty) {
+              await showDialog(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  content: const Text(
+                    "Escolha uma data prevista.",
+                    textAlign: TextAlign.center,
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      child: const Text("OK"),
+                    ),
+                  ],
+                ),
               );
               return;
             }
+
             await Supabase.instance.client
                 .from("parcelas")
                 .update({
-                  "data_prevista": DateFormat("dd/MM/yyyy").format(dataPrevista!),
+                  "data_prevista": dataCtrl.text,
                   "comentario": comentarioCtrl.text,
                 })
                 .eq("id", parcela["id"]);
+
             if (!context.mounted) return;
             Navigator.pop(context);
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text("Acordo salvo com sucesso!")),
+
+            await showDialog(
+              context: context,
+              builder: (ctx) => AlertDialog(
+                content: const Text(
+                  "Acordo salvo com sucesso!",
+                  textAlign: TextAlign.center,
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    child: const Text("OK"),
+                  ),
+                ],
+              ),
             );
           },
           child: const Text("Salvar acordo"),

@@ -121,7 +121,7 @@ class _EditarClientePageState extends State<EditarClientePage> {
         builder: (_) => AlertDialog(
           title: const Text("Atenção"),
           content: const Text(
-            "Este cliente não pode ser excluído, pois ainda tem empréstimos com parcelas não quitadas",
+            "Este cliente não pode ser excluído, pois ainda possui empréstimos ativos",
           ),
           actions: [
             TextButton(
