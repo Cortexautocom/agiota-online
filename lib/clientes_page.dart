@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'financeiro.dart';
 
-
 class ClientesPage extends StatefulWidget {
   const ClientesPage({super.key});
 
@@ -64,8 +63,11 @@ class _ClientesPageState extends State<ClientesPage> {
                     color: Colors.white,
                     child: ListTile(
                       dense: true,
-                      leading: const Icon(Icons.person,
-                          size: 22, color: Colors.black87),
+                      leading: const Icon(
+                        Icons.person,
+                        size: 22,
+                        color: Colors.black87,
+                      ),
                       title: Text(
                         cliente['nome'] ?? 'Sem nome',
                         style: const TextStyle(color: Colors.black87),
@@ -84,15 +86,16 @@ class _ClientesPageState extends State<ClientesPage> {
                         );
                       },
                       trailing: IconButton(
-                        icon: const Icon(Icons.delete, color: Colors.red),
-                        onPressed: () async {
-                          await Supabase.instance.client
-                              .from('clientes')
-                              .delete()
-                              .eq('id_cliente', cliente['id_cliente']);
-                          setState(() {
-                            _clientesFuture = _buscarClientes();
-                          });
+                        icon: const Icon(Icons.edit, color: Colors.blue),
+                        tooltip: "Editar cliente",
+                        onPressed: () {
+                          // 🚧 futuramente vamos abrir a tela de edição do cliente
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content:
+                                  Text("Função de edição ainda não implementada"),
+                            ),
+                          );
                         },
                       ),
                     ),
@@ -125,7 +128,6 @@ class _ClientesPageState extends State<ClientesPage> {
     );
   }
 }
-
 
 // 🔹 mantém a função de criar novo cliente
 Future<Map<String, dynamic>?> open_client_form(BuildContext context) async {
