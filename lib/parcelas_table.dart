@@ -31,18 +31,13 @@ class ParcelasTableState extends State<ParcelasTable> {
     _controllers.clear();
     for (final p in widget.parcelas) {
       _controllers.add({
-        'vencimento':
-            TextEditingController(text: p['vencimento']?.toString() ?? ''),
+        'vencimento': TextEditingController(text: p['vencimento']?.toString() ?? ''),
         'valor': TextEditingController(text: service.fmtMoeda(p['valor'])),
         'juros': TextEditingController(text: service.fmtMoeda(p['juros'])),
-        'desconto':
-            TextEditingController(text: service.fmtMoeda(p['desconto'])),
-        'pg_principal':
-            TextEditingController(text: service.fmtMoeda(p['pg_principal'])),
-        'pg_juros':
-            TextEditingController(text: service.fmtMoeda(p['pg_juros'])),
-        'data_pagamento':
-            TextEditingController(text: p['data_pagamento']?.toString() ?? ''),
+        'desconto': TextEditingController(text: service.fmtMoeda(p['desconto'])),
+        'pg_principal': TextEditingController(text: service.fmtMoeda(p['pg_principal'])),
+        'pg_juros': TextEditingController(text: service.fmtMoeda(p['pg_juros'])),
+        'data_pagamento': TextEditingController(text: p['data_pagamento']?.toString() ?? ''),
       });
     }
   }
@@ -387,7 +382,7 @@ class ParcelasTableState extends State<ParcelasTable> {
                     style: TextStyle(fontSize: 13, color: textColor, fontWeight: fontWeight),
                   )),
                   DataCell(Text(
-                    service.fmtMoeda(residualAtual), // 👈 garante exibição "R$ 0,00"
+                    residualAtual == 0 ? "R\$ 0,00" : service.fmtMoeda(residualAtual),
                     style: TextStyle(fontSize: 13, color: textColor, fontWeight: fontWeight),
                   )),
                   DataCell(TextField(

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'parcelas_service.dart';
 import 'parcelas_table.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class ParcelasPage extends StatefulWidget {
   final Map<String, dynamic> emprestimo;
@@ -102,30 +103,86 @@ class _ParcelasPageState extends State<ParcelasPage> {
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 // Botão Arquivar
+                // Botão Arquivar
                 ElevatedButton.icon(
                   onPressed: () async {
-                    if (!mounted) return;
-                    await showDialog(
+                    final confirmar = await showDialog<bool>(
                       context: context,
                       builder: (ctx) => AlertDialog(
+                        title: const Text("Arquivar Empréstimo"),
                         content: const Text(
-                          "Função de arquivar ainda não implementada.",
-                          textAlign: TextAlign.center,
+                          "Tem certeza que deseja arquivar este empréstimo?\n\n"
+                          "O empréstimo será movido para a aba de arquivados.",
                         ),
                         actions: [
                           TextButton(
-                            onPressed: () => Navigator.pop(ctx),
-                            child: const Text("OK"),
+                            onPressed: () => Navigator.pop(ctx, false),
+                            child: const Text("Cancelar"),
+                          ),
+                          ElevatedButton(
+                            onPressed: () => Navigator.pop(ctx, true),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.orange,
+                              foregroundColor: Colors.white,
+                            ),
+                            child: const Text("Arquivar"),
                           ),
                         ],
                       ),
                     );
+
+                    if (confirmar == true) {
+                      try {
+                        await Supabase.instance.client
+                            .from('emprestimos')
+                            .update({'ativo': 'nao'})
+                            .eq('id', widget.emprestimo['id']);
+
+                        if (!mounted) return;
+
+                        await showDialog(
+                          context: context,
+                          builder: (ctx) => AlertDialog(
+                            content: const Text(
+                              "Empréstimo arquivado com sucesso!",
+                              textAlign: TextAlign.center,
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () {
+                                  Navigator.pop(ctx); // fecha o diálogo
+                                  Navigator.pop(context, true); // volta para financeiro
+                                },
+                                child: const Text("OK"),
+                              ),
+                            ],
+                          ),
+                        );
+                      } catch (e) {
+                        if (!mounted) return;
+                        await showDialog(
+                          context: context,
+                          builder: (ctx) => AlertDialog(
+                            content: Text(
+                              "Erro ao arquivar: $e",
+                              textAlign: TextAlign.center,
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(ctx),
+                                child: const Text("OK"),
+                              ),
+                            ],
+                          ),
+                        );
+                      }
+                    }
                   },
                   icon: const Icon(Icons.archive),
                   label: const Text("Arquivar Empréstimo"),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.grey.shade300,
-                    foregroundColor: Colors.black87,
+                    backgroundColor: Colors.orange,
+                    foregroundColor: Colors.white,
                   ),
                 ),
                 const SizedBox(width: 12),

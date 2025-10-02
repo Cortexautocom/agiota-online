@@ -4,6 +4,7 @@ import 'parcelas_page.dart';
 import 'emprestimo_form.dart';
 import 'utils.dart'; // 🔹 função fmtMoeda
 import 'package:intl/intl.dart';
+import 'garantias.dart';
 
 class FinanceiroPage extends StatefulWidget {
   final Map<String, dynamic> cliente;
@@ -104,30 +105,7 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
           ),
         ),
 
-        floatingActionButton: FloatingActionButton.extended(
-          onPressed: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => EmprestimoForm(
-                  idCliente: cliente['id_cliente'],
-                  idUsuario: Supabase.instance.client.auth.currentUser!.id,
-                  onSaved: () {
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => FinanceiroPage(cliente: cliente),
-                      ),
-                    );
-                  },
-                ),
-              ),
-            );
-          },
-          icon: const Icon(Icons.add),
-          label: const Text("Novo Empréstimo"),
-          backgroundColor: Colors.green,
-        ),
+        // ❌ REMOVIDO: floatingActionButton daqui (estava aparecendo em todas as abas)
 
         body: TabBarView(
           children: [
@@ -149,148 +127,177 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
                   const SizedBox(height: 12),
 
                   Expanded(
-                    child: FutureBuilder<List<Map<String, dynamic>>>(
-                      future: Supabase.instance.client
-                          .from('emprestimos')
-                          .select()
-                          .eq('id_cliente', cliente['id_cliente'])
-                          .eq('ativo', 'sim')
-                          .order('data_inicio'),
-                      builder: (context, snapshot) {
-                        if (snapshot.connectionState == ConnectionState.waiting) {
-                          return const Center(child: CircularProgressIndicator());
-                        }
-                        if (snapshot.hasError) {
-                          return Center(
-                            child: Text("Erro: ${snapshot.error}", style: const TextStyle(color: Colors.red)),
-                          );
-                        }
+                    child: Stack(
+                      children: [
+                        FutureBuilder<List<Map<String, dynamic>>>(
+                          future: Supabase.instance.client
+                              .from('emprestimos')
+                              .select()
+                              .eq('id_cliente', cliente['id_cliente'])
+                              .eq('ativo', 'sim')
+                              .order('data_inicio'),
+                          builder: (context, snapshot) {
+                            if (snapshot.connectionState == ConnectionState.waiting) {
+                              return const Center(child: CircularProgressIndicator());
+                            }
+                            if (snapshot.hasError) {
+                              return Center(
+                                child: Text("Erro: ${snapshot.error}", style: const TextStyle(color: Colors.red)),
+                              );
+                            }
 
-                        final emprestimos = (snapshot.data as List?)
-                                ?.map((e) => e as Map<String, dynamic>)
-                                .toList() ??
-                            [];
+                            final emprestimos = (snapshot.data as List?)
+                                    ?.map((e) => e as Map<String, dynamic>)
+                                    .toList() ??
+                                [];
 
-                        if (emprestimos.isEmpty) {
-                          return const Center(
-                            child: Text("Nenhum empréstimo encontrado.", style: TextStyle(color: Colors.black87)),
-                          );
-                        }
+                            if (emprestimos.isEmpty) {
+                              return const Center(
+                                child: Text("Nenhum empréstimo encontrado.", style: TextStyle(color: Colors.black87)),
+                              );
+                            }
 
-                        return SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          child: SingleChildScrollView(
-                            scrollDirection: Axis.vertical,
-                            child: DataTable(
-                              showCheckboxColumn: false,
-                              headingRowColor: MaterialStateProperty.all(Colors.grey[300]),
-                              headingTextStyle: const TextStyle(
-                                color: Colors.black,
-                                fontWeight: FontWeight.bold,
-                              ),
-                              dataTextStyle: const TextStyle(
-                                color: Colors.black87,
-                                fontSize: 13,
-                              ),
-                              columns: const [
-                                DataColumn(label: SizedBox(width: 160, child: Center(child: Text("Cliente")))),
-                                DataColumn(label: SizedBox(width: 100, child: Center(child: Text("Nº Empr.")))),
-                                DataColumn(label: SizedBox(width: 100, child: Center(child: Text("Data Início")))),
-                                DataColumn(label: SizedBox(width: 110, child: Center(child: Text("Último venc.")))),
-                                DataColumn(label: SizedBox(width: 110, child: Center(child: Text("Capital")))),
-                                DataColumn(label: SizedBox(width: 110, child: Center(child: Text("Juros")))),
-                                DataColumn(label: SizedBox(width: 110, child: Center(child: Text("Total")))),
-                                DataColumn(label: SizedBox(width: 120, child: Center(child: Text("Parcelas")))),
-                                DataColumn(label: SizedBox(width: 110, child: Center(child: Text("Próx. venc.")))),
-                                DataColumn(label: SizedBox(width: 160, child: Center(child: Text("Situação")))),
-                              ],
-                              rows: emprestimos.map((emp) {
-                                return DataRow(
-                                  onSelectChanged: (_) {
-                                    emp['cliente'] = cliente['nome'];
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) => ParcelasPage(emprestimo: emp),
-                                      ),
-                                    ).then((_) {
-                                      // 👇 força refresh SEMPRE que voltar da tela de parcelas,
-                                      // seja ao salvar, excluir acordo ou qualquer alteração
-                                      setState(() {});
-                                    });
-                                  },
-                                  cells: [
-                                    DataCell(SizedBox(width: 160, child: Center(child: Text(cliente['nome'], style: const TextStyle(fontSize: 13))))),
-                                    DataCell(SizedBox(width: 100, child: Center(child: Text("${emp['numero'] ?? ''}", style: const TextStyle(fontSize: 13))))),
-                                    DataCell(SizedBox(width: 100, child: Center(child: Text(emp['data_inicio'] ?? '', style: const TextStyle(fontSize: 13))))),
-                                    DataCell(FutureBuilder<Map<String, String>>(
-                                      future: _calcularDatas(emp['id']),
-                                      builder: (context, snap) {
-                                        if (!snap.hasData) return const Text("-");
-                                        return Center(child: Text(snap.data!['ultima'] ?? "-", style: const TextStyle(fontSize: 13)));
-                                      },
-                                    )),
-                                    DataCell(SizedBox(width: 110, child: Center(child: Text(fmtMoeda(emp['valor']), style: const TextStyle(fontSize: 13))))),
-                                    DataCell(SizedBox(width: 110, child: Center(child: Text(fmtMoeda(emp['juros']), style: const TextStyle(fontSize: 13))))),
-                                    DataCell(SizedBox(width: 110, child: Center(child: Text(fmtMoeda((num.tryParse("${emp['valor']}") ?? 0) + (num.tryParse("${emp['juros']}") ?? 0)), style: const TextStyle(fontSize: 13))))),
-                                    DataCell(SizedBox(width: 120, child: Center(child: Text("${emp['parcelas']} x ${fmtMoeda(emp['prestacao'])}", style: const TextStyle(fontSize: 13))))),
-                                    DataCell(FutureBuilder<Map<String, String>>(
-                                      future: _calcularDatas(emp['id']),
-                                      builder: (context, snap) {
-                                        if (!snap.hasData) return const Text("-");
-                                        final txt = snap.data!['proxima'] ?? "-";
-                                        DateTime? data;
-                                        if (txt != "-" && txt.isNotEmpty) {
-                                          data = DateFormat("dd/MM/yyyy").tryParse(txt);
-                                        }
-                                        final vencida = data != null && data.isBefore(DateTime.now());
-                                        final temAcordo = snap.data!['acordo'] == "sim";
-
-                                        return Center(
-                                          child: Row(
-                                            mainAxisAlignment: MainAxisAlignment.center,
-                                            children: [
-                                              Text(
-                                                txt,
-                                                style: TextStyle(
-                                                  fontSize: 13,
-                                                  color: temAcordo
-                                                      ? Colors.orange
-                                                      : (vencida ? Colors.red : Colors.black),
-                                                  fontWeight: temAcordo || vencida ? FontWeight.bold : FontWeight.normal,
-                                                ),
-                                              ),
-                                              if (temAcordo)
-                                                const Padding(
-                                                  padding: EdgeInsets.only(left: 4),
-                                                  child: Icon(Icons.warning, size: 16, color: Colors.orange),
-                                                ),
-                                            ],
-                                          ),
-                                        );
-                                      },
-                                    )),
-                                    DataCell(FutureBuilder<Map<String, String>>(
-                                      future: _calcularDatas(emp['id']),
-                                      builder: (context, snap) {
-                                        if (!snap.hasData) return const Text("-");
-                                        return Center(child: Text(snap.data!['situacao'] ?? "-", style: const TextStyle(fontSize: 13)));
-                                      },
-                                    )),
+                            return SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              child: SingleChildScrollView(
+                                scrollDirection: Axis.vertical,
+                                child: DataTable(
+                                  showCheckboxColumn: false,
+                                  headingRowColor: MaterialStateProperty.all(Colors.grey[300]),
+                                  headingTextStyle: const TextStyle(
+                                    color: Colors.black,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                  dataTextStyle: const TextStyle(
+                                    color: Colors.black87,
+                                    fontSize: 13,
+                                  ),
+                                  columns: const [
+                                    DataColumn(label: SizedBox(width: 160, child: Center(child: Text("Cliente")))),
+                                    DataColumn(label: SizedBox(width: 100, child: Center(child: Text("Nº Empr.")))),
+                                    DataColumn(label: SizedBox(width: 100, child: Center(child: Text("Data Início")))),
+                                    DataColumn(label: SizedBox(width: 110, child: Center(child: Text("Último venc.")))),
+                                    DataColumn(label: SizedBox(width: 110, child: Center(child: Text("Capital")))),
+                                    DataColumn(label: SizedBox(width: 110, child: Center(child: Text("Juros")))),
+                                    DataColumn(label: SizedBox(width: 110, child: Center(child: Text("Total")))),
+                                    DataColumn(label: SizedBox(width: 120, child: Center(child: Text("Parcelas")))),
+                                    DataColumn(label: SizedBox(width: 110, child: Center(child: Text("Próx. venc.")))),
+                                    DataColumn(label: SizedBox(width: 160, child: Center(child: Text("Situação")))),
                                   ],
-                                );
-                              }).toList(),
-                            ),
+                                  rows: emprestimos.map((emp) {
+                                    return DataRow(
+                                      onSelectChanged: (_) {
+                                        emp['cliente'] = cliente['nome'];
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (context) => ParcelasPage(emprestimo: emp),
+                                          ),
+                                        ).then((_) {
+                                          // 👇 força refresh SEMPRE que voltar da tela de parcelas,
+                                          // seja ao salvar, excluir acordo ou qualquer alteração
+                                          setState(() {});
+                                        });
+                                      },
+                                      cells: [
+                                        DataCell(SizedBox(width: 160, child: Center(child: Text(cliente['nome'], style: const TextStyle(fontSize: 13))))),
+                                        DataCell(SizedBox(width: 100, child: Center(child: Text("${emp['numero'] ?? ''}", style: const TextStyle(fontSize: 13))))),
+                                        DataCell(SizedBox(width: 100, child: Center(child: Text(emp['data_inicio'] ?? '', style: const TextStyle(fontSize: 13))))),
+                                        DataCell(FutureBuilder<Map<String, String>>(
+                                          future: _calcularDatas(emp['id']),
+                                          builder: (context, snap) {
+                                            if (!snap.hasData) return const Text("-");
+                                            return Center(child: Text(snap.data!['ultima'] ?? "-", style: const TextStyle(fontSize: 13)));
+                                          },
+                                        )),
+                                        DataCell(SizedBox(width: 110, child: Center(child: Text(fmtMoeda(emp['valor']), style: const TextStyle(fontSize: 13))))),
+                                        DataCell(SizedBox(width: 110, child: Center(child: Text(fmtMoeda(emp['juros']), style: const TextStyle(fontSize: 13))))),
+                                        DataCell(SizedBox(width: 110, child: Center(child: Text(fmtMoeda((num.tryParse("${emp['valor']}") ?? 0) + (num.tryParse("${emp['juros']}") ?? 0)), style: const TextStyle(fontSize: 13))))),
+                                        DataCell(SizedBox(width: 120, child: Center(child: Text("${emp['parcelas']} x ${fmtMoeda(emp['prestacao'])}", style: const TextStyle(fontSize: 13))))),
+                                        DataCell(FutureBuilder<Map<String, String>>(
+                                          future: _calcularDatas(emp['id']),
+                                          builder: (context, snap) {
+                                            if (!snap.hasData) return const Text("-");
+                                            final txt = snap.data!['proxima'] ?? "-";
+                                            DateTime? data;
+                                            if (txt != "-" && txt.isNotEmpty) {
+                                              data = DateFormat("dd/MM/yyyy").tryParse(txt);
+                                            }
+                                            final vencida = data != null && data.isBefore(DateTime.now());
+                                            final temAcordo = snap.data!['acordo'] == "sim";
+
+                                            return Center(
+                                              child: Row(
+                                                mainAxisAlignment: MainAxisAlignment.center,
+                                                children: [
+                                                  Text(
+                                                    txt,
+                                                    style: TextStyle(
+                                                      fontSize: 13,
+                                                      color: temAcordo
+                                                          ? Colors.orange
+                                                          : (vencida ? Colors.red : Colors.black),
+                                                      fontWeight: temAcordo || vencida ? FontWeight.bold : FontWeight.normal,
+                                                    ),
+                                                  ),
+                                                  if (temAcordo)
+                                                    const Padding(
+                                                      padding: EdgeInsets.only(left: 4),
+                                                      child: Icon(Icons.warning, size: 16, color: Colors.orange),
+                                                    ),
+                                                ],
+                                              ),
+                                            );
+                                          },
+                                        )),
+                                        DataCell(FutureBuilder<Map<String, String>>(
+                                          future: _calcularDatas(emp['id']),
+                                          builder: (context, snap) {
+                                            if (!snap.hasData) return const Text("-");
+                                            return Center(child: Text(snap.data!['situacao'] ?? "-", style: const TextStyle(fontSize: 13)));
+                                          },
+                                        )),
+                                      ],
+                                    );
+                                  }).toList(),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                        
+                        // ✅ BOTÃO APENAS NA ABA DE EMPRÉSTIMOS
+                        Positioned(
+                          bottom: 16,
+                          right: 16,
+                          child: FloatingActionButton.extended(
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => EmprestimoForm(
+                                    idCliente: cliente['id_cliente'],
+                                    idUsuario: Supabase.instance.client.auth.currentUser!.id,
+                                    onSaved: () {
+                                      setState(() {});
+                                    },
+                                  ),
+                                ),
+                              );
+                            },
+                            icon: const Icon(Icons.add),
+                            label: const Text("Novo Empréstimo"),
+                            backgroundColor: Colors.green,
                           ),
-                        );
-                      },
+                        ),
+                      ],
                     ),
                   ),
                 ],
               ),
             ),
 
-            const Center(child: Text("Garantias ainda não implementadas", style: TextStyle(fontSize: 16, color: Colors.black54))),
+            GarantiasPage(cliente: cliente),
             const Center(child: Text("Arquivados ainda não implementados", style: TextStyle(fontSize: 16, color: Colors.black54))),
           ],
         ),
