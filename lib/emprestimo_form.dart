@@ -189,14 +189,13 @@ class _EmprestimoFormState extends State<EmprestimoForm> {
 
     if (!mounted) return;
 
-    // 🔹 busca o empréstimo salvo para abrir a tela de parcelas
+    // 🔹 envia o empréstimo no mesmo formato esperado pela ParcelasPage
     final emprestimo = {
       "id": emprestimoId,
-      "id_cliente": widget.idCliente,   // aqui funciona porque EmprestimoForm TEM idCliente
-      "capital": capitalCtrl.text,
+      "id_cliente": widget.idCliente,
+      "valor": capitalCtrl.text,         // 👈 importante: usar "valor"
       "data_inicio": dataStr,
-      "meses": mesesCtrl.text,
-      "taxa": taxaCtrl.text.isNotEmpty ? "Taxa ${taxaCtrl.text}%" : "",
+      "parcelas": mesesCtrl.text,        // 👈 manter o mesmo nome do banco
       "juros": totalJuros.toString(),
       "prestacao": prestacao.toString(),
       "id_usuario": widget.idUsuario,
@@ -204,17 +203,16 @@ class _EmprestimoFormState extends State<EmprestimoForm> {
       "cliente": "", // opcional
     };
 
-    // primeiro fecha o form
+    // fecha o form
     Navigator.pop(context);
 
-    // em seguida abre a tela de parcelas
+    // abre a tela de parcelas com dados corretos
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => ParcelasPage(emprestimo: emprestimo),
       ),
     );
-
   }
 
   @override
@@ -224,7 +222,7 @@ class _EmprestimoFormState extends State<EmprestimoForm> {
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(
-            maxWidth: 420, // 🔹 largura fixa mínima
+            maxWidth: 420,
           ),
           child: Padding(
             padding: const EdgeInsets.all(16),

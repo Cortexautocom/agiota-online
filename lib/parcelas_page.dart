@@ -31,9 +31,11 @@ class _ParcelasPageState extends State<ParcelasPage> {
     final cliente = widget.emprestimo["cliente"] ?? "";
     final numero = widget.emprestimo["numero"] ?? "";
     final dataInicio = widget.emprestimo["data_inicio"] ?? "";
-    final valor = num.tryParse("${widget.emprestimo["valor"]}") ?? 0;
-    final juros = num.tryParse("${widget.emprestimo["juros"]}") ?? 0;
-    final prestacao = num.tryParse("${widget.emprestimo["prestacao"]}") ?? 0;
+
+    // 🔹 usa parseMoeda e fmtMoeda para garantir "R$ 0,00" se for zero ou vazio
+    final valor = service.parseMoeda("${widget.emprestimo["valor"] ?? "0"}");
+    final juros = service.parseMoeda("${widget.emprestimo["juros"] ?? "0"}");
+    final prestacao = service.parseMoeda("${widget.emprestimo["prestacao"] ?? "0"}");
     final parcelas = widget.emprestimo["parcelas"]?.toString() ?? "0";
 
     return Scaffold(
@@ -49,7 +51,8 @@ class _ParcelasPageState extends State<ParcelasPage> {
             // 🔹 Resumo
             Text(
               "Nº $numero  |  Data do empréstimo: $dataInicio\n"
-              "Capital: ${service.fmtMoeda(valor)} | Juros: ${service.fmtMoeda(juros)} | "
+              "Capital: ${service.fmtMoeda(valor)} | "
+              "Juros: ${service.fmtMoeda(juros)} | "
               "Montante: ${service.fmtMoeda(valor + juros)} | "
               "$parcelas parcelas de ${service.fmtMoeda(prestacao)}",
               style: const TextStyle(color: Colors.black87, fontSize: 14),
@@ -154,7 +157,7 @@ class _ParcelasPageState extends State<ParcelasPage> {
                           ],
                         ),
                       );
-                      Navigator.pop(context, true); // 👈 agora retorna true para atualizar financeiro
+                      Navigator.pop(context, true); // 👈 retorna true p/ atualizar financeiro
                     }
                   },
                   icon: const Icon(Icons.save),

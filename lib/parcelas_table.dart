@@ -56,7 +56,6 @@ class ParcelasTableState extends State<ParcelasTable> {
         final p = widget.parcelas[i];
         final c = _controllers[i];
 
-        // Extração e cálculo de valores
         final valor = service.parseMoeda(c['valor']!.text);
         final juros = service.parseMoeda(c['juros']!.text);
         final desconto = service.parseMoeda(c['desconto']!.text);
@@ -66,12 +65,8 @@ class ParcelasTableState extends State<ParcelasTable> {
         final residual = valor + juros - desconto - valorPago;
         final dataPag = c['data_pagamento']!.text.trim();
 
-        // CÁLCULO DO VALOR TOTAL ORIGINAL PARA NOVA VALIDAÇÃO
         final valorTotalOriginal = valor + juros - desconto;
 
-        // 🔹 Validações
-
-        // ITEM 1: Parcela Residual ZERO, mas SEM Data de Pagamento
         if (residual == 0 && dataPag.isEmpty) {
           if (!mounted) return false;
           await showDialog(
@@ -92,9 +87,6 @@ class ParcelasTableState extends State<ParcelasTable> {
           return false;
         }
 
-        // ITEM 2 (Lógica CORRIGIDA): Pagamento Parcial Inválido
-        // O residual deve ser EXATAMENTE 0 (paga) OU EXATAMENTE o valor total original (não paga).
-        // Se for diferente dos dois, é um pagamento parcial inválido.
         if (residual != 0 && residual != valorTotalOriginal) {
           if (!mounted) return false;
           await showDialog(
@@ -116,7 +108,6 @@ class ParcelasTableState extends State<ParcelasTable> {
           return false;
         }
 
-        // ITEM 3: Data Lançada, mas SEM Valor Pago
         if (dataPag.isNotEmpty && valorPago == 0) {
           if (!mounted) return false;
           await showDialog(
@@ -240,25 +231,42 @@ class ParcelasTableState extends State<ParcelasTable> {
               final hoje = DateTime.now();
               final temAcordo = p['data_prevista'] != null &&
                   p['data_prevista'].toString().isNotEmpty;
+
+              // 🔹 calcula residual atual
+              final residualAtual = service.parseMoeda(c['valor']!.text) +
+                  service.parseMoeda(c['juros']!.text) -
+                  service.parseMoeda(c['desconto']!.text) -
+                  (service.parseMoeda(c['pg_principal']!.text) +
+                      service.parseMoeda(c['pg_juros']!.text));
+
               final estaEmAtraso = vencimento != null &&
                   vencimento.isBefore(DateTime(hoje.year, hoje.month, hoje.day));
 
-              // 🔹 Acordo tem prioridade sobre atraso
-              final rowColor = temAcordo
-                  ? Colors.orange.withOpacity(0.2)
+              // 🔹 NOVA REGRA: Se residual == 0 → formatação verde (prioridade máxima)
+              final bool parcelaPaga = residualAtual == 0;
+
+              // 🔹 Define cores com prioridade: Paga > Acordo > Atraso > Normal
+              final rowColor = parcelaPaga
+                  ? Colors.green.withOpacity(0.2)
+                  : (temAcordo && residualAtual != 0)
+                      ? Colors.orange.withOpacity(0.2)
+                      : estaEmAtraso
+                          ? Colors.red.withOpacity(0.2)
+                          : null;
+
+              final textColor = parcelaPaga
+                  ? Colors.green[800]
+                  : (temAcordo && residualAtual != 0)
+                      ? Colors.brown
+                      : estaEmAtraso
+                          ? Colors.red
+                          : Colors.black87;
+
+              final fontWeight = parcelaPaga
+                  ? FontWeight.bold
                   : estaEmAtraso
-                      ? Colors.red.withOpacity(0.2)
-                      : null;
-
-              final textColor = temAcordo
-                  ? Colors.brown
-                  : estaEmAtraso
-                      ? Colors.red
-                      : Colors.black87;
-
-
-              final fontWeight =
-                  estaEmAtraso ? FontWeight.bold : FontWeight.normal;
+                      ? FontWeight.bold
+                      : FontWeight.normal;
 
               return DataRow(
                 color: rowColor != null ? MaterialStateProperty.all(rowColor) : null,
@@ -379,13 +387,7 @@ class ParcelasTableState extends State<ParcelasTable> {
                     style: TextStyle(fontSize: 13, color: textColor, fontWeight: fontWeight),
                   )),
                   DataCell(Text(
-                    service.fmtMoeda(
-                      service.parseMoeda(c['valor']!.text) +
-                          service.parseMoeda(c['juros']!.text) -
-                          service.parseMoeda(c['desconto']!.text) -
-                          (service.parseMoeda(c['pg_principal']!.text) +
-                              service.parseMoeda(c['pg_juros']!.text)),
-                    ),
+                    service.fmtMoeda(residualAtual), // 👈 garante exibição "R$ 0,00"
                     style: TextStyle(fontSize: 13, color: textColor, fontWeight: fontWeight),
                   )),
                   DataCell(TextField(
@@ -418,14 +420,18 @@ class ParcelasTableState extends State<ParcelasTable> {
                       final temAcordo = p['data_prevista'] != null &&
                           p['data_prevista'].toString().isNotEmpty;
 
-                      final podeFazerAcordo = vencimento != null && vencimento.isBefore(limite.add(const Duration(days: 1)));
+                      final podeFazerAcordo = vencimento != null && 
+                          vencimento.isBefore(limite.add(const Duration(days: 1)));
 
+                      // 🔹 ALTERAÇÃO: Mantém o ícone visível mesmo quando a parcela está paga
+                      // Apenas muda o comportamento do clique
                       if (temAcordo) {
-                        // 🔹 Ícone de alerta quando já existe acordo
                         return IconButton(
                           icon: const Icon(Icons.warning_amber_rounded,
                               color: Colors.orange, size: 22),
-                          tooltip: "Acordo ativo",
+                          tooltip: residualAtual == 0 
+                              ? "Acordo concluído (parcela paga)" 
+                              : "Acordo ativo",
                           onPressed: () async {
                             final resultado = await abrirAcordoDialog(context, p);
                             if (resultado == true && mounted) {
@@ -434,31 +440,37 @@ class ParcelasTableState extends State<ParcelasTable> {
                           },
                         );
                       } else if (!podeFazerAcordo) {
-                        // 🔹 Botão cinza e desabilitado
                         return IconButton(
                           icon: const Icon(Icons.handshake, color: Colors.grey, size: 22),
-                          tooltip: "Só é possível criar acordo até 7 dias antes do vencimento",
-                          onPressed: () async {
-                            await showDialog(
-                              context: context,
-                              builder: (ctx) => const AlertDialog(
-                                content: Text(
-                                  "Só é possível criar acordo para parcelas que estão vencendo nos próximos 7 dias.",
-                                  textAlign: TextAlign.center,
-                                ),
-                              ),
-                            );
-                          },
+                          tooltip: residualAtual == 0
+                              ? "Parcela paga"
+                              : "Só é possível criar acordo até 7 dias antes do vencimento",
+                          onPressed: residualAtual == 0
+                              ? null // Desabilita o clique se parcela paga
+                              : () async {
+                                  await showDialog(
+                                    context: context,
+                                    builder: (ctx) => const AlertDialog(
+                                      content: Text(
+                                        "Só é possível criar acordo para parcelas que estão vencendo nos próximos 7 dias.",
+                                        textAlign: TextAlign.center,
+                                      ),
+                                    ),
+                                  );
+                                },
                         );
                       } else {
-                        // 🔹 Botão normal 🤝
                         return IconButton(
-                          icon: const Icon(Icons.handshake, color: Colors.blue, size: 22),
-                          tooltip: "Fazer acordo",
+                          icon: Icon(Icons.handshake, 
+                              color: residualAtual == 0 ? Colors.green : Colors.blue, 
+                              size: 22),
+                          tooltip: residualAtual == 0
+                              ? "Parcela paga - Clique para ver histórico"
+                              : "Fazer acordo",
                           onPressed: () async {
                             final resultado = await abrirAcordoDialog(context, p);
                             if (resultado == true && mounted) {
-                              setState(() {}); // força atualização da formatação e ícone na hora
+                              setState(() {});
                             }
                           },
                         );
@@ -497,7 +509,5 @@ class ParcelasTableState extends State<ParcelasTable> {
         ),
       ),
     );
-
   }
-
 }

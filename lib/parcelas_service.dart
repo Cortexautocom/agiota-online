@@ -7,14 +7,15 @@ class ParcelasService {
 
   /// 🔹 Formata número para moeda brasileira
   String fmtMoeda(dynamic valor) {
-    if (valor == null) return "";
+    if (valor == null) return "R\$ 0,00"; // sempre mostra 0
     final txt = valor.toString().trim();
-    if (txt.isEmpty) return "";
+    if (txt.isEmpty) return "R\$ 0,00";
     if (txt.startsWith("R\$")) return txt;
     final numero = num.tryParse(txt.replaceAll(",", "."));
-    if (numero == null || numero == 0) return "";
+    if (numero == null) return "R\$ 0,00";
     return _formatter.format(numero);
   }
+
 
   /// 🔹 Converte texto de moeda para double
   double parseMoeda(String txt) {
