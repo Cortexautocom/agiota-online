@@ -4,7 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'parcelas_service.dart';
 
-Future<void> abrirAcordoDialog(
+Future<bool?> abrirAcordoDialog(
     BuildContext context, Map<String, dynamic> parcela) async {
   final service = ParcelasService();
 
@@ -26,7 +26,7 @@ Future<void> abrirAcordoDialog(
           ),
         ),
       );
-      return;
+      return false;
     }
   } catch (_) {
     // Se a data não for válida, não abre
@@ -39,7 +39,7 @@ Future<void> abrirAcordoDialog(
         ),
       ),
     );
-    return;
+    return false;
   }
 
   final comentarioCtrl =
@@ -249,7 +249,6 @@ Future<void> abrirAcordoDialog(
     ),
   );
 
-  if (resultado == true && context.mounted) {
-    (context as Element).markNeedsBuild();
-  }
+  // 🔹 Garante que sempre retorne algo
+  return resultado ?? false;
 }

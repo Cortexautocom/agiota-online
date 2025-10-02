@@ -426,7 +426,12 @@ class ParcelasTableState extends State<ParcelasTable> {
                           icon: const Icon(Icons.warning_amber_rounded,
                               color: Colors.orange, size: 22),
                           tooltip: "Acordo ativo",
-                          onPressed: () => abrirAcordoDialog(context, p),
+                          onPressed: () async {
+                            final resultado = await abrirAcordoDialog(context, p);
+                            if (resultado == true && mounted) {
+                              setState(() {});
+                            }
+                          },
                         );
                       } else if (!podeFazerAcordo) {
                         // 🔹 Botão cinza e desabilitado
@@ -450,7 +455,12 @@ class ParcelasTableState extends State<ParcelasTable> {
                         return IconButton(
                           icon: const Icon(Icons.handshake, color: Colors.blue, size: 22),
                           tooltip: "Fazer acordo",
-                          onPressed: () => abrirAcordoDialog(context, p),
+                          onPressed: () async {
+                            final resultado = await abrirAcordoDialog(context, p);
+                            if (resultado == true && mounted) {
+                              setState(() {}); // força atualização da formatação e ícone na hora
+                            }
+                          },
                         );
                       }
                     }),
