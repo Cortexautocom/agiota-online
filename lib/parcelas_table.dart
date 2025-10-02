@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'parcelas_service.dart';
 import 'acordo_dialog.dart';
+import 'package:intl/intl.dart';
 
 class ParcelasTable extends StatefulWidget {
   final Map<String, dynamic> emprestimo;
@@ -185,7 +186,6 @@ class ParcelasTableState extends State<ParcelasTable> {
 
   @override
   Widget build(BuildContext context) {
-    // 🔹 Totais
     double totalValor = 0;
     double totalJuros = 0;
     double totalDesconto = 0;
@@ -196,8 +196,7 @@ class ParcelasTableState extends State<ParcelasTable> {
       totalValor += service.parseMoeda(_controllers[i]['valor']!.text);
       totalJuros += service.parseMoeda(_controllers[i]['juros']!.text);
       totalDesconto += service.parseMoeda(_controllers[i]['desconto']!.text);
-      totalPgPrincipal +=
-          service.parseMoeda(_controllers[i]['pg_principal']!.text);
+      totalPgPrincipal += service.parseMoeda(_controllers[i]['pg_principal']!.text);
       totalPgJuros += service.parseMoeda(_controllers[i]['pg_juros']!.text);
     }
 
@@ -230,152 +229,239 @@ class ParcelasTableState extends State<ParcelasTable> {
               final p = widget.parcelas[i];
               final c = _controllers[i];
 
-              return DataRow(cells: [
-                DataCell(Text("${p['numero'] ?? ''}",
-                    style: const TextStyle(fontSize: 13))),
-                DataCell(TextField(
-                  controller: c['vencimento'],
-                  inputFormatters: [service.dateMaskFormatter()],
-                  style: const TextStyle(fontSize: 13),
-                  decoration: const InputDecoration(
-                      border: InputBorder.none, hintText: "dd/mm/aaaa"),
-                )),
-                DataCell(Focus(
-                  onFocusChange: (hasFocus) {
-                    if (!hasFocus) {
-                      c['valor']!.text =
-                          service.fmtMoeda(service.parseMoeda(c['valor']!.text));
-                      setState(() {});
-                    }
-                  },
-                  child: TextField(
-                    controller: c['valor'],
-                    keyboardType: TextInputType.number,
-                    style: const TextStyle(fontSize: 13),
-                    decoration: const InputDecoration(border: InputBorder.none),
-                  ),
-                )),
-                DataCell(Focus(
-                  onFocusChange: (hasFocus) {
-                    if (!hasFocus) {
-                      c['juros']!.text =
-                          service.fmtMoeda(service.parseMoeda(c['juros']!.text));
-                      setState(() {});
-                    }
-                  },
-                  child: TextField(
-                    controller: c['juros'],
-                    keyboardType: TextInputType.number,
-                    style: const TextStyle(fontSize: 13),
-                    decoration: const InputDecoration(border: InputBorder.none),
-                  ),
-                )),
-                DataCell(Focus(
-                  onFocusChange: (hasFocus) {
-                    if (!hasFocus) {
-                      c['desconto']!.text = service.fmtMoeda(
-                          service.parseMoeda(c['desconto']!.text));
-                      setState(() {});
-                    }
-                  },
-                  child: TextField(
-                    controller: c['desconto'],
-                    keyboardType: TextInputType.number,
-                    style: const TextStyle(fontSize: 13),
-                    decoration: const InputDecoration(border: InputBorder.none),
-                  ),
-                )),
-                DataCell(IconButton(
-                  icon: const Icon(Icons.calculate,
-                      size: 20, color: Colors.blue),
-                  onPressed: () {
-                    final capital =
-                        num.tryParse("${widget.emprestimo["valor"]}") ?? 0;
-                    final jurosSupabase =
-                        num.tryParse("${widget.emprestimo["juros"]}") ?? 0;
-                    final qtdParcelas =
-                        num.tryParse("${widget.emprestimo["parcelas"]}") ?? 1;
-                    final jurosDigitado =
-                        service.parseMoeda(c['juros']!.text);
-                    final desconto = service.parseMoeda(c['desconto']!.text);
+              final vencimentoTxt = p['vencimento']?.toString() ?? "";
+              DateTime? vencimento;
+              try {
+                vencimento = DateFormat("dd/MM/yyyy").parseStrict(vencimentoTxt);
+              } catch (_) {
+                vencimento = null;
+              }
 
-                    final pgPrincipal = capital / qtdParcelas;
-                    final pgJuros =
-                        jurosSupabase / qtdParcelas + jurosDigitado - desconto;
+              final hoje = DateTime.now();
+              final temAcordo = p['data_prevista'] != null &&
+                  p['data_prevista'].toString().isNotEmpty;
+              final estaEmAtraso = vencimento != null &&
+                  vencimento.isBefore(DateTime(hoje.year, hoje.month, hoje.day));
 
-                    c['pg_principal']!.text = service.fmtMoeda(pgPrincipal);
-                    c['pg_juros']!.text = service.fmtMoeda(pgJuros);
+              // 🔹 Acordo tem prioridade sobre atraso
+              final rowColor = temAcordo
+                  ? Colors.orange.withOpacity(0.2)
+                  : estaEmAtraso
+                      ? Colors.red.withOpacity(0.2)
+                      : null;
 
-                    setState(() {});
-                  },
-                )),
-                DataCell(Focus(
-                  onFocusChange: (hasFocus) {
-                    if (!hasFocus) {
-                      c['pg_principal']!.text = service.fmtMoeda(
-                          service.parseMoeda(c['pg_principal']!.text));
+              final textColor = temAcordo
+                  ? Colors.brown
+                  : estaEmAtraso
+                      ? Colors.red
+                      : Colors.black87;
+
+
+              final fontWeight =
+                  estaEmAtraso ? FontWeight.bold : FontWeight.normal;
+
+              return DataRow(
+                color: rowColor != null ? MaterialStateProperty.all(rowColor) : null,
+                cells: [
+                  DataCell(Text("${p['numero'] ?? ''}",
+                      style: TextStyle(fontSize: 13, color: textColor, fontWeight: fontWeight))),
+                  DataCell(TextField(
+                    controller: c['vencimento'],
+                    inputFormatters: [service.dateMaskFormatter()],
+                    style: TextStyle(fontSize: 13, color: textColor, fontWeight: fontWeight),
+                    decoration: const InputDecoration(
+                        border: InputBorder.none, hintText: "dd/mm/aaaa"),
+                  )),
+                  DataCell(Focus(
+                    onFocusChange: (hasFocus) {
+                      if (!hasFocus) {
+                        c['valor']!.text =
+                            service.fmtMoeda(service.parseMoeda(c['valor']!.text));
+                        setState(() {});
+                      }
+                    },
+                    child: TextField(
+                      controller: c['valor'],
+                      keyboardType: TextInputType.number,
+                      style: TextStyle(fontSize: 13, color: textColor, fontWeight: fontWeight),
+                      decoration: const InputDecoration(border: InputBorder.none),
+                    ),
+                  )),
+                  DataCell(Focus(
+                    onFocusChange: (hasFocus) {
+                      if (!hasFocus) {
+                        c['juros']!.text =
+                            service.fmtMoeda(service.parseMoeda(c['juros']!.text));
+                        setState(() {});
+                      }
+                    },
+                    child: TextField(
+                      controller: c['juros'],
+                      keyboardType: TextInputType.number,
+                      style: TextStyle(fontSize: 13, color: textColor, fontWeight: fontWeight),
+                      decoration: const InputDecoration(border: InputBorder.none),
+                    ),
+                  )),
+                  DataCell(Focus(
+                    onFocusChange: (hasFocus) {
+                      if (!hasFocus) {
+                        c['desconto']!.text =
+                            service.fmtMoeda(service.parseMoeda(c['desconto']!.text));
+                        setState(() {});
+                      }
+                    },
+                    child: TextField(
+                      controller: c['desconto'],
+                      keyboardType: TextInputType.number,
+                      style: TextStyle(fontSize: 13, color: textColor, fontWeight: fontWeight),
+                      decoration: const InputDecoration(border: InputBorder.none),
+                    ),
+                  )),
+                  DataCell(IconButton(
+                    icon: const Icon(Icons.calculate,
+                        size: 20, color: Colors.blue),
+                    onPressed: () {
+                      final capital =
+                          num.tryParse("${widget.emprestimo["valor"]}") ?? 0;
+                      final jurosSupabase =
+                          num.tryParse("${widget.emprestimo["juros"]}") ?? 0;
+                      final qtdParcelas =
+                          num.tryParse("${widget.emprestimo["parcelas"]}") ?? 1;
+                      final jurosDigitado =
+                          service.parseMoeda(c['juros']!.text);
+                      final desconto = service.parseMoeda(c['desconto']!.text);
+
+                      final pgPrincipal = capital / qtdParcelas;
+                      final pgJuros =
+                          jurosSupabase / qtdParcelas + jurosDigitado - desconto;
+
+                      c['pg_principal']!.text = service.fmtMoeda(pgPrincipal);
+                      c['pg_juros']!.text = service.fmtMoeda(pgJuros);
+
                       setState(() {});
-                    }
-                  },
-                  child: TextField(
-                    controller: c['pg_principal'],
-                    keyboardType: TextInputType.number,
-                    style: const TextStyle(fontSize: 13),
-                    decoration: const InputDecoration(border: InputBorder.none),
+                    },
+                  )),
+                  DataCell(Focus(
+                    onFocusChange: (hasFocus) {
+                      if (!hasFocus) {
+                        c['pg_principal']!.text = service.fmtMoeda(
+                            service.parseMoeda(c['pg_principal']!.text));
+                        setState(() {});
+                      }
+                    },
+                    child: TextField(
+                      controller: c['pg_principal'],
+                      keyboardType: TextInputType.number,
+                      style: TextStyle(fontSize: 13, color: textColor, fontWeight: fontWeight),
+                      decoration: const InputDecoration(border: InputBorder.none),
+                    ),
+                  )),
+                  DataCell(Focus(
+                    onFocusChange: (hasFocus) {
+                      if (!hasFocus) {
+                        c['pg_juros']!.text =
+                            service.fmtMoeda(service.parseMoeda(c['pg_juros']!.text));
+                        setState(() {});
+                      }
+                    },
+                    child: TextField(
+                      controller: c['pg_juros'],
+                      keyboardType: TextInputType.number,
+                      style: TextStyle(fontSize: 13, color: textColor, fontWeight: fontWeight),
+                      decoration: const InputDecoration(border: InputBorder.none),
+                    ),
+                  )),
+                  DataCell(Text(
+                    service.fmtMoeda(
+                      service.parseMoeda(c['pg_principal']!.text) +
+                          service.parseMoeda(c['pg_juros']!.text),
+                    ),
+                    style: TextStyle(fontSize: 13, color: textColor, fontWeight: fontWeight),
+                  )),
+                  DataCell(Text(
+                    service.fmtMoeda(
+                      service.parseMoeda(c['valor']!.text) +
+                          service.parseMoeda(c['juros']!.text) -
+                          service.parseMoeda(c['desconto']!.text) -
+                          (service.parseMoeda(c['pg_principal']!.text) +
+                              service.parseMoeda(c['pg_juros']!.text)),
+                    ),
+                    style: TextStyle(fontSize: 13, color: textColor, fontWeight: fontWeight),
+                  )),
+                  DataCell(TextField(
+                    controller: c['data_pagamento'],
+                    inputFormatters: [service.dateMaskFormatter()],
+                    style: TextStyle(fontSize: 13, color: textColor, fontWeight: fontWeight),
+                    decoration: InputDecoration(
+                      border: InputBorder.none,
+                      hintText: "dd/mm/aaaa",
+                      hintStyle: TextStyle(
+                        fontSize: 13,
+                        color: textColor,
+                        fontWeight: fontWeight,
+                      ),
+                    ),
+                  )),
+                  DataCell(
+                    Builder(builder: (context) {
+                      final vencimentoTxt = p['vencimento']?.toString() ?? "";
+                      DateTime? vencimento;
+                      try {
+                        vencimento = DateFormat("dd/MM/yyyy").parseStrict(vencimentoTxt);
+                      } catch (_) {
+                        vencimento = null;
+                      }
+
+                      final hoje = DateTime.now();
+                      final limite = hoje.add(const Duration(days: 7));
+
+                      final temAcordo = p['data_prevista'] != null &&
+                          p['data_prevista'].toString().isNotEmpty;
+
+                      final podeFazerAcordo = vencimento != null && vencimento.isBefore(limite.add(const Duration(days: 1)));
+
+                      if (temAcordo) {
+                        // 🔹 Ícone de alerta quando já existe acordo
+                        return IconButton(
+                          icon: const Icon(Icons.warning_amber_rounded,
+                              color: Colors.orange, size: 22),
+                          tooltip: "Acordo ativo",
+                          onPressed: () => abrirAcordoDialog(context, p),
+                        );
+                      } else if (!podeFazerAcordo) {
+                        // 🔹 Botão cinza e desabilitado
+                        return IconButton(
+                          icon: const Icon(Icons.handshake, color: Colors.grey, size: 22),
+                          tooltip: "Só é possível criar acordo até 7 dias antes do vencimento",
+                          onPressed: () async {
+                            await showDialog(
+                              context: context,
+                              builder: (ctx) => const AlertDialog(
+                                content: Text(
+                                  "Só é possível criar acordo para parcelas que estão vencendo nos próximos 7 dias.",
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
+                            );
+                          },
+                        );
+                      } else {
+                        // 🔹 Botão normal 🤝
+                        return IconButton(
+                          icon: const Icon(Icons.handshake, color: Colors.blue, size: 22),
+                          tooltip: "Fazer acordo",
+                          onPressed: () => abrirAcordoDialog(context, p),
+                        );
+                      }
+                    }),
                   ),
-                )),
-                DataCell(Focus(
-                  onFocusChange: (hasFocus) {
-                    if (!hasFocus) {
-                      c['pg_juros']!.text = service.fmtMoeda(
-                          service.parseMoeda(c['pg_juros']!.text));
-                      setState(() {});
-                    }
-                  },
-                  child: TextField(
-                    controller: c['pg_juros'],
-                    keyboardType: TextInputType.number,
-                    style: const TextStyle(fontSize: 13),
-                    decoration: const InputDecoration(border: InputBorder.none),
-                  ),
-                )),
-                DataCell(Text(
-                  service.fmtMoeda(
-                    service.parseMoeda(c['pg_principal']!.text) +
-                        service.parseMoeda(c['pg_juros']!.text),
-                  ),
-                  style: const TextStyle(fontSize: 13),
-                )),
-                DataCell(Text(
-                  service.fmtMoeda(
-                    service.parseMoeda(c['valor']!.text) +
-                        service.parseMoeda(c['juros']!.text) -
-                        service.parseMoeda(c['desconto']!.text) -
-                        (service.parseMoeda(c['pg_principal']!.text) +
-                            service.parseMoeda(c['pg_juros']!.text)),
-                  ),
-                  style: const TextStyle(fontSize: 13),
-                )),
-                DataCell(TextField(
-                  controller: c['data_pagamento'],
-                  inputFormatters: [service.dateMaskFormatter()],
-                  style: const TextStyle(fontSize: 13),
-                  decoration: const InputDecoration(
-                      border: InputBorder.none, hintText: "dd/mm/aaaa"),
-                )),
-                DataCell(IconButton(
-                  icon: const Text("🤝", style: TextStyle(fontSize: 20)),
-                  tooltip: "Fazer acordo",
-                  onPressed: () => abrirAcordoDialog(context, p),
-                )),
-              ]);
+                ],
+              );
             }),
-            // 🔹 Linha TOTAL
             DataRow(cells: [
               const DataCell(Text("")),
               const DataCell(Text("TOTAL",
-                  style:
-                      TextStyle(fontSize: 14, fontWeight: FontWeight.bold))),
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold))),
               DataCell(Text(service.fmtMoeda(totalValor),
                   style: const TextStyle(
                       fontSize: 14, fontWeight: FontWeight.bold))),
@@ -401,5 +487,7 @@ class ParcelasTableState extends State<ParcelasTable> {
         ),
       ),
     );
+
   }
+
 }

@@ -4,6 +4,8 @@ import 'package:mask_text_input_formatter/mask_text_input_formatter.dart';
 import 'financeiro.dart'; // 🔹 importa a nova tela
 import 'home.dart'; // 🔹 vamos mover HomePage para arquivo separado
 import 'clientes_page.dart'; // 🔹 vamos mover ClientesPage para arquivo separado
+import 'package:intl/date_symbol_data_local.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 
 
 Future<void> main() async {
@@ -15,6 +17,8 @@ Future<void> main() async {
     anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpxdmJnZnF6ZGNlamd4dGhkbWh0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUxMTI5ODAsImV4cCI6MjA3MDY4ODk4MH0.e4NhuarlGNnXrXUWKdLmGoa1DGejn2jmgpbRR_Ztyqw',
   );
 
+  await initializeDateFormatting("pt_BR", null);
+
   runApp(const MyApp());
 }
 
@@ -25,6 +29,16 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
+      locale: const Locale("pt", "BR"), // 👈 força pt-BR
+      supportedLocales: const [
+        Locale("pt", "BR"),
+      ],
+      localizationsDelegates: [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+
       theme: ThemeData(
         scaffoldBackgroundColor: const Color(0xFFFAF9F6), // 🔹 fundo creme em todas as páginas
         appBarTheme: const AppBarTheme(
@@ -41,6 +55,7 @@ class MyApp extends StatelessWidget {
     );
   }
 }
+
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});

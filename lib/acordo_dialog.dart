@@ -1,25 +1,68 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'parcelas_service.dart'; // 👈 importamos para usar a máscara
+import 'parcelas_service.dart';
 
-/// 🔹 Abre o diálogo de acordo (adiamento da parcela)
 Future<void> abrirAcordoDialog(
     BuildContext context, Map<String, dynamic> parcela) async {
   final service = ParcelasService();
+
+  // 🔹 Valida se pode abrir acordo
+  try {
+    final vencimentoTxt = parcela["vencimento"]?.toString() ?? "";
+    final vencimento = DateFormat("dd/MM/yyyy").parseStrict(vencimentoTxt);
+
+    final hoje = DateTime.now();
+    final limite = hoje.add(const Duration(days: 7));
+
+    if (vencimento.isAfter(limite)) {
+      await showDialog(
+        context: context,
+        builder: (ctx) => const AlertDialog(
+          content: Text(
+            "Só é possível criar acordo para parcelas que estão vencendo nos próximos 7 dias.",
+            textAlign: TextAlign.center,
+          ),
+        ),
+      );
+      return;
+    }
+  } catch (_) {
+    // Se a data não for válida, não abre
+    await showDialog(
+      context: context,
+      builder: (ctx) => const AlertDialog(
+        content: Text(
+          "Data de vencimento inválida para criar acordo.",
+          textAlign: TextAlign.center,
+        ),
+      ),
+    );
+    return;
+  }
 
   final comentarioCtrl =
       TextEditingController(text: parcela["comentario"] ?? "");
   final dataCtrl = TextEditingController(text: parcela["data_prevista"] ?? "");
 
-  await showDialog(
+  final resultado = await showDialog<bool>(
     context: context,
     builder: (_) => AlertDialog(
-      title: const Text("🤝 Fazer acordo"),
+      titlePadding: const EdgeInsets.only(left: 8, top: 8, right: 8),
+      title: Row(
+        children: [
+          IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () => Navigator.pop(context, false),
+          ),
+          const SizedBox(width: 4),
+          const Text("🤝 Fazer acordo"),
+        ],
+      ),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // 🔹 Comentário com 3 linhas e limite de 100 caracteres
           TextField(
             controller: comentarioCtrl,
             maxLength: 100,
@@ -30,91 +73,146 @@ Future<void> abrirAcordoDialog(
             ),
           ),
           const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: dataCtrl,
+                  inputFormatters: [service.dateMaskFormatter()],
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: "Data prevista",
+                    border: OutlineInputBorder(),
+                    hintText: "dd/mm/aaaa",
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              IconButton(
+                icon: const Icon(Icons.calendar_today, color: Colors.blue),
+                onPressed: () async {
+                  DateTime initialDate;
+                  try {
+                    initialDate =
+                        DateFormat("dd/MM/yyyy").parse(dataCtrl.text);
+                  } catch (_) {
+                    initialDate = DateTime.now();
+                  }
 
-          // 🔹 Campo de data com máscara e seletor de calendário
-          TextField(
-            controller: dataCtrl,
-            readOnly: true,
-            inputFormatters: [service.dateMaskFormatter()],
-            decoration: const InputDecoration(
-              labelText: "Data prevista",
-              border: OutlineInputBorder(),
-              hintText: "dd/mm/aaaa",
-            ),
-            onTap: () async {
-              DateTime initialDate;
-              try {
-                initialDate = DateFormat("dd/MM/yyyy").parse(dataCtrl.text);
-              } catch (_) {
-                initialDate = DateTime.now();
-              }
-
-              final picked = await showDatePicker(
-                context: context,
-                initialDate: initialDate,
-                firstDate: DateTime(2000),
-                lastDate: DateTime(2100),
-              );
-              if (picked != null) {
-                dataCtrl.text = DateFormat("dd/MM/yyyy").format(picked);
-              }
-            },
+                  final picked = await showDatePicker(
+                    context: context,
+                    locale: const Locale("pt", "BR"),
+                    initialDate: initialDate,
+                    firstDate: DateTime(2000),
+                    lastDate: DateTime(2100),
+                  );
+                  if (picked != null) {
+                    dataCtrl.text =
+                        DateFormat("dd/MM/yyyy", "pt_BR").format(picked);
+                  }
+                },
+              ),
+            ],
           ),
         ],
       ),
       actions: [
         TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text("Cancelar"),
-        ),
-        if (parcela["data_prevista"] != null &&
-            parcela["data_prevista"].toString().isNotEmpty)
-          TextButton(
-            onPressed: () async {
-              await Supabase.instance.client
-                  .from("parcelas")
-                  .update({"data_prevista": null, "comentario": null})
-                  .eq("id", parcela["id"]);
+          onPressed: () async {
+            await Supabase.instance.client
+                .from("parcelas")
+                .update({"data_prevista": null, "comentario": null})
+                .eq("id", parcela["id"]);
 
-              if (!context.mounted) return;
-              Navigator.pop(context);
+            // Atualiza localmente
+            parcela["data_prevista"] = null;
+            parcela["comentario"] = null;
 
-              // 🔹 Mensagem no centro da tela
-              await showDialog(
-                context: context,
-                builder: (ctx) => AlertDialog(
-                  content: const Text(
-                    "Acordo excluído!",
-                    textAlign: TextAlign.center,
-                  ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(ctx),
-                      child: const Text("OK"),
-                    ),
-                  ],
+            if (!context.mounted) return;
+            Navigator.pop(context, true);
+
+            await showDialog(
+              context: context,
+              builder: (ctx) => AlertDialog(
+                content: const Text(
+                  "Acordo excluído!",
+                  textAlign: TextAlign.center,
                 ),
-              );
-            },
-            child: const Text("Excluir acordo",
-                style: TextStyle(color: Colors.red)),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    child: const Text("OK"),
+                  ),
+                ],
+              ),
+            );
+          },
+          child: const Text(
+            "Excluir acordo",
+            style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
           ),
+        ),
         ElevatedButton(
           onPressed: () async {
             if (dataCtrl.text.isEmpty) {
               await showDialog(
                 context: context,
-                builder: (ctx) => AlertDialog(
-                  content: const Text(
+                builder: (ctx) => const AlertDialog(
+                  content: Text(
                     "Escolha uma data prevista.",
                     textAlign: TextAlign.center,
                   ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(ctx),
-                      child: const Text("OK"),
-                    ),
-                  ],
+                ),
+              );
+              return;
+            }
+
+            DateTime? acordoDate;
+            try {
+              acordoDate = DateFormat("dd/MM/yyyy").parseStrict(dataCtrl.text);
+            } catch (_) {
+              acordoDate = null;
+            }
+
+            if (acordoDate == null) {
+              await showDialog(
+                context: context,
+                builder: (ctx) => const AlertDialog(
+                  content: Text(
+                    "Verifique a data inserida.",
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              );
+              return;
+            }
+
+            final hoje = DateTime.now();
+            final hojeSemHora = DateTime(hoje.year, hoje.month, hoje.day);
+
+            // Critério 2: não pode ser retroativa
+            if (!acordoDate.isAfter(hojeSemHora)) {
+              await showDialog(
+                context: context,
+                builder: (ctx) => const AlertDialog(
+                  content: Text(
+                    "Não é possível criar acordo com data retroativa.",
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              );
+              return;
+            }
+
+            // Critério 1: máximo 90 dias
+            if (acordoDate.difference(hojeSemHora).inDays > 90) {
+              await showDialog(
+                context: context,
+                builder: (ctx) => const AlertDialog(
+                  content: Text(
+                    "Verifique a data inserida.",
+                    textAlign: TextAlign.center,
+                  ),
                 ),
               );
               return;
@@ -128,28 +226,30 @@ Future<void> abrirAcordoDialog(
                 })
                 .eq("id", parcela["id"]);
 
+            // Atualiza localmente
+            parcela["data_prevista"] = dataCtrl.text;
+            parcela["comentario"] = comentarioCtrl.text;
+
             if (!context.mounted) return;
-            Navigator.pop(context);
+            Navigator.pop(context, true);
 
             await showDialog(
               context: context,
-              builder: (ctx) => AlertDialog(
-                content: const Text(
+              builder: (ctx) => const AlertDialog(
+                content: Text(
                   "Acordo salvo com sucesso!",
                   textAlign: TextAlign.center,
                 ),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(ctx),
-                    child: const Text("OK"),
-                  ),
-                ],
               ),
             );
           },
-          child: const Text("Salvar acordo"),
+          child: const Text("Salvar"),
         ),
       ],
     ),
   );
+
+  if (resultado == true && context.mounted) {
+    (context as Element).markNeedsBuild();
+  }
 }
