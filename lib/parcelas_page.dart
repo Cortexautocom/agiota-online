@@ -154,7 +154,7 @@ class _ParcelasPageState extends State<ParcelasPage> {
                           ],
                         ),
                       );
-                      Navigator.pop(context); // volta p/ financeiro
+                      Navigator.pop(context, true); // 👈 agora retorna true para atualizar financeiro
                     }
                   },
                   icon: const Icon(Icons.save),

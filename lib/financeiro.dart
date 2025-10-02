@@ -3,31 +3,79 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'parcelas_page.dart';
 import 'emprestimo_form.dart';
 import 'utils.dart'; // 🔹 função fmtMoeda
+import 'package:intl/intl.dart';
 
-class FinanceiroPage extends StatelessWidget {
+class FinanceiroPage extends StatefulWidget {
   final Map<String, dynamic> cliente;
 
   const FinanceiroPage({super.key, required this.cliente});
 
   @override
+  State<FinanceiroPage> createState() => _FinanceiroPageState();
+}
+
+class _FinanceiroPageState extends State<FinanceiroPage> {
+  Future<Map<String, String>> _calcularDatas(String idEmprestimo) async {
+    final parcelas = await Supabase.instance.client
+        .from('parcelas')
+        .select()
+        .eq('id_emprestimo', idEmprestimo);
+
+    DateTime? proxima;
+    DateTime? ultima;
+    int pagas = 0;
+    int abertas = 0;
+
+    for (final p in parcelas) {
+      final vencTxt = p['vencimento']?.toString() ?? "";
+      if (vencTxt.isEmpty) continue;
+      final venc = DateFormat("dd/MM/yyyy").tryParse(vencTxt);
+      if (venc == null) continue;
+
+      final residual = num.tryParse("${p['residual']}") ?? 0;
+
+      if (residual == 0) {
+        pagas++;
+      } else {
+        abertas++;
+        if (proxima == null || venc.isBefore(proxima)) {
+          proxima = venc;
+        }
+      }
+
+      if (ultima == null || venc.isAfter(ultima)) {
+        ultima = venc;
+      }
+    }
+
+    return {
+      "proxima": proxima != null ? DateFormat("dd/MM/yyyy").format(proxima) : "-",
+      "ultima": ultima != null ? DateFormat("dd/MM/yyyy").format(ultima) : "-",
+      "situacao": "$pagas parcelas pagas, $abertas parcelas restando."
+    };
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final cliente = widget.cliente;
+
     return DefaultTabController(
-      length: 3, // 🔹 Empréstimos Ativos, Garantias, Arquivados
+      length: 3,
       child: Scaffold(
         appBar: AppBar(
           title: Text("Financeiro - ${cliente['nome']}"),
           bottom: PreferredSize(
             preferredSize: const Size.fromHeight(48),
             child: Container(
-              color: Colors.grey[200], // 🔹 cor de fundo da barra
+              color: Colors.grey[200],
               child: TabBar(
-                labelColor: Colors.white, // cor do texto da aba ativa
-                unselectedLabelColor: Colors.black54, // cor do texto das inativas
+                labelColor: Colors.white,
+                unselectedLabelColor: Colors.black54,
                 indicator: BoxDecoration(
-                  color: Colors.blue, // 🔹 cor da aba ativa
-                  borderRadius: BorderRadius.circular(12), // 🔹 cantos arredondados
+                  color: Colors.blue,
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                indicatorSize: TabBarIndicatorSize.tab, // ocupa toda a aba
+                indicatorSize: TabBarIndicatorSize.tab,
                 tabs: const [
                   Tab(child: SizedBox(height: 32, child: Center(child: Text("Empréstimos Ativos")))),
                   Tab(child: SizedBox(height: 32, child: Center(child: Text("Garantias")))),
@@ -38,11 +86,36 @@ class FinanceiroPage extends StatelessWidget {
           ),
         ),
 
+        floatingActionButton: FloatingActionButton.extended(
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => EmprestimoForm(
+                  idCliente: cliente['id_cliente'],
+                  idUsuario: Supabase.instance.client.auth.currentUser!.id,
+                  onSaved: () {
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => FinanceiroPage(cliente: cliente),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            );
+          },
+          icon: const Icon(Icons.add),
+          label: const Text("Novo Empréstimo"),
+          backgroundColor: Colors.green,
+        ),
+
         body: TabBarView(
           children: [
             // 🔹 Aba 1: Empréstimos Ativos
             Container(
-              color: const Color(0xFFFAF9F6), // fundo creme
+              color: const Color(0xFFFAF9F6),
               padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -57,44 +130,6 @@ class FinanceiroPage extends StatelessWidget {
                   ),
                   const SizedBox(height: 12),
 
-                  // 🔹 Botão Novo Empréstimo
-                  ElevatedButton.icon(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => EmprestimoForm(
-                            idCliente: cliente['id_cliente'],
-                            idUsuario:
-                                Supabase.instance.client.auth.currentUser!.id,
-                            onSaved: () {
-                              Navigator.pushReplacement(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) =>
-                                      FinanceiroPage(cliente: cliente),
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-                      );
-                    },
-                    icon: const Icon(Icons.add),
-                    label: const Text("Novo Empréstimo"),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(
-                          vertical: 12, horizontal: 16),
-                      textStyle: const TextStyle(
-                          fontSize: 16, fontWeight: FontWeight.bold),
-                    ),
-                  ),
-
-                  const SizedBox(height: 12),
-
-                  // 🔹 Lista de empréstimos
                   Expanded(
                     child: FutureBuilder<List<Map<String, dynamic>>>(
                       future: Supabase.instance.client
@@ -104,17 +139,12 @@ class FinanceiroPage extends StatelessWidget {
                           .eq('ativo', 'sim')
                           .order('data_inicio'),
                       builder: (context, snapshot) {
-                        if (snapshot.connectionState ==
-                            ConnectionState.waiting) {
-                          return const Center(
-                              child: CircularProgressIndicator());
+                        if (snapshot.connectionState == ConnectionState.waiting) {
+                          return const Center(child: CircularProgressIndicator());
                         }
                         if (snapshot.hasError) {
                           return Center(
-                            child: Text(
-                              "Erro: ${snapshot.error}",
-                              style: const TextStyle(color: Colors.red),
-                            ),
+                            child: Text("Erro: ${snapshot.error}", style: const TextStyle(color: Colors.red)),
                           );
                         }
 
@@ -125,19 +155,16 @@ class FinanceiroPage extends StatelessWidget {
 
                         if (emprestimos.isEmpty) {
                           return const Center(
-                            child: Text(
-                              "Nenhum empréstimo encontrado.",
-                              style: TextStyle(color: Colors.black87),
-                            ),
+                            child: Text("Nenhum empréstimo encontrado.", style: TextStyle(color: Colors.black87)),
                           );
                         }
 
                         return SingleChildScrollView(
-                          scrollDirection: Axis.horizontal, // 🔹 rolagem horizontal
+                          scrollDirection: Axis.horizontal,
                           child: SingleChildScrollView(
-                            scrollDirection: Axis.vertical, // 🔹 rolagem vertical
+                            scrollDirection: Axis.vertical,
                             child: DataTable(
-                              showCheckboxColumn: false, // 🔹 remove o quadrado
+                              showCheckboxColumn: false,
                               headingRowColor: MaterialStateProperty.all(Colors.grey[300]),
                               headingTextStyle: const TextStyle(
                                 color: Colors.black,
@@ -148,124 +175,76 @@ class FinanceiroPage extends StatelessWidget {
                                 fontSize: 13,
                               ),
                               columns: const [
-                                DataColumn(
-                                  label: SizedBox(
-                                    width: 160,
-                                    child: Center(child: Text("Cliente")),
-                                  ),
-                                ),
-                                DataColumn(
-                                  label: SizedBox(
-                                    width: 100,
-                                    child: Center(child: Text("Nº Empr.")),
-                                  ),
-                                ),
-                                DataColumn(
-                                  label: SizedBox(
-                                    width: 100,
-                                    child: Center(child: Text("Data Início")),
-                                  ),
-                                ),
-                                DataColumn(
-                                  label: SizedBox(
-                                    width: 110,
-                                    child: Center(child: Text("Capital")),
-                                  ),
-                                ),
-                                DataColumn(
-                                  label: SizedBox(
-                                    width: 110,
-                                    child: Center(child: Text("Juros")),
-                                  ),
-                                ),
-                                DataColumn(
-                                  label: SizedBox(
-                                    width: 110,
-                                    child: Center(child: Text("Montante")),
-                                  ),
-                                ),
-                                DataColumn(
-                                  label: SizedBox(
-                                    width: 120,
-                                    child: Center(child: Text("Prestação")),
-                                  ),
-                                ),
+                                DataColumn(label: SizedBox(width: 160, child: Center(child: Text("Cliente")))),
+                                DataColumn(label: SizedBox(width: 100, child: Center(child: Text("Nº Empr.")))),
+                                DataColumn(label: SizedBox(width: 100, child: Center(child: Text("Data Início")))),
+                                DataColumn(label: SizedBox(width: 110, child: Center(child: Text("Último venc.")))),
+                                DataColumn(label: SizedBox(width: 110, child: Center(child: Text("Capital")))),
+                                DataColumn(label: SizedBox(width: 110, child: Center(child: Text("Juros")))),
+                                DataColumn(label: SizedBox(width: 110, child: Center(child: Text("Total")))),
+                                DataColumn(label: SizedBox(width: 120, child: Center(child: Text("Parcelas")))),
+                                DataColumn(label: SizedBox(width: 110, child: Center(child: Text("Próx. venc.")))),
+                                DataColumn(label: SizedBox(width: 160, child: Center(child: Text("Situação")))),
                               ],
                               rows: emprestimos.map((emp) {
                                 return DataRow(
-                                  onSelectChanged: (_) { // 🔹 restaurado
+                                  onSelectChanged: (_) {
                                     emp['cliente'] = cliente['nome'];
                                     Navigator.push(
                                       context,
                                       MaterialPageRoute(
                                         builder: (context) => ParcelasPage(emprestimo: emp),
                                       ),
-                                    );
+                                    ).then((atualizar) {
+                                      if (atualizar == true) {
+                                        setState(() {}); // 👈 força refresh quando voltar
+                                      }
+                                    });
                                   },
                                   cells: [
-                                    DataCell(
-                                      SizedBox(
-                                        width: 160,
-                                        child: Center(
-                                          child: Text(cliente['nome'], style: const TextStyle(fontSize: 13)),
-                                        ),
-                                      ),
-                                    ),
-                                    DataCell(
-                                      SizedBox(
-                                        width: 100,
-                                        child: Center(
-                                          child: Text("${emp['numero'] ?? ''}", style: const TextStyle(fontSize: 13)),
-                                        ),
-                                      ),
-                                    ),
-                                    DataCell(
-                                      SizedBox(
-                                        width: 100,
-                                        child: Center(
-                                          child: Text(emp['data_inicio'] ?? '', style: const TextStyle(fontSize: 13)),
-                                        ),
-                                      ),
-                                    ),
-                                    DataCell(
-                                      SizedBox(
-                                        width: 110,
-                                        child: Center(
-                                          child: Text(fmtMoeda(emp['valor']), style: const TextStyle(fontSize: 13)),
-                                        ),
-                                      ),
-                                    ),
-                                    DataCell(
-                                      SizedBox(
-                                        width: 110,
-                                        child: Center(
-                                          child: Text(fmtMoeda(emp['juros']), style: const TextStyle(fontSize: 13)),
-                                        ),
-                                      ),
-                                    ),
-                                    DataCell(
-                                      SizedBox(
-                                        width: 110,
-                                        child: Center(
+                                    DataCell(SizedBox(width: 160, child: Center(child: Text(cliente['nome'], style: const TextStyle(fontSize: 13))))),
+                                    DataCell(SizedBox(width: 100, child: Center(child: Text("${emp['numero'] ?? ''}", style: const TextStyle(fontSize: 13))))),
+                                    DataCell(SizedBox(width: 100, child: Center(child: Text(emp['data_inicio'] ?? '', style: const TextStyle(fontSize: 13))))),
+                                    DataCell(FutureBuilder<Map<String, String>>(
+                                      future: _calcularDatas(emp['id']),
+                                      builder: (context, snap) {
+                                        if (!snap.hasData) return const Text("-");
+                                        return Center(child: Text(snap.data!['ultima'] ?? "-", style: const TextStyle(fontSize: 13)));
+                                      },
+                                    )),
+                                    DataCell(SizedBox(width: 110, child: Center(child: Text(fmtMoeda(emp['valor']), style: const TextStyle(fontSize: 13))))),
+                                    DataCell(SizedBox(width: 110, child: Center(child: Text(fmtMoeda(emp['juros']), style: const TextStyle(fontSize: 13))))),
+                                    DataCell(SizedBox(width: 110, child: Center(child: Text(fmtMoeda((num.tryParse("${emp['valor']}") ?? 0) + (num.tryParse("${emp['juros']}") ?? 0)), style: const TextStyle(fontSize: 13))))),
+                                    DataCell(SizedBox(width: 120, child: Center(child: Text("${emp['parcelas']} x ${fmtMoeda(emp['prestacao'])}", style: const TextStyle(fontSize: 13))))),
+                                    DataCell(FutureBuilder<Map<String, String>>(
+                                      future: _calcularDatas(emp['id']),
+                                      builder: (context, snap) {
+                                        if (!snap.hasData) return const Text("-");
+                                        final txt = snap.data!['proxima'] ?? "-";
+                                        DateTime? data;
+                                        if (txt != "-" && txt.isNotEmpty) {
+                                          data = DateFormat("dd/MM/yyyy").tryParse(txt);
+                                        }
+                                        final vencida = data != null && data.isBefore(DateTime.now());
+                                        return Center(
                                           child: Text(
-                                            fmtMoeda((num.tryParse("${emp['valor']}") ?? 0) +
-                                                (num.tryParse("${emp['juros']}") ?? 0)),
-                                            style: const TextStyle(fontSize: 13),
+                                            txt,
+                                            style: TextStyle(
+                                              fontSize: 13,
+                                              color: vencida ? Colors.red : Colors.black,
+                                              fontWeight: vencida ? FontWeight.bold : FontWeight.normal,
+                                            ),
                                           ),
-                                        ),
-                                      ),
-                                    ),
-                                    DataCell(
-                                      SizedBox(
-                                        width: 120,
-                                        child: Center(
-                                          child: Text(
-                                            "${emp['parcelas']} x ${fmtMoeda(emp['prestacao'])}",
-                                            style: const TextStyle(fontSize: 13),
-                                          ),
-                                        ),
-                                      ),
-                                    ),
+                                        );
+                                      },
+                                    )),
+                                    DataCell(FutureBuilder<Map<String, String>>(
+                                      future: _calcularDatas(emp['id']),
+                                      builder: (context, snap) {
+                                        if (!snap.hasData) return const Text("-");
+                                        return Center(child: Text(snap.data!['situacao'] ?? "-", style: const TextStyle(fontSize: 13)));
+                                      },
+                                    )),
                                   ],
                                 );
                               }).toList(),
@@ -279,21 +258,8 @@ class FinanceiroPage extends StatelessWidget {
               ),
             ),
 
-            // 🔹 Aba 2: Garantias (placeholder)
-            const Center(
-              child: Text(
-                "Garantias ainda não implementadas",
-                style: TextStyle(fontSize: 16, color: Colors.black54),
-              ),
-            ),
-
-            // 🔹 Aba 3: Arquivados (placeholder)
-            const Center(
-              child: Text(
-                "Arquivados ainda não implementados",
-                style: TextStyle(fontSize: 16, color: Colors.black54),
-              ),
-            ),
+            const Center(child: Text("Garantias ainda não implementadas", style: TextStyle(fontSize: 16, color: Colors.black54))),
+            const Center(child: Text("Arquivados ainda não implementados", style: TextStyle(fontSize: 16, color: Colors.black54))),
           ],
         ),
       ),
