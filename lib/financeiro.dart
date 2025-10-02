@@ -48,10 +48,28 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
       }
     }
 
+    // verificar se a próxima parcela tem acordo (data_prevista preenchida)
+    final temAcordo = parcelas.any((p) {
+      final vencTxt = p['vencimento']?.toString() ?? "";
+      if (vencTxt.isEmpty) return false;
+      final venc = DateFormat("dd/MM/yyyy").tryParse(vencTxt);
+      final residual = num.tryParse("${p['residual']}") ?? 0;
+      final dataPrevista = (p['data_prevista'] ?? "").toString().trim();
+
+      return residual > 0 &&
+          venc != null &&
+          proxima != null &&
+          venc.day == proxima.day &&
+          venc.month == proxima.month &&
+          venc.year == proxima.year &&
+          dataPrevista.isNotEmpty;
+    });
+
     return {
       "proxima": proxima != null ? DateFormat("dd/MM/yyyy").format(proxima) : "-",
       "ultima": ultima != null ? DateFormat("dd/MM/yyyy").format(ultima) : "-",
-      "situacao": "$pagas parcelas pagas, $abertas parcelas restando."
+      "situacao": "$pagas parcelas pagas, $abertas parcelas restando.",
+      "acordo": temAcordo ? "sim" : "nao",
     };
   }
 
@@ -77,7 +95,7 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
                 ),
                 indicatorSize: TabBarIndicatorSize.tab,
                 tabs: const [
-                  Tab(child: SizedBox(height: 32, child: Center(child: Text("Empréstimos Ativos")))),
+                  Tab(child: SizedBox(height: 32, child: Center(child: Text("Empréstimos")))),
                   Tab(child: SizedBox(height: 32, child: Center(child: Text("Garantias")))),
                   Tab(child: SizedBox(height: 32, child: Center(child: Text("Arquivados")))),
                 ],
@@ -195,10 +213,10 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
                                       MaterialPageRoute(
                                         builder: (context) => ParcelasPage(emprestimo: emp),
                                       ),
-                                    ).then((atualizar) {
-                                      if (atualizar == true) {
-                                        setState(() {}); // 👈 força refresh quando voltar
-                                      }
+                                    ).then((_) {
+                                      // 👇 força refresh SEMPRE que voltar da tela de parcelas,
+                                      // seja ao salvar, excluir acordo ou qualquer alteração
+                                      setState(() {});
                                     });
                                   },
                                   cells: [
@@ -226,14 +244,28 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
                                           data = DateFormat("dd/MM/yyyy").tryParse(txt);
                                         }
                                         final vencida = data != null && data.isBefore(DateTime.now());
+                                        final temAcordo = snap.data!['acordo'] == "sim";
+
                                         return Center(
-                                          child: Text(
-                                            txt,
-                                            style: TextStyle(
-                                              fontSize: 13,
-                                              color: vencida ? Colors.red : Colors.black,
-                                              fontWeight: vencida ? FontWeight.bold : FontWeight.normal,
-                                            ),
+                                          child: Row(
+                                            mainAxisAlignment: MainAxisAlignment.center,
+                                            children: [
+                                              Text(
+                                                txt,
+                                                style: TextStyle(
+                                                  fontSize: 13,
+                                                  color: temAcordo
+                                                      ? Colors.orange
+                                                      : (vencida ? Colors.red : Colors.black),
+                                                  fontWeight: temAcordo || vencida ? FontWeight.bold : FontWeight.normal,
+                                                ),
+                                              ),
+                                              if (temAcordo)
+                                                const Padding(
+                                                  padding: EdgeInsets.only(left: 4),
+                                                  child: Icon(Icons.warning, size: 16, color: Colors.orange),
+                                                ),
+                                            ],
                                           ),
                                         );
                                       },
