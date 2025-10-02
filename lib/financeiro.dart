@@ -5,6 +5,7 @@ import 'emprestimo_form.dart';
 import 'utils.dart'; // 🔹 função fmtMoeda
 import 'package:intl/intl.dart';
 import 'garantias.dart';
+import 'arquivados_page.dart';
 
 class FinanceiroPage extends StatefulWidget {
   final Map<String, dynamic> cliente;
@@ -298,7 +299,7 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
             ),
 
             GarantiasPage(cliente: cliente),
-            const Center(child: Text("Arquivados ainda não implementados", style: TextStyle(fontSize: 16, color: Colors.black54))),
+            const ArquivadosPage(),
           ],
         ),
       ),

@@ -161,157 +161,162 @@ class _GarantiasPageState extends State<GarantiasPage> {
       }
     }
   }
-
+  
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text("Garantias - ${widget.cliente['nome']}"),
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _adicionarGarantia,
-        backgroundColor: Colors.green,
-        child: const Icon(Icons.add, color: Colors.white),
-      ),
-      body: Container(
-        color: const Color(0xFFFAF9F6),
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              "Garantias do Cliente",
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Colors.black87,
-              ),
+    return Container(
+      color: const Color(0xFFFAF9F6),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            "Garantias do Cliente",
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Colors.black87,
             ),
-            const SizedBox(height: 16),
-            Expanded(
-              child: FutureBuilder<List<Map<String, dynamic>>>(
-                future: _garantiasFuture,
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-                  if (snapshot.hasError) {
-                    return Center(
-                      child: Text(
-                        "Erro ao carregar garantias: ${snapshot.error}",
-                        style: const TextStyle(color: Colors.red),
-                      ),
-                    );
-                  }
-
-                  final garantias = snapshot.data ?? [];
-                  if (garantias.isEmpty) {
-                    return const Center(
-                      child: Text(
-                        "Nenhuma garantia cadastrada.",
-                        style: TextStyle(color: Colors.black54),
-                      ),
-                    );
-                  }
-
-                  return SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: SingleChildScrollView(
-                      scrollDirection: Axis.vertical,
-                      child: DataTable(
-                        columnSpacing: 20,
-                        headingRowColor: MaterialStateProperty.all(Colors.grey[300]),
-                        headingTextStyle: const TextStyle(
-                          color: Colors.black,
-                          fontWeight: FontWeight.bold,
+          ),
+          const SizedBox(height: 16),
+          Expanded(
+            child: Stack(
+              children: [
+                FutureBuilder<List<Map<String, dynamic>>>(
+                  future: _garantiasFuture,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    if (snapshot.hasError) {
+                      return Center(
+                        child: Text(
+                          "Erro ao carregar garantias: ${snapshot.error}",
+                          style: const TextStyle(color: Colors.red),
                         ),
-                        dataRowColor: MaterialStateProperty.resolveWith<Color?>(
-                          (Set<MaterialState> states) {
-                            // Linhas cinza claro alternadas
-                            return Colors.grey[100];
-                          },
+                      );
+                    }
+
+                    final garantias = snapshot.data ?? [];
+                    if (garantias.isEmpty) {
+                      return const Center(
+                        child: Text(
+                          "Nenhuma garantia cadastrada.",
+                          style: TextStyle(color: Colors.black54),
                         ),
-                        columns: const [
-                          DataColumn(
-                            label: SizedBox(
-                              width: 60,
-                              child: Text("Nº", textAlign: TextAlign.center),
-                            ),
+                      );
+                    }
+
+                    return SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.vertical,
+                        child: DataTable(
+                          columnSpacing: 20,
+                          headingRowColor: MaterialStateProperty.all(Colors.grey[300]),
+                          headingTextStyle: const TextStyle(
+                            color: Colors.black,
+                            fontWeight: FontWeight.bold,
                           ),
-                          DataColumn(
-                            label: SizedBox(
-                              width: 300,
-                              child: Text("Descrição"),
-                            ),
+                          dataRowColor: MaterialStateProperty.resolveWith<Color?>(
+                            (Set<MaterialState> states) {
+                              // Linhas cinza claro alternadas
+                              return Colors.grey[100];
+                            },
                           ),
-                          DataColumn(
-                            label: SizedBox(
-                              width: 150,
-                              child: Text("Valor", textAlign: TextAlign.right),
+                          columns: const [
+                            DataColumn(
+                              label: SizedBox(
+                                width: 60,
+                                child: Text("Nº", textAlign: TextAlign.center),
+                              ),
                             ),
-                          ),
-                          DataColumn(
-                            label: SizedBox(
-                              width: 80,
-                              child: Text("Ações", textAlign: TextAlign.center),
+                            DataColumn(
+                              label: SizedBox(
+                                width: 300,
+                                child: Text("Descrição"),
+                              ),
                             ),
-                          ),
-                        ],
-                        rows: garantias.map((garantia) {
-                          return DataRow(
-                            cells: [
-                              DataCell(
-                                SizedBox(
-                                  width: 60,
-                                  child: Center(
+                            DataColumn(
+                              label: SizedBox(
+                                width: 150,
+                                child: Text("Valor", textAlign: TextAlign.right),
+                              ),
+                            ),
+                            DataColumn(
+                              label: SizedBox(
+                                width: 80,
+                                child: Text("Ações", textAlign: TextAlign.center),
+                              ),
+                            ),
+                          ],
+                          rows: garantias.map((garantia) {
+                            return DataRow(
+                              cells: [
+                                DataCell(
+                                  SizedBox(
+                                    width: 60,
+                                    child: Center(
+                                      child: Text(
+                                        "${garantia['numero'] ?? ''}",
+                                        style: const TextStyle(fontSize: 14),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                DataCell(
+                                  SizedBox(
+                                    width: 300,
                                     child: Text(
-                                      "${garantia['numero'] ?? ''}",
+                                      garantia['descricao'] ?? '',
                                       style: const TextStyle(fontSize: 14),
                                     ),
                                   ),
                                 ),
-                              ),
-                              DataCell(
-                                SizedBox(
-                                  width: 300,
-                                  child: Text(
-                                    garantia['descricao'] ?? '',
-                                    style: const TextStyle(fontSize: 14),
-                                  ),
-                                ),
-                              ),
-                              DataCell(
-                                SizedBox(
-                                  width: 150,
-                                  child: Text(
-                                    fmtMoeda(garantia['valor']),
-                                    style: const TextStyle(fontSize: 14),
-                                    textAlign: TextAlign.right,
-                                  ),
-                                ),
-                              ),
-                              DataCell(
-                                SizedBox(
-                                  width: 80,
-                                  child: Center(
-                                    child: IconButton(
-                                      icon: const Icon(Icons.delete, color: Colors.red, size: 20),
-                                      onPressed: () => _excluirGarantia(garantia),
+                                DataCell(
+                                  SizedBox(
+                                    width: 150,
+                                    child: Text(
+                                      fmtMoeda(garantia['valor']),
+                                      style: const TextStyle(fontSize: 14),
+                                      textAlign: TextAlign.right,
                                     ),
                                   ),
                                 ),
-                              ),
-                            ],
-                          );
-                        }).toList(),
+                                DataCell(
+                                  SizedBox(
+                                    width: 80,
+                                    child: Center(
+                                      child: IconButton(
+                                        icon: const Icon(Icons.delete, color: Colors.red, size: 20),
+                                        onPressed: () => _excluirGarantia(garantia),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            );
+                          }).toList(),
+                        ),
                       ),
-                    ),
-                  );
-                },
-              ),
+                    );
+                  },
+                ),
+                
+                // 👇 BOTÃO FLUTUANTE DENTRO DA ABA
+                Positioned(
+                  bottom: 16,
+                  right: 16,
+                  child: FloatingActionButton(
+                    onPressed: _adicionarGarantia,
+                    backgroundColor: Colors.green,
+                    child: const Icon(Icons.add, color: Colors.white),
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

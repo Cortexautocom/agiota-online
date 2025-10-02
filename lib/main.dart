@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:mask_text_input_formatter/mask_text_input_formatter.dart';
-import 'financeiro.dart'; // 🔹 importa a nova tela
-import 'home.dart'; // 🔹 vamos mover HomePage para arquivo separado
+//import 'financeiro.dart'; // 🔹 importa a nova tela
+//import 'home.dart'; // 🔹 vamos mover HomePage para arquivo separado
 import 'clientes_page.dart'; // 🔹 vamos mover ClientesPage para arquivo separado
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
