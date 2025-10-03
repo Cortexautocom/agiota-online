@@ -214,7 +214,7 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
                                         DataCell(SizedBox(width: 110, child: Center(child: Text(fmtMoeda(emp['valor']), style: const TextStyle(fontSize: 13))))),
                                         DataCell(SizedBox(width: 110, child: Center(child: Text(fmtMoeda(emp['juros']), style: const TextStyle(fontSize: 13))))),
                                         DataCell(SizedBox(width: 110, child: Center(child: Text(fmtMoeda((num.tryParse("${emp['valor']}") ?? 0) + (num.tryParse("${emp['juros']}") ?? 0)), style: const TextStyle(fontSize: 13))))),
-                                        DataCell(SizedBox(width: 120, child: Center(child: Text("${emp['parcelas']} x ${fmtMoeda(emp['prestacao'])}", style: const TextStyle(fontSize: 13))))),
+                                        DataCell(SizedBox(width: 120, child: Center(child: Text("${emp['parcelas']} x ${fmtMoeda(((num.tryParse('${emp['valor']}') ?? 0) + (num.tryParse('${emp['juros']}') ?? 0)) / (num.tryParse('${emp['parcelas']}') ?? 1))}", style: const TextStyle(fontSize: 13))))),
                                         DataCell(FutureBuilder<Map<String, String>>(
                                           future: _calcularDatas(emp['id']),
                                           builder: (context, snap) {

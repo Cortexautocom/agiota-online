@@ -4,6 +4,7 @@ import 'utils.dart'; // seu formatador de moeda
 import 'package:uuid/uuid.dart';
 import 'dart:math';
 import 'parcelas_page.dart';
+import 'package:flutter/services.dart'; // Adicionar para TextInputFormatter
 
 class EmprestimoForm extends StatefulWidget {
   final String idCliente;   // vem do cliente selecionado
@@ -36,11 +37,65 @@ class _EmprestimoFormState extends State<EmprestimoForm> {
 
   DateTime dataEmprestimo = DateTime.now();
 
+  // 🔹 Máscara para campos de moeda
+  TextInputFormatter _moedaFormatter() {
+    return TextInputFormatter.withFunction((oldValue, newValue) {
+      // Remove tudo que não é número
+      var text = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
+      
+      // Se estiver vazio, retorna vazio
+      if (text.isEmpty) return newValue;
+      
+      // Converte para double e formata como moeda
+      final value = int.parse(text) / 100;
+      final formatted = _formatarMoeda(value);
+      
+      return TextEditingValue(
+        text: formatted,
+        selection: TextSelection.collapsed(offset: formatted.length),
+      );
+    });
+  }
+
+  // 🔹 Função para formatar valor como moeda brasileira
+  String _formatarMoeda(double value) {
+    // Formata como "R$ 1.234,56"
+    final parts = value.toStringAsFixed(2).split('.');
+    final real = parts[0];
+    final centavos = parts[1];
+    
+    // Adiciona separadores de milhar
+    String realFormatado = '';
+    for (int i = real.length - 1, j = 0; i >= 0; i--, j++) {
+      if (j > 0 && j % 3 == 0) {
+        realFormatado = '.$realFormatado';
+      }
+      realFormatado = real[i] + realFormatado;
+    }
+    
+    return 'R\$ $realFormatado,$centavos';
+  }
+
+  // 🔹 Função para converter texto formatado de volta para double
+  double _parseMoeda(String texto) {
+    if (texto.isEmpty) return 0.0;
+    
+    // Remove "R$", pontos e substitui vírgula por ponto
+    final cleaned = texto
+        .replaceAll('R\$', '')
+        .replaceAll('.', '')
+        .replaceAll(',', '.')
+        .trim();
+    
+    return double.tryParse(cleaned) ?? 0.0;
+  }
+
   void simular() {
-    final capital = parseMoeda(capitalCtrl.text);
+    // 🔹 Usa a função de parse para converter o texto formatado
+    final capital = _parseMoeda(capitalCtrl.text);
     final meses = int.tryParse(mesesCtrl.text) ?? 0;
     final taxa = double.tryParse(taxaCtrl.text.replaceAll(',', '.')) ?? 0;
-    final jurosInformado = parseMoeda(jurosCtrl.text);
+    final jurosInformado = _parseMoeda(jurosCtrl.text);
 
     if (capital <= 0 || meses <= 0) {
       setState(() => resumo = "Preencha capital e meses.");
@@ -133,10 +188,11 @@ class _EmprestimoFormState extends State<EmprestimoForm> {
     final dataStr =
         "${dataEmprestimo.day.toString().padLeft(2, '0')}/${dataEmprestimo.month.toString().padLeft(2, '0')}/${dataEmprestimo.year}";
 
+    // 🔹 Salva o valor numérico (sem formatação de moeda)
     await supabase.from('emprestimos').insert({
       'id': emprestimoId,
       'id_cliente': widget.idCliente,
-      'valor': capitalCtrl.text,
+      'valor': _parseMoeda(capitalCtrl.text).toString(),
       'data_inicio': dataStr,
       'parcelas': mesesCtrl.text,
       'juros': totalJuros.toString(),
@@ -193,7 +249,7 @@ class _EmprestimoFormState extends State<EmprestimoForm> {
     final emprestimo = {
       "id": emprestimoId,
       "id_cliente": widget.idCliente,
-      "valor": capitalCtrl.text,         // 👈 importante: usar "valor"
+      "valor": _parseMoeda(capitalCtrl.text).toString(), // 👈 valor numérico
       "data_inicio": dataStr,
       "parcelas": mesesCtrl.text,        // 👈 manter o mesmo nome do banco
       "juros": totalJuros.toString(),
@@ -237,6 +293,7 @@ class _EmprestimoFormState extends State<EmprestimoForm> {
                       decoration:
                           const InputDecoration(labelText: "Valor financiado"),
                       keyboardType: TextInputType.number,
+                      inputFormatters: [_moedaFormatter()], // 🔹 Máscara aplicada
                     ),
                     const SizedBox(height: 12),
                     TextFormField(
@@ -257,6 +314,7 @@ class _EmprestimoFormState extends State<EmprestimoForm> {
                       decoration:
                           const InputDecoration(labelText: "Total de Juros"),
                       keyboardType: TextInputType.number,
+                      inputFormatters: [_moedaFormatter()], // 🔹 Máscara aplicada
                     ),
                     const SizedBox(height: 20),
                     ElevatedButton(
