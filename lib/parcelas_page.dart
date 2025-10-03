@@ -72,11 +72,7 @@ class _ParcelasPageState extends State<ParcelasPage> {
                   "Capital: ${service.fmtMoeda(valor)} | "
                   "Juros: ${service.fmtMoeda(juros)} | "
                   "Montante: ${service.fmtMoeda(valor + juros)} | "
-                  "$parcelas parcelas de ${service.fmtMoeda(
-                    snapshot.hasData && snapshot.data!.isNotEmpty
-                        ? service.parseMoeda(snapshot.data!.first['valor'].toString())
-                        : 0
-                  )}",
+                  "Prestação: ${service.fmtMoeda(widget.emprestimo['prestacao']?.toString().replaceAll('.', ','))}",
                   style: const TextStyle(color: Colors.black87, fontSize: 14),
                 ),
                 const SizedBox(height: 12),
