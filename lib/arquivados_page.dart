@@ -4,7 +4,9 @@ import 'parcelas_inativas_page.dart';
 import 'utils.dart';
 
 class ArquivadosPage extends StatefulWidget {
-  const ArquivadosPage({super.key});
+  final Map<String, dynamic> cliente;
+
+  const ArquivadosPage({super.key, required this.cliente});
 
   @override
   State<ArquivadosPage> createState() => _ArquivadosPageState();
@@ -23,7 +25,8 @@ class _ArquivadosPageState extends State<ArquivadosPage> {
     final response = await Supabase.instance.client
         .from('emprestimos')
         .select('*, clientes(nome)')
-        .eq('ativo', 'nao')
+        .eq('ativo', 'não')
+        .eq('id_cliente', widget.cliente['id_cliente']) // 🔹 filtro por cliente
         .order('data_inicio', ascending: false);
 
     return (response as List).map((e) => e as Map<String, dynamic>).toList();
@@ -75,7 +78,8 @@ class _ArquivadosPageState extends State<ArquivadosPage> {
                     scrollDirection: Axis.vertical,
                     child: DataTable(
                       showCheckboxColumn: false,
-                      headingRowColor: MaterialStateProperty.all(Colors.grey[300]),
+                      headingRowColor:
+                          MaterialStateProperty.all(Colors.grey[300]),
                       headingTextStyle: const TextStyle(
                         color: Colors.black,
                         fontWeight: FontWeight.bold,
@@ -85,16 +89,37 @@ class _ArquivadosPageState extends State<ArquivadosPage> {
                         fontSize: 13,
                       ),
                       columns: const [
-                        DataColumn(label: SizedBox(width: 160, child: Center(child: Text("Cliente")))),
-                        DataColumn(label: SizedBox(width: 100, child: Center(child: Text("Nº Empr.")))),
-                        DataColumn(label: SizedBox(width: 100, child: Center(child: Text("Data Início")))),
-                        DataColumn(label: SizedBox(width: 110, child: Center(child: Text("Capital")))),
-                        DataColumn(label: SizedBox(width: 110, child: Center(child: Text("Juros")))),
-                        DataColumn(label: SizedBox(width: 110, child: Center(child: Text("Total")))),
-                        DataColumn(label: SizedBox(width: 120, child: Center(child: Text("Parcelas")))),
+                        DataColumn(
+                            label: SizedBox(
+                                width: 160,
+                                child: Center(child: Text("Cliente")))),
+                        DataColumn(
+                            label: SizedBox(
+                                width: 100,
+                                child: Center(child: Text("Nº Empr.")))),
+                        DataColumn(
+                            label: SizedBox(
+                                width: 100,
+                                child: Center(child: Text("Data Início")))),
+                        DataColumn(
+                            label: SizedBox(
+                                width: 110,
+                                child: Center(child: Text("Capital")))),
+                        DataColumn(
+                            label: SizedBox(
+                                width: 110,
+                                child: Center(child: Text("Juros")))),
+                        DataColumn(
+                            label: SizedBox(
+                                width: 110,
+                                child: Center(child: Text("Total")))),
+                        DataColumn(
+                            label: SizedBox(
+                                width: 120,
+                                child: Center(child: Text("Parcelas")))),
                       ],
                       rows: emprestimos.map((emp) {
-                        final cliente = emp['clientes'] is Map 
+                        final cliente = emp['clientes'] is Map
                             ? emp['clientes']['nome'] ?? 'Sem nome'
                             : 'Sem nome';
 
@@ -104,23 +129,67 @@ class _ArquivadosPageState extends State<ArquivadosPage> {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (context) => ParcelasInativasPage(emprestimo: emp),
+                                builder: (context) =>
+                                    ParcelasInativasPage(emprestimo: emp),
                               ),
                             ).then((_) {
                               // Atualiza a lista após reativar
                               setState(() {
-                                _emprestimosArquivadosFuture = _buscarEmprestimosArquivados();
+                                _emprestimosArquivadosFuture =
+                                    _buscarEmprestimosArquivados();
                               });
                             });
                           },
                           cells: [
-                            DataCell(SizedBox(width: 160, child: Center(child: Text(cliente, style: const TextStyle(fontSize: 13))))),
-                            DataCell(SizedBox(width: 100, child: Center(child: Text("${emp['numero'] ?? ''}", style: const TextStyle(fontSize: 13))))),
-                            DataCell(SizedBox(width: 100, child: Center(child: Text(emp['data_inicio'] ?? '', style: const TextStyle(fontSize: 13))))),
-                            DataCell(SizedBox(width: 110, child: Center(child: Text(fmtMoeda(emp['valor']), style: const TextStyle(fontSize: 13))))),
-                            DataCell(SizedBox(width: 110, child: Center(child: Text(fmtMoeda(emp['juros']), style: const TextStyle(fontSize: 13))))),
-                            DataCell(SizedBox(width: 110, child: Center(child: Text(fmtMoeda((num.tryParse("${emp['valor']}") ?? 0) + (num.tryParse("${emp['juros']}") ?? 0)), style: const TextStyle(fontSize: 13))))),
-                            DataCell(SizedBox(width: 120, child: Center(child: Text("${emp['parcelas']} x ${fmtMoeda(emp['prestacao'])}", style: const TextStyle(fontSize: 13))))),
+                            DataCell(SizedBox(
+                                width: 160,
+                                child: Center(
+                                    child: Text(cliente,
+                                        style: const TextStyle(
+                                            fontSize: 13))))),
+                            DataCell(SizedBox(
+                                width: 100,
+                                child: Center(
+                                    child: Text("${emp['numero'] ?? ''}",
+                                        style: const TextStyle(
+                                            fontSize: 13))))),
+                            DataCell(SizedBox(
+                                width: 100,
+                                child: Center(
+                                    child: Text(emp['data_inicio'] ?? '',
+                                        style: const TextStyle(
+                                            fontSize: 13))))),
+                            DataCell(SizedBox(
+                                width: 110,
+                                child: Center(
+                                    child: Text(fmtMoeda(emp['valor']),
+                                        style: const TextStyle(
+                                            fontSize: 13))))),
+                            DataCell(SizedBox(
+                                width: 110,
+                                child: Center(
+                                    child: Text(fmtMoeda(emp['juros']),
+                                        style: const TextStyle(
+                                            fontSize: 13))))),
+                            DataCell(SizedBox(
+                                width: 110,
+                                child: Center(
+                                    child: Text(
+                                        fmtMoeda(
+                                            (num.tryParse("${emp['valor']}") ??
+                                                    0) +
+                                                (num.tryParse(
+                                                        "${emp['juros']}") ??
+                                                    0)),
+                                        style: const TextStyle(
+                                            fontSize: 13))))),
+                            DataCell(SizedBox(
+                                width: 120,
+                                child: Center(
+                                    child: Text(
+                                        "${emp['parcelas']} x ${fmtMoeda(emp['prestacao'])}",
+                                        style: const TextStyle(
+                                            fontSize: 13))))),
                           ],
                         );
                       }).toList(),

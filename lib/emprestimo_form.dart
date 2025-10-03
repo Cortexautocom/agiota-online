@@ -40,16 +40,10 @@ class _EmprestimoFormState extends State<EmprestimoForm> {
   // 🔹 Máscara para campos de moeda
   TextInputFormatter _moedaFormatter() {
     return TextInputFormatter.withFunction((oldValue, newValue) {
-      // Remove tudo que não é número
       var text = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
-      
-      // Se estiver vazio, retorna vazio
       if (text.isEmpty) return newValue;
-      
-      // Converte para double e formata como moeda
       final value = int.parse(text) / 100;
       final formatted = _formatarMoeda(value);
-      
       return TextEditingValue(
         text: formatted,
         selection: TextSelection.collapsed(offset: formatted.length),
@@ -57,14 +51,10 @@ class _EmprestimoFormState extends State<EmprestimoForm> {
     });
   }
 
-  // 🔹 Função para formatar valor como moeda brasileira
   String _formatarMoeda(double value) {
-    // Formata como "R$ 1.234,56"
     final parts = value.toStringAsFixed(2).split('.');
     final real = parts[0];
     final centavos = parts[1];
-    
-    // Adiciona separadores de milhar
     String realFormatado = '';
     for (int i = real.length - 1, j = 0; i >= 0; i--, j++) {
       if (j > 0 && j % 3 == 0) {
@@ -72,26 +62,20 @@ class _EmprestimoFormState extends State<EmprestimoForm> {
       }
       realFormatado = real[i] + realFormatado;
     }
-    
     return 'R\$ $realFormatado,$centavos';
   }
 
-  // 🔹 Função para converter texto formatado de volta para double
   double _parseMoeda(String texto) {
     if (texto.isEmpty) return 0.0;
-    
-    // Remove "R$", pontos e substitui vírgula por ponto
     final cleaned = texto
         .replaceAll('R\$', '')
         .replaceAll('.', '')
         .replaceAll(',', '.')
         .trim();
-    
     return double.tryParse(cleaned) ?? 0.0;
   }
 
   void simular() {
-    // 🔹 Usa a função de parse para converter o texto formatado
     final capital = _parseMoeda(capitalCtrl.text);
     final meses = int.tryParse(mesesCtrl.text) ?? 0;
     final taxa = double.tryParse(taxaCtrl.text.replaceAll(',', '.')) ?? 0;
@@ -121,7 +105,6 @@ class _EmprestimoFormState extends State<EmprestimoForm> {
       p = totalPago / meses;
     }
 
-    // 🔹 Monta resumo + prévia das parcelas
     setState(() {
       prestacao = p;
       totalJuros = jurosTotal;
@@ -148,7 +131,6 @@ class _EmprestimoFormState extends State<EmprestimoForm> {
           "é ${fmtMoeda(totalPago)}, sendo ${fmtMoeda(jurosTotal)} de juros.\n"
           "Taxa aproximada: $taxaFmt";
 
-      // 🔹 Gera a prévia das parcelas
       parcelasPreview.clear();
       final diaRef = dataEmprestimo.day;
       for (int i = 1; i <= meses; i++) {
@@ -181,88 +163,82 @@ class _EmprestimoFormState extends State<EmprestimoForm> {
     }
 
     final supabase = Supabase.instance.client;
-
     final uuid = Uuid();
     final emprestimoId = uuid.v4();
 
     final dataStr =
         "${dataEmprestimo.day.toString().padLeft(2, '0')}/${dataEmprestimo.month.toString().padLeft(2, '0')}/${dataEmprestimo.year}";
 
-    // 🔹 Salva o valor numérico (sem formatação de moeda)
+    final capital = _parseMoeda(capitalCtrl.text);
+    final meses = int.tryParse(mesesCtrl.text) ?? 1;
+    final prestacaoFinal = ((capital + (totalJuros ?? 0)) / meses);
+
     await supabase.from('emprestimos').insert({
       'id': emprestimoId,
       'id_cliente': widget.idCliente,
-      'valor': _parseMoeda(capitalCtrl.text).toString(),
+      'valor': capital,          // 👈 agora DOUBLE
       'data_inicio': dataStr,
-      'parcelas': mesesCtrl.text,
-      'juros': totalJuros.toString(),
-      'prestacao': prestacao.toString(),
+      'parcelas': meses,         // 👈 agora INT
+      'juros': totalJuros ?? 0,  // 👈 agora DOUBLE
+      'prestacao': prestacaoFinal, // 👈 agora DOUBLE
       'id_usuario': widget.idUsuario,
       'ativo': 'sim',
     });
 
-    final n = int.tryParse(mesesCtrl.text) ?? 1;
     final dataInicio = dataEmprestimo;
     final diaRef = dataInicio.day;
-
     final List<Map<String, dynamic>> parcelas = [];
 
-    for (int i = 1; i <= n; i++) {
+    for (int i = 1; i <= meses; i++) {
       int ano = dataInicio.year;
       int mes = dataInicio.month + i;
       while (mes > 12) {
         mes -= 12;
         ano += 1;
       }
-
       int ultimoDiaMes = DateTime(ano, mes + 1, 0).day;
       int dia = diaRef <= ultimoDiaMes ? diaRef : 1;
       DateTime vencimento = DateTime(ano, mes, dia);
-
       final parcelaId = uuid.v4();
 
       parcelas.add({
         'id': parcelaId,
         'id_emprestimo': emprestimoId,
         'numero': i,
-        'valor': prestacao,
-        'vencimento':
-            "${vencimento.day.toString().padLeft(2, '0')}/${vencimento.month.toString().padLeft(2, '0')}/${vencimento.year}",
-        'juros': 0,
-        'desconto': 0,
-        'pg_principal': 0,
-        'pg_juros': 0,
-        'valor_pago': 0,
-        'residual': prestacao,
+        'valor': prestacaoFinal,   // 👈 DOUBLE
+        'vencimento': "...",
+        'juros': 0.0,              // 👈 DOUBLE
+        'desconto': 0.0,           // 👈 DOUBLE
+        'pg_principal': 0.0,       // 👈 DOUBLE
+        'pg_juros': 0.0,           // 👈 DOUBLE
+        'valor_pago': 0.0,         // 👈 DOUBLE
+        'residual': prestacaoFinal, // 👈 DOUBLE
         'data_pagamento': "",
         'id_usuario': widget.idUsuario,
         'data_prevista': "",
         'comentario': "",
       });
+
     }
 
     await supabase.from('parcelas').insert(parcelas);
 
     if (!mounted) return;
 
-    // 🔹 envia o empréstimo no mesmo formato esperado pela ParcelasPage
     final emprestimo = {
       "id": emprestimoId,
       "id_cliente": widget.idCliente,
-      "valor": _parseMoeda(capitalCtrl.text).toString(), // 👈 valor numérico
+      "valor": capital.toStringAsFixed(2),
       "data_inicio": dataStr,
-      "parcelas": mesesCtrl.text,        // 👈 manter o mesmo nome do banco
-      "juros": totalJuros.toString(),
-      "prestacao": prestacao.toString(),
+      "parcelas": meses.toString(),
+      "juros": (totalJuros ?? 0).toStringAsFixed(2),
+      "prestacao": prestacaoFinal.toStringAsFixed(2),
       "id_usuario": widget.idUsuario,
       "ativo": "sim",
-      "cliente": "", // opcional
+      "cliente": "",
     };
 
-    // fecha o form
     Navigator.pop(context);
-
-    // abre a tela de parcelas com dados corretos
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -277,9 +253,7 @@ class _EmprestimoFormState extends State<EmprestimoForm> {
       appBar: AppBar(title: const Text("Novo Empréstimo")),
       body: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(
-            maxWidth: 420,
-          ),
+          constraints: const BoxConstraints(maxWidth: 420),
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Form(
@@ -293,7 +267,7 @@ class _EmprestimoFormState extends State<EmprestimoForm> {
                       decoration:
                           const InputDecoration(labelText: "Valor financiado"),
                       keyboardType: TextInputType.number,
-                      inputFormatters: [_moedaFormatter()], // 🔹 Máscara aplicada
+                      inputFormatters: [_moedaFormatter()],
                     ),
                     const SizedBox(height: 12),
                     TextFormField(
@@ -304,17 +278,15 @@ class _EmprestimoFormState extends State<EmprestimoForm> {
                     const SizedBox(height: 12),
                     TextFormField(
                       controller: taxaCtrl,
-                      decoration: const InputDecoration(
-                          labelText: "Taxa mensal (% a.m)"),
+                      decoration: const InputDecoration(labelText: "Taxa mensal (% a.m)"),
                       keyboardType: TextInputType.number,
                     ),
                     const SizedBox(height: 12),
                     TextFormField(
                       controller: jurosCtrl,
-                      decoration:
-                          const InputDecoration(labelText: "Total de Juros"),
+                      decoration: const InputDecoration(labelText: "Total de Juros"),
                       keyboardType: TextInputType.number,
-                      inputFormatters: [_moedaFormatter()], // 🔹 Máscara aplicada
+                      inputFormatters: [_moedaFormatter()],
                     ),
                     const SizedBox(height: 20),
                     ElevatedButton(
@@ -364,7 +336,7 @@ class _EmprestimoFormState extends State<EmprestimoForm> {
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 Text("Parcela ${parc['numero']}"),
-                                Text(fmtMoeda(parc['valor'])),
+                                Text(fmtMoeda(double.tryParse(parc['valor'].toString()) ?? 0)),
                                 Text(parc['vencimento']),
                               ],
                             ),

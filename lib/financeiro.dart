@@ -50,7 +50,6 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
       }
     }
 
-    // verificar se a próxima parcela tem acordo (data_prevista preenchida)
     final temAcordo = parcelas.any((p) {
       final vencTxt = p['vencimento']?.toString() ?? "";
       if (vencTxt.isEmpty) return false;
@@ -105,8 +104,6 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
             ),
           ),
         ),
-
-        // ❌ REMOVIDO: floatingActionButton daqui (estava aparecendo em todas as abas)
 
         body: TabBarView(
           children: [
@@ -195,8 +192,6 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
                                             builder: (context) => ParcelasPage(emprestimo: emp),
                                           ),
                                         ).then((_) {
-                                          // 👇 força refresh SEMPRE que voltar da tela de parcelas,
-                                          // seja ao salvar, excluir acordo ou qualquer alteração
                                           setState(() {});
                                         });
                                       },
@@ -211,10 +206,18 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
                                             return Center(child: Text(snap.data!['ultima'] ?? "-", style: const TextStyle(fontSize: 13)));
                                           },
                                         )),
-                                        DataCell(SizedBox(width: 110, child: Center(child: Text(fmtMoeda(emp['valor']), style: const TextStyle(fontSize: 13))))),
-                                        DataCell(SizedBox(width: 110, child: Center(child: Text(fmtMoeda(emp['juros']), style: const TextStyle(fontSize: 13))))),
-                                        DataCell(SizedBox(width: 110, child: Center(child: Text(fmtMoeda((num.tryParse("${emp['valor']}") ?? 0) + (num.tryParse("${emp['juros']}") ?? 0)), style: const TextStyle(fontSize: 13))))),
-                                        DataCell(SizedBox(width: 120, child: Center(child: Text("${emp['parcelas']} x ${fmtMoeda(((num.tryParse('${emp['valor']}') ?? 0) + (num.tryParse('${emp['juros']}') ?? 0)) / (num.tryParse('${emp['parcelas']}') ?? 1))}", style: const TextStyle(fontSize: 13))))),
+                                        DataCell(SizedBox(width: 110, child: Center(child: Text(fmtMoeda(_asDouble(emp['valor'])), style: const TextStyle(fontSize: 13))))),
+                                        DataCell(SizedBox(width: 110, child: Center(child: Text(fmtMoeda(_asDouble(emp['juros'])), style: const TextStyle(fontSize: 13))))),
+                                        DataCell(SizedBox(width: 110, child: Center(child: Text(fmtMoeda(_asDouble(emp['valor']) + _asDouble(emp['juros'])), style: const TextStyle(fontSize: 13))))),
+                                        DataCell(SizedBox(
+                                          width: 120,
+                                          child: Center(
+                                            child: Text(
+                                              "${emp['parcelas']} x ${fmtMoeda(_asDouble(emp['prestacao']))}",
+                                              style: const TextStyle(fontSize: 13),
+                                            ),
+                                          ),
+                                        )),
                                         DataCell(FutureBuilder<Map<String, String>>(
                                           future: _calcularDatas(emp['id']),
                                           builder: (context, snap) {
@@ -266,8 +269,7 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
                             );
                           },
                         ),
-                        
-                        // ✅ BOTÃO APENAS NA ABA DE EMPRÉSTIMOS
+
                         Positioned(
                           bottom: 16,
                           right: 16,
@@ -299,10 +301,16 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
             ),
 
             GarantiasPage(cliente: cliente),
-            const ArquivadosPage(),
+            ArquivadosPage(cliente: cliente),
           ],
         ),
       ),
     );
+  }
+
+  double _asDouble(dynamic valor) {
+    if (valor == null) return 0.0;
+    if (valor is num) return valor.toDouble();
+    return double.tryParse(valor.toString()) ?? 0.0;
   }
 }

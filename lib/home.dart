@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'clientes_page.dart';
-import 'arquivados_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -14,8 +13,7 @@ class _HomePageState extends State<HomePage> {
 
   final List<Widget> _pages = [
     const ClientesPage(),
-    const Center(child: Text("📊 Relatórios", style: TextStyle(color: Colors.white))),
-    const ArquivadosPage(),
+    const Center(child: Text("📊 Relatórios", style: TextStyle(color: Colors.white))),    
   ];
 
   @override
