@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'parcelas_service.dart';
 import 'acordo_dialog.dart';
 import 'package:intl/intl.dart';
+import 'utils.dart';
 
 class ParcelasTable extends StatefulWidget {
   final Map<String, dynamic> emprestimo;
@@ -31,7 +32,9 @@ class ParcelasTableState extends State<ParcelasTable> {
     _controllers.clear();
     for (final p in widget.parcelas) {
       _controllers.add({
-        'vencimento': TextEditingController(text: p['vencimento']?.toString() ?? ''),
+        'vencimento': TextEditingController(
+          text: formatarData(p['vencimento']?.toString()),
+        ),
         'valor': TextEditingController(text: service.fmtMoeda(p['valor'])),
         'juros': TextEditingController(text: service.fmtMoeda(p['juros'])),
         'desconto': TextEditingController(text: service.fmtMoeda(p['desconto'])),
@@ -218,7 +221,7 @@ class ParcelasTableState extends State<ParcelasTable> {
               final vencimentoTxt = p['vencimento']?.toString() ?? "";
               DateTime? vencimento;
               try {
-                vencimento = DateFormat("dd/MM/yyyy").parseStrict(vencimentoTxt);
+                vencimento = DateTime.parse(vencimentoTxt); // lê direto yyyy-MM-dd
               } catch (_) {
                 vencimento = null;
               }
@@ -404,7 +407,8 @@ class ParcelasTableState extends State<ParcelasTable> {
                       final vencimentoTxt = p['vencimento']?.toString() ?? "";
                       DateTime? vencimento;
                       try {
-                        vencimento = DateFormat("dd/MM/yyyy").parseStrict(vencimentoTxt);
+                        // Agora o banco retorna "2025-10-03" (yyyy-MM-dd)
+                        vencimento = DateTime.parse(vencimentoTxt);
                       } catch (_) {
                         vencimento = null;
                       }

@@ -22,14 +22,25 @@ class _ArquivadosPageState extends State<ArquivadosPage> {
   }
 
   Future<List<Map<String, dynamic>>> _buscarEmprestimosArquivados() async {
+    print("🔎 Buscando empréstimos arquivados para cliente=${widget.cliente}");
+
     final response = await Supabase.instance.client
         .from('emprestimos')
-        .select('*, clientes(nome)')
-        .eq('ativo', 'não')
-        .eq('id_cliente', widget.cliente['id_cliente']) // 🔹 filtro por cliente
+        .select(
+            'id, numero, valor, data_inicio, parcelas, observacao, juros, prestacao, id_usuario, ativo, clientes(nome)')
+        .eq('ativo', 'nao')
+        .eq('id_cliente', widget.cliente['id_cliente'])
         .order('data_inicio', ascending: false);
 
-    return (response as List).map((e) => e as Map<String, dynamic>).toList();
+    print("📥 Resposta Supabase arquivados: $response");
+
+    final lista = (response as List).map((e) => e as Map<String, dynamic>).toList();
+    print("✅ Total de empréstimos arquivados encontrados: ${lista.length}");
+    for (var e in lista) {
+      print("➡️ Empréstimo ID=${e['id']} NUM=${e['numero']} VALOR=${e['valor']}");
+    }
+
+    return lista;
   }
 
   @override
@@ -123,8 +134,12 @@ class _ArquivadosPageState extends State<ArquivadosPage> {
                             ? emp['clientes']['nome'] ?? 'Sem nome'
                             : 'Sem nome';
 
+                        print("📝 Montando linha da tabela para emprestimo ID=${emp['id']}");
+
                         return DataRow(
                           onSelectChanged: (_) {
+                            print("👆 Clicou no empréstimo arquivado -> $emp");
+
                             emp['cliente'] = cliente;
                             Navigator.push(
                               context,
@@ -133,7 +148,7 @@ class _ArquivadosPageState extends State<ArquivadosPage> {
                                     ParcelasInativasPage(emprestimo: emp),
                               ),
                             ).then((_) {
-                              // Atualiza a lista após reativar
+                              print("🔄 Voltou de ParcelasInativasPage, recarregando lista");
                               setState(() {
                                 _emprestimosArquivadosFuture =
                                     _buscarEmprestimosArquivados();

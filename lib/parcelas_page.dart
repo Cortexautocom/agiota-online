@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'parcelas_service.dart';
 import 'parcelas_table.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'utils.dart';
 
 class ParcelasPage extends StatefulWidget {
   final Map<String, dynamic> emprestimo;
@@ -31,12 +32,12 @@ class _ParcelasPageState extends State<ParcelasPage> {
   Widget build(BuildContext context) {
     final cliente = widget.emprestimo["cliente"] ?? "";
     final numero = widget.emprestimo["numero"] ?? "";
-    final dataInicio = widget.emprestimo["data_inicio"] ?? "";
+    final dataInicio = formatarData(widget.emprestimo["data_inicio"]);
+
 
     // 🔹 usa parseMoeda e fmtMoeda para garantir "R$ 0,00" se for zero ou vazio
     final valor = service.parseMoeda("${widget.emprestimo["valor"] ?? "0"}");
-    final juros = service.parseMoeda("${widget.emprestimo["juros"] ?? "0"}");
-    final parcelas = widget.emprestimo["parcelas"]?.toString() ?? "0";
+    final juros = service.parseMoeda("${widget.emprestimo["juros"] ?? "0"}");    
 
     return Scaffold(
       appBar: AppBar(

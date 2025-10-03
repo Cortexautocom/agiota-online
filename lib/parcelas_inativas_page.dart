@@ -19,9 +19,11 @@ class _ParcelasInativasPageState extends State<ParcelasInativasPage> {
   @override
   void initState() {
     super.initState();
-    _parcelasFuture = service.buscarParcelas(
-      widget.emprestimo['id'] ?? widget.emprestimo['id_emprestimo'],
-    );
+    print("📂 ParcelasInativasPage aberto para emprestimo: ${widget.emprestimo}");
+    final emprestimoId =
+        widget.emprestimo['id'] ?? widget.emprestimo['id_emprestimo'];
+    print("🔎 Chamando buscarParcelas com id=$emprestimoId");
+    _parcelasFuture = service.buscarParcelas(emprestimoId);
   }
 
   Future<void> _reativarEmprestimo() async {
@@ -69,8 +71,8 @@ class _ParcelasInativasPageState extends State<ParcelasInativasPage> {
             actions: [
               TextButton(
                 onPressed: () {
-                  Navigator.pop(ctx); // fecha diálogo
-                  Navigator.pop(context, true); // volta para arquivados
+                  Navigator.pop(ctx);
+                  Navigator.pop(context, true);
                 },
                 child: const Text("OK"),
               ),
@@ -106,8 +108,7 @@ class _ParcelasInativasPageState extends State<ParcelasInativasPage> {
 
     final valor = service.parseMoeda("${widget.emprestimo["valor"] ?? "0"}");
     final juros = service.parseMoeda("${widget.emprestimo["juros"] ?? "0"}");
-    final prestacao = service.parseMoeda("${widget.emprestimo["prestacao"] ?? "0"}");
-    final parcelas = widget.emprestimo["parcelas"]?.toString() ?? "0";
+    
 
     return Scaffold(
       appBar: AppBar(
@@ -120,7 +121,6 @@ class _ParcelasInativasPageState extends State<ParcelasInativasPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 🔹 Resumo
             Text(
               "Nº $numero  |  Data do empréstimo: $dataInicio\n"
               "Capital: ${service.fmtMoeda(valor)} | "
@@ -132,19 +132,25 @@ class _ParcelasInativasPageState extends State<ParcelasInativasPage> {
             const SizedBox(height: 12),
             const Text(
               "📋 Visualização apenas - Empréstimo arquivado",
-              style: TextStyle(color: Colors.orange, fontSize: 12, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                  color: Colors.orange,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
-
-            // 🔹 Lista de parcelas (somente leitura)
             Expanded(
               child: FutureBuilder<List<Map<String, dynamic>>>(
                 future: _parcelasFuture,
                 builder: (context, snapshot) {
+                  print("📊 FutureBuilder snapshot: "
+                      "state=${snapshot.connectionState} "
+                      "hasError=${snapshot.hasError} "
+                      "hasData=${snapshot.hasData}");
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(child: CircularProgressIndicator());
                   }
                   if (snapshot.hasError) {
+                    print("❌ Erro FutureBuilder: ${snapshot.error}");
                     return Center(
                       child: Text(
                         "Erro: ${snapshot.error}",
@@ -154,6 +160,7 @@ class _ParcelasInativasPageState extends State<ParcelasInativasPage> {
                   }
 
                   final parcelas = snapshot.data ?? [];
+                  print("📦 Parcelas recebidas: ${parcelas.length}");
                   if (parcelas.isEmpty) {
                     return const Center(
                       child: Text(
@@ -170,8 +177,6 @@ class _ParcelasInativasPageState extends State<ParcelasInativasPage> {
           ],
         ),
       ),
-      
-      // 🔹 Botão Reativar
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _reativarEmprestimo,
         icon: const Icon(Icons.restore),
@@ -182,6 +187,7 @@ class _ParcelasInativasPageState extends State<ParcelasInativasPage> {
   }
 
   Widget _buildTabelaParcelas(List<Map<String, dynamic>> parcelas) {
+    print("📝 Montando tabela de parcelas (${parcelas.length} itens)");
     double totalValor = 0;
     double totalJuros = 0;
     double totalDesconto = 0;
@@ -189,6 +195,7 @@ class _ParcelasInativasPageState extends State<ParcelasInativasPage> {
     double totalPgJuros = 0;
 
     for (final p in parcelas) {
+      print("➡️ Parcela: $p");
       totalValor += service.parseMoeda(service.fmtMoeda(p['valor']));
       totalJuros += service.parseMoeda(service.fmtMoeda(p['juros']));
       totalDesconto += service.parseMoeda(service.fmtMoeda(p['desconto']));
@@ -205,7 +212,8 @@ class _ParcelasInativasPageState extends State<ParcelasInativasPage> {
           headingRowColor: MaterialStateProperty.all(Colors.grey[400]),
           headingTextStyle: const TextStyle(
               color: Colors.black, fontWeight: FontWeight.bold),
-          dataTextStyle: const TextStyle(color: Colors.black87, fontSize: 13),
+          dataTextStyle:
+              const TextStyle(color: Colors.black87, fontSize: 13),
           columns: const [
             DataColumn(label: Text("Nº")),
             DataColumn(label: Text("Vencimento")),
@@ -222,21 +230,19 @@ class _ParcelasInativasPageState extends State<ParcelasInativasPage> {
             ...List.generate(parcelas.length, (i) {
               final p = parcelas[i];
 
-              final residualAtual = service.parseMoeda(service.fmtMoeda(p['valor'])) +
-                  service.parseMoeda(service.fmtMoeda(p['juros'])) -
-                  service.parseMoeda(service.fmtMoeda(p['desconto'])) -
-                  (service.parseMoeda(service.fmtMoeda(p['pg_principal'])) +
-                      service.parseMoeda(service.fmtMoeda(p['pg_juros'])));
+              final residualAtual =
+                  service.parseMoeda(service.fmtMoeda(p['valor'])) +
+                      service.parseMoeda(service.fmtMoeda(p['juros'])) -
+                      service.parseMoeda(service.fmtMoeda(p['desconto'])) -
+                      (service.parseMoeda(service.fmtMoeda(p['pg_principal'])) +
+                          service.parseMoeda(service.fmtMoeda(p['pg_juros'])));
 
               final bool parcelaPaga = residualAtual == 0;
 
-              final rowColor = parcelaPaga
-                  ? Colors.green.withOpacity(0.2)
-                  : Colors.grey[100];
-
-              final textColor = parcelaPaga
-                  ? Colors.green[800]
-                  : Colors.black87;
+              final rowColor =
+                  parcelaPaga ? Colors.green.withOpacity(0.2) : Colors.grey[100];
+              final textColor =
+                  parcelaPaga ? Colors.green[800] : Colors.black87;
 
               return DataRow(
                 color: MaterialStateProperty.all(rowColor),
@@ -263,7 +269,9 @@ class _ParcelasInativasPageState extends State<ParcelasInativasPage> {
                     style: TextStyle(fontSize: 13, color: textColor),
                   )),
                   DataCell(Text(
-                    residualAtual == 0 ? "R\$ 0,00" : service.fmtMoeda(residualAtual),
+                    residualAtual == 0
+                        ? "R\$ 0,00"
+                        : service.fmtMoeda(residualAtual),
                     style: TextStyle(fontSize: 13, color: textColor),
                   )),
                   DataCell(Text(p['data_pagamento']?.toString() ?? '',
@@ -274,7 +282,8 @@ class _ParcelasInativasPageState extends State<ParcelasInativasPage> {
             DataRow(cells: [
               const DataCell(Text("")),
               const DataCell(Text("TOTAL",
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold))),
+                  style:
+                      TextStyle(fontSize: 14, fontWeight: FontWeight.bold))),
               DataCell(Text(service.fmtMoeda(totalValor),
                   style: const TextStyle(
                       fontSize: 14, fontWeight: FontWeight.bold))),

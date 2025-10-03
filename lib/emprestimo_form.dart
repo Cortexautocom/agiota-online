@@ -147,6 +147,7 @@ class _EmprestimoFormState extends State<EmprestimoForm> {
         parcelasPreview.add({
           "numero": i,
           "valor": p,
+          // 👇 exibido só na tela em dd/MM/yyyy
           "vencimento":
               "${vencimento.day.toString().padLeft(2, '0')}/${vencimento.month.toString().padLeft(2, '0')}/${vencimento.year}"
         });
@@ -167,7 +168,7 @@ class _EmprestimoFormState extends State<EmprestimoForm> {
     final emprestimoId = uuid.v4();
 
     final dataStr =
-        "${dataEmprestimo.day.toString().padLeft(2, '0')}/${dataEmprestimo.month.toString().padLeft(2, '0')}/${dataEmprestimo.year}";
+        "${dataEmprestimo.year}-${dataEmprestimo.month.toString().padLeft(2, '0')}-${dataEmprestimo.day.toString().padLeft(2, '0')}";
 
     final capital = _parseMoeda(capitalCtrl.text);
     final meses = int.tryParse(mesesCtrl.text) ?? 1;
@@ -176,11 +177,11 @@ class _EmprestimoFormState extends State<EmprestimoForm> {
     await supabase.from('emprestimos').insert({
       'id': emprestimoId,
       'id_cliente': widget.idCliente,
-      'valor': capital,          // 👈 agora DOUBLE
+      'valor': capital,
       'data_inicio': dataStr,
-      'parcelas': meses,         // 👈 agora INT
-      'juros': totalJuros ?? 0,  // 👈 agora DOUBLE
-      'prestacao': prestacaoFinal, // 👈 agora DOUBLE
+      'parcelas': meses,
+      'juros': totalJuros ?? 0,
+      'prestacao': prestacaoFinal,
       'id_usuario': widget.idUsuario,
       'ativo': 'sim',
     });
@@ -205,20 +206,21 @@ class _EmprestimoFormState extends State<EmprestimoForm> {
         'id': parcelaId,
         'id_emprestimo': emprestimoId,
         'numero': i,
-        'valor': prestacaoFinal,   // 👈 DOUBLE
-        'vencimento': "...",
-        'juros': 0.0,              // 👈 DOUBLE
-        'desconto': 0.0,           // 👈 DOUBLE
-        'pg_principal': 0.0,       // 👈 DOUBLE
-        'pg_juros': 0.0,           // 👈 DOUBLE
-        'valor_pago': 0.0,         // 👈 DOUBLE
-        'residual': prestacaoFinal, // 👈 DOUBLE
+        'valor': prestacaoFinal,
+        // 👇 salvo no banco em yyyy-MM-dd
+        'vencimento':
+            "${vencimento.year}-${vencimento.month.toString().padLeft(2, '0')}-${vencimento.day.toString().padLeft(2, '0')}",
+        'juros': 0.0,
+        'desconto': 0.0,
+        'pg_principal': 0.0,
+        'pg_juros': 0.0,
+        'valor_pago': 0.0,
+        'residual': prestacaoFinal,
         'data_pagamento': "",
         'id_usuario': widget.idUsuario,
         'data_prevista': "",
         'comentario': "",
       });
-
     }
 
     await supabase.from('parcelas').insert(parcelas);
@@ -337,7 +339,7 @@ class _EmprestimoFormState extends State<EmprestimoForm> {
                               children: [
                                 Text("Parcela ${parc['numero']}"),
                                 Text(fmtMoeda(double.tryParse(parc['valor'].toString()) ?? 0)),
-                                Text(parc['vencimento']),
+                                Text(parc['vencimento']), // exibido dd/MM/yyyy
                               ],
                             ),
                           );

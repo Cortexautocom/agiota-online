@@ -22,3 +22,21 @@ double parseMoeda(String? txt) {
       .trim();
   return double.tryParse(cleaned) ?? 0.0;
 }
+
+String formatarData(String? data) {
+  if (data == null || data.isEmpty) return "";
+  try {
+    final partes = data.split("-");
+    if (partes.length == 3) {
+      final ano = partes[0];
+      final mes = partes[1];
+      final dia = partes[2];
+      return "$dia/$mes/$ano";
+    }
+    return data; // aqui já não é mais nulo
+  } catch (_) {
+    return ""; // se der erro, retorna vazio
+  }
+}
+
+
