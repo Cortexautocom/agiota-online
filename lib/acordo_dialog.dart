@@ -8,7 +8,33 @@ Future<bool?> abrirAcordoDialog(
   // 🔹 Valida se pode abrir acordo
   try {
     final vencimentoTxt = parcela["vencimento"]?.toString() ?? "";
-    final vencimento = DateFormat("dd/MM/yyyy").parseStrict(vencimentoTxt);
+    DateTime? vencimento;
+
+    try {
+      // ✅ Detecta automaticamente o formato
+      if (vencimentoTxt.contains('-')) {
+        // formato ISO (2025-10-03)
+        vencimento = DateTime.parse(vencimentoTxt);
+      } else if (vencimentoTxt.contains('/')) {
+        // formato brasileiro (03/10/2025)
+        vencimento = DateFormat("dd/MM/yyyy").parseStrict(vencimentoTxt);
+      }
+    } catch (_) {
+      vencimento = null;
+    }
+
+    if (vencimento == null) {
+      await showDialog(
+        context: context,
+        builder: (ctx) => const AlertDialog(
+          content: Text(
+            "Data de vencimento inválida para criar acordo.",
+            textAlign: TextAlign.center,
+          ),
+        ),
+      );
+      return false;
+    }
 
     final hoje = DateTime.now();
     final limite = hoje.add(const Duration(days: 7));
