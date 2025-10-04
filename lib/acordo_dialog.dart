@@ -1,13 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:flutter/services.dart'; // ✅ NECESSÁRIO para TextInputFormatter
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'parcelas_service.dart';
 
 Future<bool?> abrirAcordoDialog(
     BuildContext context, Map<String, dynamic> parcela) async {
-  final service = ParcelasService();
-
   // 🔹 Valida se pode abrir acordo
   try {
     final vencimentoTxt = parcela["vencimento"]?.toString() ?? "";
@@ -42,9 +39,18 @@ Future<bool?> abrirAcordoDialog(
     return false;
   }
 
-  final comentarioCtrl =
-      TextEditingController(text: parcela["comentario"] ?? "");
-  final dataCtrl = TextEditingController(text: parcela["data_prevista"] ?? "");
+  final comentarioCtrl = TextEditingController(text: parcela["comentario"] ?? "");
+  
+  // 🔹 CORREÇÃO: Inicializar com formato de exibição, mas converter para DateTime
+  final dataInicial = parcela["data_prevista"] != null 
+      ? _parseDateFromBackend(parcela["data_prevista"])
+      : null;
+  
+  final dataCtrl = TextEditingController(
+    text: dataInicial != null 
+        ? DateFormat("dd/MM/yyyy").format(dataInicial) 
+        : ""
+  );
 
   final resultado = await showDialog<bool>(
     context: context,
@@ -78,7 +84,7 @@ Future<bool?> abrirAcordoDialog(
               Expanded(
                 child: TextField(
                   controller: dataCtrl,
-                  inputFormatters: [service.dateMaskFormatter()],
+                  inputFormatters: [_dateMaskFormatter()],
                   keyboardType: TextInputType.number,
                   decoration: const InputDecoration(
                     labelText: "Data prevista",
@@ -93,8 +99,7 @@ Future<bool?> abrirAcordoDialog(
                 onPressed: () async {
                   DateTime initialDate;
                   try {
-                    initialDate =
-                        DateFormat("dd/MM/yyyy").parse(dataCtrl.text);
+                    initialDate = DateFormat("dd/MM/yyyy").parse(dataCtrl.text);
                   } catch (_) {
                     initialDate = DateTime.now();
                   }
@@ -107,8 +112,7 @@ Future<bool?> abrirAcordoDialog(
                     lastDate: DateTime(2100),
                   );
                   if (picked != null) {
-                    dataCtrl.text =
-                        DateFormat("dd/MM/yyyy", "pt_BR").format(picked);
+                    dataCtrl.text = DateFormat("dd/MM/yyyy", "pt_BR").format(picked);
                   }
                 },
               ),
@@ -218,15 +222,18 @@ Future<bool?> abrirAcordoDialog(
               return;
             }
 
+            // 🔹 CORREÇÃO CRÍTICA: Converter para formato ISO
+            final dataISO = DateFormat("yyyy-MM-dd").format(acordoDate);
+
             await Supabase.instance.client
                 .from("parcelas")
                 .update({
-                  "data_prevista": dataCtrl.text,
+                  "data_prevista": dataISO, // ✅ Agora envia "2024-01-15"
                   "comentario": comentarioCtrl.text,
                 })
                 .eq("id", parcela["id"]);
 
-            // Atualiza localmente
+            // Atualiza localmente (mantém formato de exibição)
             parcela["data_prevista"] = dataCtrl.text;
             parcela["comentario"] = comentarioCtrl.text;
 
@@ -249,6 +256,43 @@ Future<bool?> abrirAcordoDialog(
     ),
   );
 
-  // 🔹 Garante que sempre retorne algo
   return resultado ?? false;
+}
+
+// ✅ FUNÇÃO LOCAL para máscara de data
+TextInputFormatter _dateMaskFormatter() {
+  return TextInputFormatter.withFunction((oldValue, newValue) {
+    var text = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
+    if (text.length > 8) text = text.substring(0, 8);
+
+    String formatted = '';
+    for (int i = 0; i < text.length; i++) {
+      formatted += text[i];
+      if (i == 1 || i == 3) formatted += '/';
+    }
+
+    return TextEditingValue(
+      text: formatted,
+      selection: TextSelection.collapsed(offset: formatted.length),
+    );
+  });
+}
+
+// ✅ FUNÇÃO AUXILIAR para converter dados do backend
+DateTime? _parseDateFromBackend(dynamic backendDate) {
+  if (backendDate == null) return null;
+  
+  try {
+    if (backendDate is String) {
+      // Tenta parse como ISO primeiro
+      if (backendDate.contains('-')) {
+        return DateTime.parse(backendDate);
+      }
+      // Se não for ISO, tenta o formato brasileiro
+      return DateFormat("dd/MM/yyyy").parseStrict(backendDate);
+    }
+  } catch (_) {
+    return null;
+  }
+  return null;
 }

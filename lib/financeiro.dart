@@ -31,7 +31,7 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
     for (final p in parcelas) {
       final vencTxt = p['vencimento']?.toString() ?? "";
       if (vencTxt.isEmpty) continue;
-      final venc = DateFormat("dd/MM/yyyy").tryParse(vencTxt);
+      final venc = DateTime.tryParse(vencTxt); // ✅ usar ISO direto
       if (venc == null) continue;
 
       final residual = num.tryParse("${p['residual']}") ?? 0;
@@ -53,16 +53,14 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
     final temAcordo = parcelas.any((p) {
       final vencTxt = p['vencimento']?.toString() ?? "";
       if (vencTxt.isEmpty) return false;
-      final venc = DateFormat("dd/MM/yyyy").tryParse(vencTxt);
+      final venc = DateTime.tryParse(vencTxt);
       final residual = num.tryParse("${p['residual']}") ?? 0;
-      final dataPrevista = (p['data_prevista'] ?? "").toString().trim();
+      final dataPrevista = p['data_prevista']?.toString().trim() ?? "";
 
       return residual > 0 &&
           venc != null &&
           proxima != null &&
-          venc.day == proxima.day &&
-          venc.month == proxima.month &&
-          venc.year == proxima.year &&
+          venc.isAtSameMomentAs(proxima) &&
           dataPrevista.isNotEmpty;
     });
 
@@ -279,8 +277,7 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
                                 context,
                                 MaterialPageRoute(
                                   builder: (_) => EmprestimoForm(
-                                    idCliente: cliente['id_cliente'],
-                                    idUsuario: Supabase.instance.client.auth.currentUser!.id,
+                                    idCliente: cliente['id_cliente'], // ✅ removido idUsuario
                                     onSaved: () {
                                       setState(() {});
                                     },

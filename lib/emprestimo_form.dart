@@ -8,13 +8,11 @@ import 'package:flutter/services.dart'; // Adicionar para TextInputFormatter
 
 class EmprestimoForm extends StatefulWidget {
   final String idCliente;   // vem do cliente selecionado
-  final String idUsuario;   // usuário logado
   final VoidCallback onSaved; // callback para atualizar tela de financeiro
 
   const EmprestimoForm({
     super.key,
     required this.idCliente,
-    required this.idUsuario,
     required this.onSaved,
   });
 
@@ -147,7 +145,7 @@ class _EmprestimoFormState extends State<EmprestimoForm> {
         parcelasPreview.add({
           "numero": i,
           "valor": p,
-          // 👇 exibido só na tela em dd/MM/yyyy
+          // exibido só na tela em dd/MM/yyyy
           "vencimento":
               "${vencimento.day.toString().padLeft(2, '0')}/${vencimento.month.toString().padLeft(2, '0')}/${vencimento.year}"
         });
@@ -167,6 +165,8 @@ class _EmprestimoFormState extends State<EmprestimoForm> {
     final uuid = Uuid();
     final emprestimoId = uuid.v4();
 
+    final userId = Supabase.instance.client.auth.currentUser!.id; // ✅ sempre pega do Supabase
+
     final dataStr =
         "${dataEmprestimo.year}-${dataEmprestimo.month.toString().padLeft(2, '0')}-${dataEmprestimo.day.toString().padLeft(2, '0')}";
 
@@ -182,7 +182,7 @@ class _EmprestimoFormState extends State<EmprestimoForm> {
       'parcelas': meses,
       'juros': totalJuros ?? 0,
       'prestacao': prestacaoFinal,
-      'id_usuario': widget.idUsuario,
+      'id_usuario': userId,
       'ativo': 'sim',
     });
 
@@ -207,7 +207,6 @@ class _EmprestimoFormState extends State<EmprestimoForm> {
         'id_emprestimo': emprestimoId,
         'numero': i,
         'valor': prestacaoFinal,
-        // 👇 salvo no banco em yyyy-MM-dd
         'vencimento':
             "${vencimento.year}-${vencimento.month.toString().padLeft(2, '0')}-${vencimento.day.toString().padLeft(2, '0')}",
         'juros': 0.0,
@@ -216,9 +215,9 @@ class _EmprestimoFormState extends State<EmprestimoForm> {
         'pg_juros': 0.0,
         'valor_pago': 0.0,
         'residual': prestacaoFinal,
-        'data_pagamento': "",
-        'id_usuario': widget.idUsuario,
-        'data_prevista': "",
+        'data_pagamento': null, // ✅ corrigido
+        'id_usuario': userId,   // ✅ nunca vem null
+        'data_prevista': null,  // ✅ corrigido
         'comentario': "",
       });
     }
@@ -235,7 +234,7 @@ class _EmprestimoFormState extends State<EmprestimoForm> {
       "parcelas": meses.toString(),
       "juros": (totalJuros ?? 0).toStringAsFixed(2),
       "prestacao": prestacaoFinal.toStringAsFixed(2),
-      "id_usuario": widget.idUsuario,
+      "id_usuario": userId,
       "ativo": "sim",
       "cliente": "",
     };

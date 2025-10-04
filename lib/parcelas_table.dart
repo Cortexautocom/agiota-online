@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'parcelas_service.dart';
 import 'acordo_dialog.dart';
-import 'package:intl/intl.dart';
+//import 'package:intl/intl.dart';
 import 'utils.dart';
 
 class ParcelasTable extends StatefulWidget {
@@ -40,9 +40,21 @@ class ParcelasTableState extends State<ParcelasTable> {
         'desconto': TextEditingController(text: service.fmtMoeda(p['desconto'])),
         'pg_principal': TextEditingController(text: service.fmtMoeda(p['pg_principal'])),
         'pg_juros': TextEditingController(text: service.fmtMoeda(p['pg_juros'])),
-        'data_pagamento': TextEditingController(text: p['data_pagamento']?.toString() ?? ''),
+        'data_pagamento': TextEditingController(
+          text: formatarData(p['data_pagamento']?.toString()),
+        ),
       });
     }
+  }
+
+  String? _toIsoDate(String text) {
+    if (text.isEmpty) return null;
+    final parts = text.split('/');
+    if (parts.length != 3) return null;
+    final dia = parts[0].padLeft(2, '0');
+    final mes = parts[1].padLeft(2, '0');
+    final ano = parts[2];
+    return "$ano-$mes-$dia";
   }
 
   /// 🔹 Coleta os valores editados e salva no Supabase
@@ -131,7 +143,7 @@ class ParcelasTableState extends State<ParcelasTable> {
           'id_emprestimo':
               widget.emprestimo['id'] ?? widget.emprestimo['id_emprestimo'],
           'numero': p['numero'],
-          'vencimento': c['vencimento']!.text,
+          'vencimento': _toIsoDate(c['vencimento']!.text),
           'valor': valor,
           'juros': juros,
           'desconto': desconto,
@@ -139,9 +151,10 @@ class ParcelasTableState extends State<ParcelasTable> {
           'pg_juros': pgJuros,
           'valor_pago': valorPago,
           'residual': residual,
-          'data_pagamento': dataPag,
+          'data_pagamento': _toIsoDate(c['data_pagamento']!.text.trim()),
           'id_usuario': widget.emprestimo['id_usuario'],
         });
+
       }
 
       await service.salvarParcelasNoSupabase(
@@ -385,7 +398,7 @@ class ParcelasTableState extends State<ParcelasTable> {
                     style: TextStyle(fontSize: 13, color: textColor, fontWeight: fontWeight),
                   )),
                   DataCell(Text(
-                    residualAtual == 0 ? "R\$ 0,00" : service.fmtMoeda(residualAtual),
+                    service.fmtMoeda(residualAtual),
                     style: TextStyle(fontSize: 13, color: textColor, fontWeight: fontWeight),
                   )),
                   DataCell(TextField(
