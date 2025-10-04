@@ -177,11 +177,11 @@ class _EmprestimoFormState extends State<EmprestimoForm> {
     await supabase.from('emprestimos').insert({
       'id': emprestimoId,
       'id_cliente': widget.idCliente,
-      'valor': capital,
+      'valor': double.parse(capital.toStringAsFixed(2)),
       'data_inicio': dataStr,
       'parcelas': meses,
-      'juros': totalJuros ?? 0,
-      'prestacao': prestacaoFinal,
+      'juros': double.parse((totalJuros ?? 0).toStringAsFixed(2)),
+      'prestacao': double.parse(prestacaoFinal.toStringAsFixed(2)),
       'id_usuario': userId,
       'ativo': 'sim',
     });
@@ -206,18 +206,17 @@ class _EmprestimoFormState extends State<EmprestimoForm> {
         'id': parcelaId,
         'id_emprestimo': emprestimoId,
         'numero': i,
-        'valor': prestacaoFinal,
-        'vencimento':
-            "${vencimento.year}-${vencimento.month.toString().padLeft(2, '0')}-${vencimento.day.toString().padLeft(2, '0')}",
+        'valor': double.parse(prestacaoFinal.toStringAsFixed(2)),
+        'vencimento': "${vencimento.year}-${vencimento.month.toString().padLeft(2, '0')}-${vencimento.day.toString().padLeft(2, '0')}",
         'juros': 0.0,
         'desconto': 0.0,
         'pg_principal': 0.0,
         'pg_juros': 0.0,
         'valor_pago': 0.0,
-        'residual': prestacaoFinal,
-        'data_pagamento': null, // ✅ corrigido
-        'id_usuario': userId,   // ✅ nunca vem null
-        'data_prevista': null,  // ✅ corrigido
+        'residual': double.parse(prestacaoFinal.toStringAsFixed(2)),
+        'data_pagamento': null,
+        'id_usuario': userId,
+        'data_prevista': null,
         'comentario': "",
       });
     }

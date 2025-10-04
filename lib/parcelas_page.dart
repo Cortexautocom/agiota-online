@@ -34,10 +34,10 @@ class _ParcelasPageState extends State<ParcelasPage> {
     final numero = widget.emprestimo["numero"] ?? "";
     final dataInicio = formatarData(widget.emprestimo["data_inicio"]);
 
+
     // 🔹 usa parseMoeda e fmtMoeda para garantir "R$ 0,00" se for zero ou vazio
     final valor = service.parseMoeda("${widget.emprestimo["valor"] ?? "0"}");
-    final juros = service.parseMoeda("${widget.emprestimo["juros"] ?? "0"}");
-    final prestacao = service.parseMoeda("${widget.emprestimo["prestacao"] ?? "0"}");
+    final juros = service.parseMoeda("${widget.emprestimo["juros"] ?? "0"}");    
 
     return Scaffold(
       appBar: AppBar(
@@ -63,16 +63,17 @@ class _ParcelasPageState extends State<ParcelasPage> {
 
             final parcelasList = snapshot.data ?? [];
 
+            // ✅ pega o valor da primeira parcela (se existir) para o resumo            
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // 🔹 Resumo
                 Text(
-                  "Nº $numero  |  Data do empréstimo: $dataInicio\n"
-                  "Capital: ${service.fmtMoeda(valor)} | "
-                  "Juros: ${service.fmtMoeda(juros)} | "
-                  "Montante: ${service.fmtMoeda(valor + juros)} | "
-                  "Prestação: ${service.fmtMoeda(prestacao)}",
+                  "Nº $numero   |   Data do empréstimo: $dataInicio\n"  // 🔹 3 espaços
+                  "Capital: ${service.fmtMoeda(valor)}   |   "  // 🔹 3 espaços
+                  "Juros: ${service.fmtMoeda(juros / 100)}   |   "  // 🔹 3 espaços
+                  "Montante: ${service.fmtMoeda((valor + juros) / 100)}   |   "  // 🔹 3 espaços
+                  "Prestação: ${service.fmtMoeda(widget.emprestimo['prestacao']?.toString().replaceAll('.', ','))}",
                   style: const TextStyle(color: Colors.black87, fontSize: 14),
                 ),
                 const SizedBox(height: 12),
