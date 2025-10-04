@@ -29,6 +29,32 @@ class ParcelasService {
     return _formatter.format(numero);
   }
 
+  /// 🔹 Formata moeda SEM ponto para valores abaixo de 1000
+  String fmtMoeda2(dynamic valor) {
+    if (valor == null) return "R\$ 0,00";
+
+    String txt = valor.toString().trim();
+
+    // remove símbolo de moeda se já tiver
+    txt = txt.replaceAll("R\$", "").trim();
+
+    // substitui vírgula por ponto (caso venha no formato errado)
+    txt = txt.replaceAll(",", ".");
+
+    final num? numero = num.tryParse(txt);
+    if (numero == null) return "R\$ 0,00";
+
+    // ✅ formata no padrão brasileiro
+    final formatador = NumberFormat.currency(
+      locale: "pt_BR",
+      symbol: "R\$",
+      decimalDigits: 2,
+    );
+
+    return formatador.format(numero);
+  }
+
+
   /// 🔹 Converte texto de moeda para double
   double parseMoeda(String txt) {
     if (txt.isEmpty) return 0;

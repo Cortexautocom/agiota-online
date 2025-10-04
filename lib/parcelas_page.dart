@@ -32,12 +32,7 @@ class _ParcelasPageState extends State<ParcelasPage> {
   Widget build(BuildContext context) {
     final cliente = widget.emprestimo["cliente"] ?? "";
     final numero = widget.emprestimo["numero"] ?? "";
-    final dataInicio = formatarData(widget.emprestimo["data_inicio"]);
-
-
-    // 🔹 usa parseMoeda e fmtMoeda para garantir "R$ 0,00" se for zero ou vazio
-    final valor = service.parseMoeda("${widget.emprestimo["valor"] ?? "0"}");
-    final juros = service.parseMoeda("${widget.emprestimo["juros"] ?? "0"}");    
+    final dataInicio = formatarData(widget.emprestimo["data_inicio"]);  
 
     return Scaffold(
       appBar: AppBar(
@@ -69,11 +64,11 @@ class _ParcelasPageState extends State<ParcelasPage> {
               children: [
                 // 🔹 Resumo
                 Text(
-                  "Nº $numero   |   Data do empréstimo: $dataInicio\n"  // 🔹 3 espaços
-                  "Capital: ${service.fmtMoeda(valor)}   |   "  // 🔹 3 espaços
-                  "Juros: ${service.fmtMoeda(juros / 100)}   |   "  // 🔹 3 espaços
-                  "Montante: ${service.fmtMoeda((valor + juros) / 100)}   |   "  // 🔹 3 espaços
-                  "Prestação: ${service.fmtMoeda(widget.emprestimo['prestacao']?.toString().replaceAll('.', ','))}",
+                  "Nº $numero   |   Data do empréstimo: $dataInicio\n"
+                  "Capital: ${service.fmtMoeda2(widget.emprestimo['valor'])}   |   "
+                  "Juros: ${service.fmtMoeda2(widget.emprestimo['juros'])}   |   "
+                  "Montante: ${service.fmtMoeda2(widget.emprestimo['valor'] + widget.emprestimo['juros'])}   |   "
+                  "Prestação: ${service.fmtMoeda2(widget.emprestimo['prestacao'])}",
                   style: const TextStyle(color: Colors.black87, fontSize: 14),
                 ),
                 const SizedBox(height: 12),
@@ -227,4 +222,5 @@ class _ParcelasPageState extends State<ParcelasPage> {
       ),
     );
   }
+  
 }
