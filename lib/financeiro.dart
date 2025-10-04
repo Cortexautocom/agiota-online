@@ -67,7 +67,8 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
     return {
       "proxima": proxima != null ? DateFormat("dd/MM/yyyy").format(proxima) : "-",
       "ultima": ultima != null ? DateFormat("dd/MM/yyyy").format(ultima) : "-",
-      "situacao": "$pagas parcelas pagas, $abertas parcelas restando.",
+      "situacao_linha1": "$pagas pagas",
+      "situacao_linha2": "$abertas restando",
       "acordo": temAcordo ? "sim" : "nao",
     };
   }
@@ -104,6 +105,7 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
         ),
 
         body: TabBarView(
+          physics: const NeverScrollableScrollPhysics(),
           children: [
             // 🔹 Aba 1: Empréstimos Ativos
             Container(
@@ -112,8 +114,8 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    "Empréstimos do Cliente",
+                  Text(
+                    "Empréstimos - ${cliente['nome']}",
                     style: TextStyle(
                       color: Colors.black87,
                       fontSize: 16,
@@ -155,113 +157,63 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
 
                             return SingleChildScrollView(
                               scrollDirection: Axis.horizontal,
-                              child: SingleChildScrollView(
-                                scrollDirection: Axis.vertical,
-                                child: DataTable(
-                                  showCheckboxColumn: false,
-                                  headingRowColor: MaterialStateProperty.all(Colors.grey[300]),
-                                  headingTextStyle: const TextStyle(
-                                    color: Colors.black,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                  dataTextStyle: const TextStyle(
-                                    color: Colors.black87,
-                                    fontSize: 13,
-                                  ),
-                                  columns: const [
-                                    DataColumn(label: SizedBox(width: 160, child: Center(child: Text("Cliente")))),
-                                    DataColumn(label: SizedBox(width: 100, child: Center(child: Text("Nº Empr.")))),
-                                    DataColumn(label: SizedBox(width: 100, child: Center(child: Text("Data Início")))),
-                                    DataColumn(label: SizedBox(width: 110, child: Center(child: Text("Último venc.")))),
-                                    DataColumn(label: SizedBox(width: 110, child: Center(child: Text("Capital")))),
-                                    DataColumn(label: SizedBox(width: 110, child: Center(child: Text("Juros")))),
-                                    DataColumn(label: SizedBox(width: 110, child: Center(child: Text("Total")))),
-                                    DataColumn(label: SizedBox(width: 120, child: Center(child: Text("Parcelas")))),
-                                    DataColumn(label: SizedBox(width: 110, child: Center(child: Text("Próx. venc.")))),
-                                    DataColumn(label: SizedBox(width: 160, child: Center(child: Text("Situação")))),
-                                  ],
-                                  rows: emprestimos.map((emp) {
-                                    return DataRow(
-                                      onSelectChanged: (_) {
-                                        emp['cliente'] = cliente['nome'];
-                                        Navigator.push(
-                                          context,
-                                          MaterialPageRoute(
-                                            builder: (context) => ParcelasPage(emprestimo: emp),
-                                          ),
-                                        ).then((_) {
-                                          setState(() {});
-                                        });
-                                      },
-                                      cells: [
-                                        DataCell(SizedBox(width: 160, child: Center(child: Text(cliente['nome'], style: const TextStyle(fontSize: 13))))),
-                                        DataCell(SizedBox(width: 100, child: Center(child: Text("${emp['numero'] ?? ''}", style: const TextStyle(fontSize: 13))))),
-                                        DataCell(SizedBox(width: 100, child: Center(child: Text(emp['data_inicio'] ?? '', style: const TextStyle(fontSize: 13))))),
-                                        DataCell(FutureBuilder<Map<String, String>>(
-                                          future: _calcularDatas(emp['id']),
-                                          builder: (context, snap) {
-                                            if (!snap.hasData) return const Text("-");
-                                            return Center(child: Text(snap.data!['ultima'] ?? "-", style: const TextStyle(fontSize: 13)));
-                                          },
-                                        )),
-                                        DataCell(SizedBox(width: 110, child: Center(child: Text(fmtMoeda(_asDouble(emp['valor'])), style: const TextStyle(fontSize: 13))))),
-                                        DataCell(SizedBox(width: 110, child: Center(child: Text(fmtMoeda(_asDouble(emp['juros'])), style: const TextStyle(fontSize: 13))))),
-                                        DataCell(SizedBox(width: 110, child: Center(child: Text(fmtMoeda(_asDouble(emp['valor']) + _asDouble(emp['juros'])), style: const TextStyle(fontSize: 13))))),
-                                        DataCell(SizedBox(
-                                          width: 120,
-                                          child: Center(
-                                            child: Text(
-                                              "${emp['parcelas']} x ${fmtMoeda(_asDouble(emp['prestacao']))}",
-                                              style: const TextStyle(fontSize: 13),
+                              child: Container(
+                                constraints: BoxConstraints(
+                                  minWidth: MediaQuery.of(context).size.width,
+                                ),
+                                child: SingleChildScrollView(
+                                  scrollDirection: Axis.vertical,
+                                  child: DataTable(
+                                    showCheckboxColumn: false,
+                                    headingRowColor: MaterialStateProperty.all(Colors.grey[300]),
+                                    headingTextStyle: const TextStyle(
+                                      color: Colors.black,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                    dataTextStyle: const TextStyle(
+                                      color: Colors.black87,
+                                      fontSize: 13,
+                                    ),
+                                    columns: const [
+                                      //DataColumn(label: SizedBox(width: 160, child: Center(child: Text("Cliente")))),
+                                      DataColumn(label: SizedBox(width: 20, child: Center(child: Text("Nº")))),
+                                      DataColumn(label: SizedBox(width: 75, child: Center(child: Text("Data Início")))),
+                                      DataColumn(label: SizedBox(width: 75, child: Center(child: Text("Último venc.")))),
+                                      DataColumn(label: SizedBox(width: 80, child: Center(child: Text("Capital")))),
+                                      DataColumn(label: SizedBox(width: 80, child: Center(child: Text("Juros")))),
+                                      DataColumn(label: SizedBox(width: 80, child: Center(child: Text("Total")))),
+                                      DataColumn(label: SizedBox(width: 100, child: Center(child: Text("Parcelas")))),
+                                      DataColumn(label: SizedBox(width: 75, child: Center(child: Text("Próx. venc.")))),
+                                      DataColumn(label: SizedBox(width: 75, child: Center(child: Text("Situação")))),
+                                    ],
+                                    rows: emprestimos.map((emp) {
+                                      return DataRow(
+                                        onSelectChanged: (_) {
+                                          emp['cliente'] = cliente['nome'];
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (context) => ParcelasPage(emprestimo: emp),
                                             ),
-                                          ),
-                                        )),
-                                        DataCell(FutureBuilder<Map<String, String>>(
-                                          future: _calcularDatas(emp['id']),
-                                          builder: (context, snap) {
-                                            if (!snap.hasData) return const Text("-");
-                                            final txt = snap.data!['proxima'] ?? "-";
-                                            DateTime? data;
-                                            if (txt != "-" && txt.isNotEmpty) {
-                                              data = DateFormat("dd/MM/yyyy").tryParse(txt);
-                                            }
-                                            final vencida = data != null && data.isBefore(DateTime.now());
-                                            final temAcordo = snap.data!['acordo'] == "sim";
-
-                                            return Center(
-                                              child: Row(
-                                                mainAxisAlignment: MainAxisAlignment.center,
-                                                children: [
-                                                  Text(
-                                                    txt,
-                                                    style: TextStyle(
-                                                      fontSize: 13,
-                                                      color: temAcordo
-                                                          ? Colors.orange
-                                                          : (vencida ? Colors.red : Colors.black),
-                                                      fontWeight: temAcordo || vencida ? FontWeight.bold : FontWeight.normal,
-                                                    ),
-                                                  ),
-                                                  if (temAcordo)
-                                                    const Padding(
-                                                      padding: EdgeInsets.only(left: 4),
-                                                      child: Icon(Icons.warning, size: 16, color: Colors.orange),
-                                                    ),
-                                                ],
-                                              ),
-                                            );
-                                          },
-                                        )),
-                                        DataCell(FutureBuilder<Map<String, String>>(
-                                          future: _calcularDatas(emp['id']),
-                                          builder: (context, snap) {
-                                            if (!snap.hasData) return const Text("-");
-                                            return Center(child: Text(snap.data!['situacao'] ?? "-", style: const TextStyle(fontSize: 13)));
-                                          },
-                                        )),
-                                      ],
-                                    );
-                                  }).toList(),
+                                          ).then((_) {
+                                            setState(() {});
+                                          });
+                                        },
+                                        cells: [
+                                          //DataCell(SizedBox(width: 160, child: Center(child: Text(cliente['nome'], style: const TextStyle(fontSize: 13))))),
+                                          DataCell(SizedBox(width: 20, child: Center(child: Text("${emp['numero'] ?? ''}", style: const TextStyle(fontSize: 13))))),
+                                          DataCell(SizedBox(width: 75, child: Center(child: Text(_formatarData(emp['data_inicio']), style: const TextStyle(fontSize: 13))))),
+                                          DataCell(SizedBox(width: 75, child: FutureBuilder<Map<String, String>>(future: _calcularDatas(emp['id']), builder: (context, snap) => !snap.hasData ? const Text("-") : Center(child: Text(snap.data!['ultima'] ?? "-", style: const TextStyle(fontSize: 13)))))),
+                                          DataCell(SizedBox(width: 80, child: Center(child: Text(fmtMoeda(_asDouble(emp['valor'])), style: const TextStyle(fontSize: 13))))),
+                                          DataCell(SizedBox(width: 80, child: Center(child: Text(fmtMoeda(_asDouble(emp['juros'])), style: const TextStyle(fontSize: 13))))),
+                                          DataCell(SizedBox(width: 80, child: Center(child: Text(fmtMoeda(_asDouble(emp['valor']) + _asDouble(emp['juros'])), style: const TextStyle(fontSize: 13))))),
+                                          DataCell(SizedBox(width: 100, child: Center(child: Text("${emp['parcelas']} x ${fmtMoeda(_asDouble(emp['prestacao']))}", style: const TextStyle(fontSize: 13))))),
+                                          DataCell(SizedBox(width: 75, child: FutureBuilder<Map<String, String>>(future: _calcularDatas(emp['id']), builder: (context, snap) { if (!snap.hasData) return const Text("-"); final txt = snap.data!['proxima'] ?? "-"; DateTime? data; if (txt != "-" && txt.isNotEmpty) { data = DateFormat("dd/MM/yyyy").tryParse(txt); } final vencida = data != null && data.isBefore(DateTime.now()); final temAcordo = snap.data!['acordo'] == "sim"; return Center(child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [Text(txt, style: TextStyle(fontSize: 13, color: temAcordo ? Colors.orange : (vencida ? Colors.red : Colors.black), fontWeight: temAcordo || vencida ? FontWeight.bold : FontWeight.normal,)), if (temAcordo) const Padding(padding: EdgeInsets.only(left: 4), child: Icon(Icons.warning, size: 16, color: Colors.orange),),],)); },))),
+                                          DataCell(SizedBox(width: 75, child: FutureBuilder<Map<String, String>>(future: _calcularDatas(emp['id']), builder: (context, snap) => !snap.hasData ? const Text("-") : Center(child: Column(mainAxisSize: MainAxisSize.min, children: [Text(snap.data!['situacao_linha1'] ?? "-", style: const TextStyle(fontSize: 11)), Text(snap.data!['situacao_linha2'] ?? "-", style: const TextStyle(fontSize: 11))]))))),
+                                        ],
+                                      );
+                                    }).toList(),
+                                  ),
                                 ),
                               ),
                             );
@@ -309,5 +261,15 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
     if (valor == null) return 0.0;
     if (valor is num) return valor.toDouble();
     return double.tryParse(valor.toString()) ?? 0.0;
+  }
+
+  String _formatarData(String dataISO) {
+    if (dataISO.isEmpty) return "-";
+    try {
+      final data = DateTime.parse(dataISO);
+      return DateFormat("dd/MM/yyyy").format(data);
+    } catch (e) {
+      return dataISO; // Se der erro, retorna o original
+    }
   }
 }
