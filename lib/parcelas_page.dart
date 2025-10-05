@@ -73,7 +73,7 @@ class _ParcelasPageState extends State<ParcelasPage> {
                   "Capital: ${service.fmtMoeda2(widget.emprestimo['valor'])}   |   "
                   "Juros: ${service.fmtMoeda2(widget.emprestimo['juros'])}   |   "
                   "Montante: ${service.fmtMoeda2(widget.emprestimo['valor'] + widget.emprestimo['juros'])}   |   "
-                  "Prestação: ${service.fmtMoeda2(widget.emprestimo['prestacao'])}",
+                  "Parcela: ${service.fmtMoeda2(widget.emprestimo['prestacao'])}",
                   style: const TextStyle(color: Colors.black87, fontSize: 14),
                 ),
                 const SizedBox(height: 12),

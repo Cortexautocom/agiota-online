@@ -228,11 +228,11 @@ class _EmprestimoFormState extends State<EmprestimoForm> {
     final emprestimo = {
       "id": emprestimoId,
       "id_cliente": widget.idCliente,
-      "valor": capital.toStringAsFixed(2),
+      "valor": capital, // ✅ double
       "data_inicio": dataStr,
-      "parcelas": meses.toString(),
-      "juros": (totalJuros ?? 0).toStringAsFixed(2),
-      "prestacao": prestacaoFinal.toStringAsFixed(2),
+      "parcelas": meses,
+      "juros": totalJuros ?? 0, // ✅ double
+      "prestacao": prestacaoFinal, // ✅ double
       "id_usuario": userId,
       "ativo": "sim",
       "cliente": "",

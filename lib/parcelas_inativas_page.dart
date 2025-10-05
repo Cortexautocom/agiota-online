@@ -102,7 +102,7 @@ class _ParcelasInativasPageState extends State<ParcelasInativasPage> {
               "Capital: ${service.fmtMoeda(widget.emprestimo['valor'])} | "
               "Juros: ${service.fmtMoeda(widget.emprestimo['juros'])} | "
               "Montante: ${service.fmtMoeda(_asDouble(widget.emprestimo['valor']) + _asDouble(widget.emprestimo['juros']))} | "
-              "Prestação: ${service.fmtMoeda(widget.emprestimo['prestacao'])}",
+              "Parcela: ${service.fmtMoeda(widget.emprestimo['prestacao'])}",
               style: const TextStyle(color: Colors.black87, fontSize: 14),
             ),
             const SizedBox(height: 12),
