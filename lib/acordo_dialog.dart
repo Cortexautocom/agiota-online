@@ -268,11 +268,17 @@ Future<bool?> abrirAcordoDialog(
 
             await showDialog(
               context: context,
-              builder: (ctx) => const AlertDialog(
-                content: Text(
+              builder: (ctx) => AlertDialog(
+                content: const Text(
                   "Acordo salvo com sucesso!",
                   textAlign: TextAlign.center,
                 ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    child: const Text("OK"),
+                  ),
+                ],
               ),
             );
           },

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'parcelas_inativas_page.dart';
 import 'utils.dart';
+import 'package:intl/intl.dart';
 
 class ArquivadosPage extends StatefulWidget {
   final Map<String, dynamic> cliente;
@@ -22,8 +23,6 @@ class _ArquivadosPageState extends State<ArquivadosPage> {
   }
 
   Future<List<Map<String, dynamic>>> _buscarEmprestimosArquivados() async {
-    print("🔎 Buscando empréstimos arquivados para cliente=${widget.cliente}");
-
     final response = await Supabase.instance.client
         .from('emprestimos')
         .select(
@@ -32,15 +31,7 @@ class _ArquivadosPageState extends State<ArquivadosPage> {
         .eq('id_cliente', widget.cliente['id_cliente'])
         .order('data_inicio', ascending: false);
 
-    print("📥 Resposta Supabase arquivados: $response");
-
-    final lista = (response as List).map((e) => e as Map<String, dynamic>).toList();
-    print("✅ Total de empréstimos arquivados encontrados: ${lista.length}");
-    for (var e in lista) {
-      print("➡️ Empréstimo ID=${e['id']} NUM=${e['numero']} VALOR=${e['valor']}");
-    }
-
-    return lista;
+    return (response as List).map((e) => e as Map<String, dynamic>).toList();
   }
 
   @override
@@ -68,9 +59,7 @@ class _ArquivadosPageState extends State<ArquivadosPage> {
                   return const Center(child: CircularProgressIndicator());
                 }
                 if (snapshot.hasError) {
-                  return Center(
-                    child: Text("Erro: ${snapshot.error}"),
-                  );
+                  return Center(child: Text("Erro: ${snapshot.error}"));
                 }
 
                 final emprestimos = snapshot.data ?? [];
@@ -106,23 +95,23 @@ class _ArquivadosPageState extends State<ArquivadosPage> {
                                 child: Center(child: Text("Cliente")))),
                         DataColumn(
                             label: SizedBox(
-                                width: 100,
-                                child: Center(child: Text("Nº Empr.")))),
+                                width: 70,
+                                child: Center(child: Text("Nº")))),
                         DataColumn(
                             label: SizedBox(
-                                width: 100,
+                                width: 90,
                                 child: Center(child: Text("Data Início")))),
                         DataColumn(
                             label: SizedBox(
-                                width: 110,
+                                width: 80,
                                 child: Center(child: Text("Capital")))),
                         DataColumn(
                             label: SizedBox(
-                                width: 110,
+                                width: 80,
                                 child: Center(child: Text("Juros")))),
                         DataColumn(
                             label: SizedBox(
-                                width: 110,
+                                width: 80,
                                 child: Center(child: Text("Total")))),
                         DataColumn(
                             label: SizedBox(
@@ -134,12 +123,18 @@ class _ArquivadosPageState extends State<ArquivadosPage> {
                             ? emp['clientes']['nome'] ?? 'Sem nome'
                             : 'Sem nome';
 
-                        print("📝 Montando linha da tabela para emprestimo ID=${emp['id']}");
+                        final numero = emp['numero'] ?? '';
+                        final dataInicio = _formatarData(emp['data_inicio']);
+
+                        // 🔹 conversões seguras para double (igual ao FinanceiroPage)
+                        final double capital = _asDouble(emp['valor']);
+                        final double juros = _asDouble(emp['juros']);
+                        final double total = capital + juros;
+                        final double prestacao = _asDouble(emp['prestacao']);
+                        final parcelas = emp['parcelas'] ?? '';
 
                         return DataRow(
                           onSelectChanged: (_) {
-                            print("👆 Clicou no empréstimo arquivado -> $emp");
-
                             emp['cliente'] = cliente;
                             Navigator.push(
                               context,
@@ -148,7 +143,6 @@ class _ArquivadosPageState extends State<ArquivadosPage> {
                                     ParcelasInativasPage(emprestimo: emp),
                               ),
                             ).then((_) {
-                              print("🔄 Voltou de ParcelasInativasPage, recarregando lista");
                               setState(() {
                                 _emprestimosArquivadosFuture =
                                     _buscarEmprestimosArquivados();
@@ -160,51 +154,45 @@ class _ArquivadosPageState extends State<ArquivadosPage> {
                                 width: 160,
                                 child: Center(
                                     child: Text(cliente,
-                                        style: const TextStyle(
-                                            fontSize: 13))))),
+                                        style:
+                                            const TextStyle(fontSize: 13))))),
                             DataCell(SizedBox(
-                                width: 100,
+                                width: 70,
                                 child: Center(
-                                    child: Text("${emp['numero'] ?? ''}",
-                                        style: const TextStyle(
-                                            fontSize: 13))))),
+                                    child: Text("$numero",
+                                        style:
+                                            const TextStyle(fontSize: 13))))),
                             DataCell(SizedBox(
-                                width: 100,
+                                width: 90,
                                 child: Center(
-                                    child: Text(emp['data_inicio'] ?? '',
-                                        style: const TextStyle(
-                                            fontSize: 13))))),
+                                    child: Text(dataInicio,
+                                        style:
+                                            const TextStyle(fontSize: 13))))),
                             DataCell(SizedBox(
-                                width: 110,
+                                width: 80,
                                 child: Center(
-                                    child: Text(fmtMoeda(emp['valor']),
-                                        style: const TextStyle(
-                                            fontSize: 13))))),
+                                    child: Text(fmtMoeda2(capital),
+                                        style:
+                                            const TextStyle(fontSize: 13))))),
                             DataCell(SizedBox(
-                                width: 110,
+                                width: 80,
                                 child: Center(
-                                    child: Text(fmtMoeda(emp['juros']),
-                                        style: const TextStyle(
-                                            fontSize: 13))))),
+                                    child: Text(fmtMoeda2(juros),
+                                        style:
+                                            const TextStyle(fontSize: 13))))),
                             DataCell(SizedBox(
-                                width: 110,
+                                width: 80,
                                 child: Center(
-                                    child: Text(
-                                        fmtMoeda(
-                                            (num.tryParse("${emp['valor']}") ??
-                                                    0) +
-                                                (num.tryParse(
-                                                        "${emp['juros']}") ??
-                                                    0)),
-                                        style: const TextStyle(
-                                            fontSize: 13))))),
+                                    child: Text(fmtMoeda2(total),
+                                        style:
+                                            const TextStyle(fontSize: 13))))),
                             DataCell(SizedBox(
                                 width: 120,
                                 child: Center(
                                     child: Text(
-                                        "${emp['parcelas']} x ${fmtMoeda(emp['prestacao'])}",
-                                        style: const TextStyle(
-                                            fontSize: 13))))),
+                                        "$parcelas x ${fmtMoeda2(prestacao)}",
+                                        style:
+                                            const TextStyle(fontSize: 13))))),
                           ],
                         );
                       }).toList(),
@@ -217,5 +205,22 @@ class _ArquivadosPageState extends State<ArquivadosPage> {
         ],
       ),
     );
+  }
+
+  // 🔹 Mesmo padrão da FinanceiroPage
+  double _asDouble(dynamic valor) {
+    if (valor == null) return 0.0;
+    if (valor is num) return valor.toDouble();
+    return double.tryParse(valor.toString()) ?? 0.0;
+  }
+
+  String _formatarData(String? dataISO) {
+    if (dataISO == null || dataISO.isEmpty) return "-";
+    try {
+      final data = DateTime.parse(dataISO);
+      return DateFormat("dd/MM/yyyy").format(data);
+    } catch (_) {
+      return dataISO;
+    }
   }
 }

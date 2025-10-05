@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'parcelas_service.dart';
-//import 'utils.dart';
+import 'package:intl/intl.dart';
 
 class ParcelasInativasPage extends StatefulWidget {
   final Map<String, dynamic> emprestimo;
@@ -19,10 +19,8 @@ class _ParcelasInativasPageState extends State<ParcelasInativasPage> {
   @override
   void initState() {
     super.initState();
-    print("📂 ParcelasInativasPage aberto para emprestimo: ${widget.emprestimo}");
     final emprestimoId =
         widget.emprestimo['id'] ?? widget.emprestimo['id_emprestimo'];
-    print("🔎 Chamando buscarParcelas com id=$emprestimoId");
     _parcelasFuture = service.buscarParcelas(emprestimoId);
   }
 
@@ -53,50 +51,31 @@ class _ParcelasInativasPageState extends State<ParcelasInativasPage> {
     );
 
     if (confirmar == true) {
-      try {
-        await Supabase.instance.client
-            .from('emprestimos')
-            .update({'ativo': 'sim'})
-            .eq('id', widget.emprestimo['id']);
+      await Supabase.instance.client
+          .from('emprestimos')
+          .update({'ativo': 'sim'})
+          .eq('id', widget.emprestimo['id']);
 
-        if (!mounted) return;
+      if (!mounted) return;
 
-        await showDialog(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            content: const Text(
-              "Empréstimo reativado com sucesso!",
-              textAlign: TextAlign.center,
-            ),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  Navigator.pop(ctx);
-                  Navigator.pop(context, true);
-                },
-                child: const Text("OK"),
-              ),
-            ],
+      await showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          content: const Text(
+            "Empréstimo reativado com sucesso!",
+            textAlign: TextAlign.center,
           ),
-        );
-      } catch (e) {
-        if (!mounted) return;
-        await showDialog(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            content: Text(
-              "Erro ao reativar: $e",
-              textAlign: TextAlign.center,
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+                Navigator.pop(context, true);
+              },
+              child: const Text("OK"),
             ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text("OK"),
-              ),
-            ],
-          ),
-        );
-      }
+          ],
+        ),
+      );
     }
   }
 
@@ -104,11 +83,7 @@ class _ParcelasInativasPageState extends State<ParcelasInativasPage> {
   Widget build(BuildContext context) {
     final cliente = widget.emprestimo["cliente"] ?? "";
     final numero = widget.emprestimo["numero"] ?? "";
-    final dataInicio = widget.emprestimo["data_inicio"] ?? "";
-
-    final valor = service.parseMoeda("${widget.emprestimo["valor"] ?? "0"}");
-    final juros = service.parseMoeda("${widget.emprestimo["juros"] ?? "0"}");
-    
+    final dataInicio = _formatarData(widget.emprestimo["data_inicio"]);
 
     return Scaffold(
       appBar: AppBar(
@@ -121,36 +96,33 @@ class _ParcelasInativasPageState extends State<ParcelasInativasPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // 🔹 Cabeçalho resumido
             Text(
               "Nº $numero  |  Data do empréstimo: $dataInicio\n"
-              "Capital: ${service.fmtMoeda(valor)} | "
-              "Juros: ${service.fmtMoeda(juros)} | "
-              "Montante: ${service.fmtMoeda(valor + juros)} | "
-              "Prestação: ${service.fmtMoeda(widget.emprestimo['prestacao']?.toString().replaceAll('.', ','))}",
+              "Capital: ${service.fmtMoeda(widget.emprestimo['valor'])} | "
+              "Juros: ${service.fmtMoeda(widget.emprestimo['juros'])} | "
+              "Montante: ${service.fmtMoeda(_asDouble(widget.emprestimo['valor']) + _asDouble(widget.emprestimo['juros']))} | "
+              "Prestação: ${service.fmtMoeda(widget.emprestimo['prestacao'])}",
               style: const TextStyle(color: Colors.black87, fontSize: 14),
             ),
             const SizedBox(height: 12),
             const Text(
               "📋 Visualização apenas - Empréstimo arquivado",
               style: TextStyle(
-                  color: Colors.orange,
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold),
+                color: Colors.orange,
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+              ),
             ),
             const SizedBox(height: 12),
             Expanded(
               child: FutureBuilder<List<Map<String, dynamic>>>(
                 future: _parcelasFuture,
                 builder: (context, snapshot) {
-                  print("📊 FutureBuilder snapshot: "
-                      "state=${snapshot.connectionState} "
-                      "hasError=${snapshot.hasError} "
-                      "hasData=${snapshot.hasData}");
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(child: CircularProgressIndicator());
                   }
                   if (snapshot.hasError) {
-                    print("❌ Erro FutureBuilder: ${snapshot.error}");
                     return Center(
                       child: Text(
                         "Erro: ${snapshot.error}",
@@ -160,7 +132,6 @@ class _ParcelasInativasPageState extends State<ParcelasInativasPage> {
                   }
 
                   final parcelas = snapshot.data ?? [];
-                  print("📦 Parcelas recebidas: ${parcelas.length}");
                   if (parcelas.isEmpty) {
                     return const Center(
                       child: Text(
@@ -187,22 +158,6 @@ class _ParcelasInativasPageState extends State<ParcelasInativasPage> {
   }
 
   Widget _buildTabelaParcelas(List<Map<String, dynamic>> parcelas) {
-    print("📝 Montando tabela de parcelas (${parcelas.length} itens)");
-    double totalValor = 0;
-    double totalJuros = 0;
-    double totalDesconto = 0;
-    double totalPgPrincipal = 0;
-    double totalPgJuros = 0;
-
-    for (final p in parcelas) {
-      print("➡️ Parcela: $p");
-      totalValor += service.parseMoeda(service.fmtMoeda(p['valor']));
-      totalJuros += service.parseMoeda(service.fmtMoeda(p['juros']));
-      totalDesconto += service.parseMoeda(service.fmtMoeda(p['desconto']));
-      totalPgPrincipal += service.parseMoeda(service.fmtMoeda(p['pg_principal']));
-      totalPgJuros += service.parseMoeda(service.fmtMoeda(p['pg_juros']));
-    }
-
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: SingleChildScrollView(
@@ -211,101 +166,76 @@ class _ParcelasInativasPageState extends State<ParcelasInativasPage> {
           columnSpacing: 12,
           headingRowColor: MaterialStateProperty.all(Colors.grey[400]),
           headingTextStyle: const TextStyle(
-              color: Colors.black, fontWeight: FontWeight.bold),
-          dataTextStyle:
-              const TextStyle(color: Colors.black87, fontSize: 13),
+            color: Colors.black,
+            fontWeight: FontWeight.bold,
+          ),
+          dataTextStyle: const TextStyle(color: Colors.black87, fontSize: 13),
           columns: const [
             DataColumn(label: Text("Nº")),
             DataColumn(label: Text("Vencimento")),
-            DataColumn(label: Text("     Valor")),
-            DataColumn(label: Text("    Juros")),
+            DataColumn(label: Text("Valor")),
+            DataColumn(label: Text("Juros")),
             DataColumn(label: Text("Desconto")),
             DataColumn(label: Text("Pg. Principal")),
             DataColumn(label: Text("Pg. Juros")),
             DataColumn(label: Text("Valor Pago")),
-            DataColumn(label: Text("    Saldo")),
-            DataColumn(label: Text("  Data Pag.")),
+            DataColumn(label: Text("Residual")),
+            DataColumn(label: Text("Data Pag.")),
           ],
-          rows: [
-            ...List.generate(parcelas.length, (i) {
-              final p = parcelas[i];
+          rows: parcelas.map((p) {
+            final residual = _asDouble(p['residual']);
+            final bool parcelaPaga = residual == 0;
+            final rowColor = parcelaPaga
+                ? Colors.green.withOpacity(0.2)
+                : Colors.grey[100];
+            final textColor =
+                parcelaPaga ? Colors.green[800] : Colors.black87;
 
-              final residualAtual =
-                  service.parseMoeda(service.fmtMoeda(p['valor'])) +
-                      service.parseMoeda(service.fmtMoeda(p['juros'])) -
-                      service.parseMoeda(service.fmtMoeda(p['desconto'])) -
-                      (service.parseMoeda(service.fmtMoeda(p['pg_principal'])) +
-                          service.parseMoeda(service.fmtMoeda(p['pg_juros'])));
-
-              final bool parcelaPaga = residualAtual == 0;
-
-              final rowColor =
-                  parcelaPaga ? Colors.green.withOpacity(0.2) : Colors.grey[100];
-              final textColor =
-                  parcelaPaga ? Colors.green[800] : Colors.black87;
-
-              return DataRow(
-                color: MaterialStateProperty.all(rowColor),
-                cells: [
-                  DataCell(Text("${p['numero'] ?? ''}",
-                      style: TextStyle(fontSize: 13, color: textColor))),
-                  DataCell(Text(p['vencimento']?.toString() ?? '',
-                      style: TextStyle(fontSize: 13, color: textColor))),
-                  DataCell(Text(service.fmtMoeda(p['valor']),
-                      style: TextStyle(fontSize: 13, color: textColor))),
-                  DataCell(Text(service.fmtMoeda(p['juros']),
-                      style: TextStyle(fontSize: 13, color: textColor))),
-                  DataCell(Text(service.fmtMoeda(p['desconto']),
-                      style: TextStyle(fontSize: 13, color: textColor))),
-                  DataCell(Text(service.fmtMoeda(p['pg_principal']),
-                      style: TextStyle(fontSize: 13, color: textColor))),
-                  DataCell(Text(service.fmtMoeda(p['pg_juros']),
-                      style: TextStyle(fontSize: 13, color: textColor))),
-                  DataCell(Text(
-                    service.fmtMoeda(
-                      service.parseMoeda(service.fmtMoeda(p['pg_principal'])) +
-                          service.parseMoeda(service.fmtMoeda(p['pg_juros'])),
-                    ),
-                    style: TextStyle(fontSize: 13, color: textColor),
-                  )),
-                  DataCell(Text(
-                    residualAtual == 0
-                        ? "R\$ 0,00"
-                        : service.fmtMoeda(residualAtual),
-                    style: TextStyle(fontSize: 13, color: textColor),
-                  )),
-                  DataCell(Text(p['data_pagamento']?.toString() ?? '',
-                      style: TextStyle(fontSize: 13, color: textColor))),
-                ],
-              );
-            }),
-            DataRow(cells: [
-              const DataCell(Text("")),
-              const DataCell(Text("TOTAL",
-                  style:
-                      TextStyle(fontSize: 14, fontWeight: FontWeight.bold))),
-              DataCell(Text(service.fmtMoeda(totalValor),
-                  style: const TextStyle(
-                      fontSize: 14, fontWeight: FontWeight.bold))),
-              DataCell(Text(service.fmtMoeda(totalJuros),
-                  style: const TextStyle(
-                      fontSize: 14, fontWeight: FontWeight.bold))),
-              DataCell(Text(service.fmtMoeda(totalDesconto),
-                  style: const TextStyle(
-                      fontSize: 14, fontWeight: FontWeight.bold))),
-              DataCell(Text(service.fmtMoeda(totalPgPrincipal),
-                  style: const TextStyle(
-                      fontSize: 14, fontWeight: FontWeight.bold))),
-              DataCell(Text(service.fmtMoeda(totalPgJuros),
-                  style: const TextStyle(
-                      fontSize: 14, fontWeight: FontWeight.bold))),
-              const DataCell(Text("")),
-              const DataCell(Text("")),
-              const DataCell(Text("")),
-            ]),
-          ],
+            return DataRow(
+              color: MaterialStateProperty.all(rowColor),
+              cells: [
+                DataCell(Text("${p['numero'] ?? ''}",
+                    style: TextStyle(fontSize: 13, color: textColor))),
+                DataCell(Text(_formatarData(p['vencimento']),
+                    style: TextStyle(fontSize: 13, color: textColor))),
+                DataCell(Text(service.fmtMoeda(p['valor']),
+                    style: TextStyle(fontSize: 13, color: textColor))),
+                DataCell(Text(service.fmtMoeda(p['juros']),
+                    style: TextStyle(fontSize: 13, color: textColor))),
+                DataCell(Text(service.fmtMoeda(p['desconto']),
+                    style: TextStyle(fontSize: 13, color: textColor))),
+                DataCell(Text(service.fmtMoeda(p['pg_principal']),
+                    style: TextStyle(fontSize: 13, color: textColor))),
+                DataCell(Text(service.fmtMoeda(p['pg_juros']),
+                    style: TextStyle(fontSize: 13, color: textColor))),
+                DataCell(Text(service.fmtMoeda(p['valor_pago']),
+                    style: TextStyle(fontSize: 13, color: textColor))),
+                DataCell(Text(service.fmtMoeda(residual),
+                    style: TextStyle(fontSize: 13, color: textColor))),
+                DataCell(Text(_formatarData(p['data_pagamento']),
+                    style: TextStyle(fontSize: 13, color: textColor))),
+              ],
+            );
+          }).toList(),
         ),
       ),
     );
+  }
+
+  // 🔹 Funções auxiliares idênticas à FinanceiroPage
+  double _asDouble(dynamic valor) {
+    if (valor == null) return 0.0;
+    if (valor is num) return valor.toDouble();
+    return double.tryParse(valor.toString()) ?? 0.0;
+  }
+
+  String _formatarData(dynamic data) {
+    if (data == null || data.toString().isEmpty) return "-";
+    try {
+      final dt = DateTime.parse(data.toString());
+      return DateFormat("dd/MM/yyyy").format(dt);
+    } catch (_) {
+      return data.toString();
+    }
   }
 }
