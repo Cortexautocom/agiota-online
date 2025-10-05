@@ -17,6 +17,25 @@ class FinanceiroPage extends StatefulWidget {
 }
 
 class _FinanceiroPageState extends State<FinanceiroPage> {
+  late Future<List<Map<String, dynamic>>> _emprestimosFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _buscarEmprestimos();
+  }
+
+  /// 🔹 Recarrega a lista de empréstimos (usado pelos callbacks)
+  void _buscarEmprestimos() {
+    _emprestimosFuture = Supabase.instance.client
+        .from('emprestimos')
+        .select()
+        .eq('id_cliente', widget.cliente['id_cliente'])
+        .eq('ativo', 'sim')
+        .order('data_inicio');
+    setState(() {});
+  }
+
   Future<Map<String, String>> _calcularDatas(String idEmprestimo) async {
     final parcelas = await Supabase.instance.client
         .from('parcelas')
@@ -65,7 +84,8 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
     });
 
     return {
-      "proxima": proxima != null ? DateFormat("dd/MM/yyyy").format(proxima) : "-",
+      "proxima":
+          proxima != null ? DateFormat("dd/MM/yyyy").format(proxima) : "-",
       "ultima": ultima != null ? DateFormat("dd/MM/yyyy").format(ultima) : "-",
       "situacao_linha1": "$pagas pagas",
       "situacao_linha2": "$abertas restando",
@@ -116,7 +136,7 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
                 children: [
                   Text(
                     "Empréstimos - ${cliente['nome']}",
-                    style: TextStyle(
+                    style: const TextStyle(
                       color: Colors.black87,
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
@@ -128,30 +148,28 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
                     child: Stack(
                       children: [
                         FutureBuilder<List<Map<String, dynamic>>>(
-                          future: Supabase.instance.client
-                              .from('emprestimos')
-                              .select()
-                              .eq('id_cliente', cliente['id_cliente'])
-                              .eq('ativo', 'sim')
-                              .order('data_inicio'),
+                          future: _emprestimosFuture,
                           builder: (context, snapshot) {
                             if (snapshot.connectionState == ConnectionState.waiting) {
                               return const Center(child: CircularProgressIndicator());
                             }
                             if (snapshot.hasError) {
                               return Center(
-                                child: Text("Erro: ${snapshot.error}", style: const TextStyle(color: Colors.red)),
+                                child: Text("Erro: ${snapshot.error}",
+                                    style: const TextStyle(color: Colors.red)),
                               );
                             }
 
-                            final emprestimos = (snapshot.data as List?)
-                                    ?.map((e) => e as Map<String, dynamic>)
-                                    .toList() ??
-                                [];
+                            final emprestimos =
+                                (snapshot.data as List?)
+                                        ?.map((e) => e as Map<String, dynamic>)
+                                        .toList() ??
+                                    [];
 
                             if (emprestimos.isEmpty) {
                               return const Center(
-                                child: Text("Nenhum empréstimo encontrado.", style: TextStyle(color: Colors.black87)),
+                                child: Text("Nenhum empréstimo encontrado.",
+                                    style: TextStyle(color: Colors.black87)),
                               );
                             }
 
@@ -165,7 +183,8 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
                                   scrollDirection: Axis.vertical,
                                   child: DataTable(
                                     showCheckboxColumn: false,
-                                    headingRowColor: MaterialStateProperty.all(Colors.grey[300]),
+                                    headingRowColor:
+                                        MaterialStateProperty.all(Colors.grey[300]),
                                     headingTextStyle: const TextStyle(
                                       color: Colors.black,
                                       fontWeight: FontWeight.bold,
@@ -175,7 +194,6 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
                                       fontSize: 13,
                                     ),
                                     columns: const [
-                                      //DataColumn(label: SizedBox(width: 160, child: Center(child: Text("Cliente")))),
                                       DataColumn(label: SizedBox(width: 20, child: Center(child: Text("Nº")))),
                                       DataColumn(label: SizedBox(width: 75, child: Center(child: Text("Data Início")))),
                                       DataColumn(label: SizedBox(width: 75, child: Center(child: Text("Último venc.")))),
@@ -193,23 +211,81 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
                                           Navigator.push(
                                             context,
                                             MaterialPageRoute(
-                                              builder: (context) => ParcelasPage(emprestimo: emp),
+                                              builder: (context) => ParcelasPage(
+                                                emprestimo: emp,
+                                                onSaved: _buscarEmprestimos, // ✅ callback direto
+                                              ),
                                             ),
-                                          ).then((_) {
-                                            setState(() {});
-                                          });
+                                          );
                                         },
                                         cells: [
-                                          //DataCell(SizedBox(width: 160, child: Center(child: Text(cliente['nome'], style: const TextStyle(fontSize: 13))))),
-                                          DataCell(SizedBox(width: 20, child: Center(child: Text("${emp['numero'] ?? ''}", style: const TextStyle(fontSize: 13))))),
-                                          DataCell(SizedBox(width: 75, child: Center(child: Text(_formatarData(emp['data_inicio']), style: const TextStyle(fontSize: 13))))),
-                                          DataCell(SizedBox(width: 75, child: FutureBuilder<Map<String, String>>(future: _calcularDatas(emp['id']), builder: (context, snap) => !snap.hasData ? const Text("-") : Center(child: Text(snap.data!['ultima'] ?? "-", style: const TextStyle(fontSize: 13)))))),
-                                          DataCell(SizedBox(width: 80, child: Center(child: Text(fmtMoeda(_asDouble(emp['valor'])), style: const TextStyle(fontSize: 13))))),
-                                          DataCell(SizedBox(width: 80, child: Center(child: Text(fmtMoeda(_asDouble(emp['juros'])), style: const TextStyle(fontSize: 13))))),
-                                          DataCell(SizedBox(width: 80, child: Center(child: Text(fmtMoeda(_asDouble(emp['valor']) + _asDouble(emp['juros'])), style: const TextStyle(fontSize: 13))))),
-                                          DataCell(SizedBox(width: 100, child: Center(child: Text("${emp['parcelas']} x ${fmtMoeda(_asDouble(emp['prestacao']))}", style: const TextStyle(fontSize: 13))))),
-                                          DataCell(SizedBox(width: 95, child: FutureBuilder<Map<String, String>>(future: _calcularDatas(emp['id']), builder: (context, snap) { if (!snap.hasData) return const Text("-"); final txt = snap.data!['proxima'] ?? "-"; DateTime? data; if (txt != "-" && txt.isNotEmpty) { data = DateFormat("dd/MM/yyyy").tryParse(txt); } final vencida = data != null && data.isBefore(DateTime.now()); final temAcordo = snap.data!['acordo'] == "sim"; return Center(child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [Text(txt, style: TextStyle(fontSize: 13, color: temAcordo ? Colors.orange : (vencida ? Colors.red : Colors.black), fontWeight: temAcordo || vencida ? FontWeight.bold : FontWeight.normal,)), if (temAcordo) const Padding(padding: EdgeInsets.only(left: 4), child: Icon(Icons.warning, size: 16, color: Colors.orange),),],)); },))),
-                                          DataCell(SizedBox(width: 75, child: FutureBuilder<Map<String, String>>(future: _calcularDatas(emp['id']), builder: (context, snap) => !snap.hasData ? const Text("-") : Center(child: Column(mainAxisSize: MainAxisSize.min, children: [Text(snap.data!['situacao_linha1'] ?? "-", style: const TextStyle(fontSize: 11)), Text(snap.data!['situacao_linha2'] ?? "-", style: const TextStyle(fontSize: 11))]))))),
+                                          DataCell(SizedBox(width: 20, child: Center(child: Text("${emp['numero'] ?? ''}")))),
+                                          DataCell(SizedBox(width: 75, child: Center(child: Text(_formatarData(emp['data_inicio']))))),
+                                          DataCell(SizedBox(width: 75, child: FutureBuilder<Map<String, String>>(
+                                            future: _calcularDatas(emp['id']),
+                                            builder: (context, snap) =>
+                                                !snap.hasData
+                                                    ? const Text("-")
+                                                    : Center(child: Text(snap.data!['ultima'] ?? "-")),
+                                          ))),
+                                          DataCell(SizedBox(width: 80, child: Center(child: Text(fmtMoeda(_asDouble(emp['valor'])))))),
+                                          DataCell(SizedBox(width: 80, child: Center(child: Text(fmtMoeda(_asDouble(emp['juros'])))))),
+                                          DataCell(SizedBox(width: 80, child: Center(child: Text(fmtMoeda(_asDouble(emp['valor']) + _asDouble(emp['juros'])))))),
+                                          DataCell(SizedBox(width: 100, child: Center(child: Text("${emp['parcelas']} x ${fmtMoeda(_asDouble(emp['prestacao']))}")))),
+                                          DataCell(SizedBox(width: 95, child: FutureBuilder<Map<String, String>>(
+                                            future: _calcularDatas(emp['id']),
+                                            builder: (context, snap) {
+                                              if (!snap.hasData) return const Text("-");
+                                              final txt = snap.data!['proxima'] ?? "-";
+                                              DateTime? data;
+                                              if (txt != "-" && txt.isNotEmpty) {
+                                                data = DateFormat("dd/MM/yyyy").tryParse(txt);
+                                              }
+                                              final vencida = data != null && data.isBefore(DateTime.now());
+                                              final temAcordo = snap.data!['acordo'] == "sim";
+                                              return Center(
+                                                child: Row(
+                                                  mainAxisAlignment: MainAxisAlignment.center,
+                                                  children: [
+                                                    Text(
+                                                      txt,
+                                                      style: TextStyle(
+                                                        fontSize: 13,
+                                                        color: temAcordo
+                                                            ? Colors.orange
+                                                            : (vencida
+                                                                ? Colors.red
+                                                                : Colors.black),
+                                                        fontWeight: temAcordo || vencida
+                                                            ? FontWeight.bold
+                                                            : FontWeight.normal,
+                                                      ),
+                                                    ),
+                                                    if (temAcordo)
+                                                      const Padding(
+                                                        padding: EdgeInsets.only(left: 4),
+                                                        child: Icon(Icons.warning,
+                                                            size: 16, color: Colors.orange),
+                                                      ),
+                                                  ],
+                                                ),
+                                              );
+                                            },
+                                          ))),
+                                          DataCell(SizedBox(width: 75, child: FutureBuilder<Map<String, String>>(
+                                            future: _calcularDatas(emp['id']),
+                                            builder: (context, snap) => !snap.hasData
+                                                ? const Text("-")
+                                                : Center(
+                                                    child: Column(
+                                                      mainAxisSize: MainAxisSize.min,
+                                                      children: [
+                                                        Text(snap.data!['situacao_linha1'] ?? "-", style: const TextStyle(fontSize: 11)),
+                                                        Text(snap.data!['situacao_linha2'] ?? "-", style: const TextStyle(fontSize: 11)),
+                                                      ],
+                                                    ),
+                                                  ),
+                                          ))),
                                         ],
                                       );
                                     }).toList(),
@@ -229,10 +305,8 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
                                 context,
                                 MaterialPageRoute(
                                   builder: (_) => EmprestimoForm(
-                                    idCliente: cliente['id_cliente'], // ✅ removido idUsuario
-                                    onSaved: () {
-                                      setState(() {});
-                                    },
+                                    idCliente: cliente['id_cliente'],
+                                    onSaved: _buscarEmprestimos, // ✅ callback unificado
                                   ),
                                 ),
                               );

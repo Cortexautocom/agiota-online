@@ -6,8 +6,13 @@ import 'utils.dart';
 
 class ParcelasPage extends StatefulWidget {
   final Map<String, dynamic> emprestimo;
+  final VoidCallback onSaved; // ✅ callback para atualizar o Financeiro
 
-  const ParcelasPage({super.key, required this.emprestimo});
+  const ParcelasPage({
+    super.key,
+    required this.emprestimo,
+    required this.onSaved,
+  });
 
   @override
   State<ParcelasPage> createState() => _ParcelasPageState();
@@ -32,7 +37,7 @@ class _ParcelasPageState extends State<ParcelasPage> {
   Widget build(BuildContext context) {
     final cliente = widget.emprestimo["cliente"] ?? "";
     final numero = widget.emprestimo["numero"] ?? "";
-    final dataInicio = formatarData(widget.emprestimo["data_inicio"]);  
+    final dataInicio = formatarData(widget.emprestimo["data_inicio"]);
 
     return Scaffold(
       appBar: AppBar(
@@ -58,7 +63,7 @@ class _ParcelasPageState extends State<ParcelasPage> {
 
             final parcelasList = snapshot.data ?? [];
 
-            // ✅ pega o valor da primeira parcela (se existir) para o resumo            
+            // ✅ pega o valor da primeira parcela (se existir) para o resumo
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -185,10 +190,7 @@ class _ParcelasPageState extends State<ParcelasPage> {
                         final ok = await _tableKey.currentState?.salvarParcelas();
 
                         if (ok == null) return;
-
-                        if (ok == false && mounted) {
-                          return;
-                        }
+                        if (ok == false && mounted) return;
 
                         if (ok == true && mounted) {
                           await showDialog(
@@ -206,12 +208,20 @@ class _ParcelasPageState extends State<ParcelasPage> {
                               ],
                             ),
                           );
+
+                          // ✅ Atualiza o Financeiro imediatamente
+                          widget.onSaved();
+
+                          // ✅ Volta à tela anterior (Financeiro)
                           Navigator.pop(context, true);
                         }
                       },
                       icon: const Icon(Icons.save),
                       label: const Text("Salvar Parcelas"),
-                      style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
+                        foregroundColor: Colors.white,
+                      ),
                     ),
                   ],
                 ),
@@ -222,5 +232,4 @@ class _ParcelasPageState extends State<ParcelasPage> {
       ),
     );
   }
-  
 }

@@ -242,7 +242,10 @@ class _EmprestimoFormState extends State<EmprestimoForm> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => ParcelasPage(emprestimo: emprestimo),
+        builder: (_) => ParcelasPage(
+          emprestimo: emprestimo,
+          onSaved: widget.onSaved, // ✅ envia o callback
+        ),
       ),
     );
   }
