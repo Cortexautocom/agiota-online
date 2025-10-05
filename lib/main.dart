@@ -1,12 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:mask_text_input_formatter/mask_text_input_formatter.dart';
-//import 'financeiro.dart'; // 🔹 importa a nova tela
-//import 'home.dart'; // 🔹 vamos mover HomePage para arquivo separado
 import 'clientes_page.dart'; // 🔹 vamos mover ClientesPage para arquivo separado
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-
+import 'relatorios_page.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -263,9 +261,7 @@ class _HomePageState extends State<HomePage> {
       case 1:
         return const ClientesPage();
       case 2:
-        return const Center(
-          child: Text("📑 Relatórios"),
-        );
+        return const RelatoriosPage();
       case 3:
         return const Center(
           child: Text("⚙️ Funções extras"),
