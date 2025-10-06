@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:mask_text_input_formatter/mask_text_input_formatter.dart';
-import 'relatorio1.dart'; // 🔹 Importa o primeiro relatório (Parcelas em Aberto)
+import 'relatorio1.dart'; // 🔹 Parcelas em Aberto
+import 'relatorio2.dart'; // 🔹 Parcelas em Atraso
+import 'relatorio3.dart'; // 🔹 Parcelas com Acordo Vigente
 
 class RelatoriosPage extends StatefulWidget {
   const RelatoriosPage({super.key});
@@ -25,12 +27,28 @@ class _RelatoriosPageState extends State<RelatoriosPage> {
           dataInicioCtrl: dataInicioCtrl,
           dataFimCtrl: dataFimCtrl,
         );
+
+      case 'Parcelas em atraso':
+        return RelatorioParcelasVencidas(
+          dataInicioCtrl: dataInicioCtrl,
+          dataFimCtrl: dataFimCtrl,
+        );
+
+      case 'Parcelas com acordo vigente':
+        return RelatorioParcelasComAcordo(
+          dataInicioCtrl: dataInicioCtrl,
+          dataFimCtrl: dataFimCtrl,
+        );
+
       case 'Empréstimos ativos':
         return const Center(child: Text("📊 Empréstimos ativos (em breve)"));
+
       case 'Empréstimos quitados':
         return const Center(child: Text("📊 Empréstimos quitados (em breve)"));
+
       case 'Clientes x Dívida':
         return const Center(child: Text("📊 Clientes x Dívida (em breve)"));
+
       default:
         return const Center(child: Text("Selecione um tipo de relatório."));
     }
@@ -59,6 +77,14 @@ class _RelatoriosPageState extends State<RelatoriosPage> {
                     DropdownMenuItem(
                       value: "Parcelas em aberto",
                       child: Text("Parcelas em aberto"),
+                    ),
+                    DropdownMenuItem(
+                      value: "Parcelas em atraso",
+                      child: Text("Parcelas em atraso"),
+                    ),
+                    DropdownMenuItem(
+                      value: "Parcelas com acordo vigente",
+                      child: Text("Parcelas com acordo vigente"),
                     ),
                     DropdownMenuItem(
                       value: "Empréstimos ativos",

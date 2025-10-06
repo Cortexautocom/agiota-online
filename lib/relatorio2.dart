@@ -2,30 +2,30 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-class RelatorioParcelasEmAberto extends StatefulWidget {
+class RelatorioParcelasVencidas extends StatefulWidget {
   final TextEditingController dataInicioCtrl;
   final TextEditingController dataFimCtrl;
 
-  const RelatorioParcelasEmAberto({
+  const RelatorioParcelasVencidas({
     super.key,
     required this.dataInicioCtrl,
     required this.dataFimCtrl,
   });
 
   @override
-  State<RelatorioParcelasEmAberto> createState() =>
-      _RelatorioParcelasEmAbertoState();
+  State<RelatorioParcelasVencidas> createState() =>
+      _RelatorioParcelasVencidasState();
 }
 
-class _RelatorioParcelasEmAbertoState
-    extends State<RelatorioParcelasEmAberto> {
+class _RelatorioParcelasVencidasState
+    extends State<RelatorioParcelasVencidas> {
   bool carregando = false;
   List<Map<String, dynamic>> relatorio = [];
 
   @override
   void initState() {
     super.initState();
-    _buscarParcelasEmAberto();
+    _buscarParcelasVencidas();
   }
 
   String formatarData(String? isoDate) {
@@ -52,7 +52,7 @@ class _RelatorioParcelasEmAbertoState
     }
   }
 
-  Future<void> _buscarParcelasEmAberto() async {
+  Future<void> _buscarParcelasVencidas() async {
     setState(() {
       carregando = true;
       relatorio = [];
@@ -60,6 +60,7 @@ class _RelatorioParcelasEmAbertoState
 
     try {
       final supabase = Supabase.instance.client;
+      final hoje = DateTime.now();
 
       final response = await supabase
           .from('vw_parcelas_detalhes')
@@ -70,6 +71,7 @@ class _RelatorioParcelasEmAbertoState
             juros,
             residual,
             vencimento,
+            data_prevista,
             cliente,
             ativo,
             capital_total,
@@ -85,23 +87,31 @@ class _RelatorioParcelasEmAbertoState
       final dataInicio = _parseDataFiltro(widget.dataInicioCtrl.text);
       final dataFim = _parseDataFiltro(widget.dataFimCtrl.text);
 
-      // 🔹 Aplica filtro de data (funcional)
       final filtradas = dados.where((p) {
         final venc = DateTime.tryParse(p['vencimento'] ?? '');
         if (venc == null) return false;
+
+        // 🔹 Apenas vencidas
+        if (!venc.isBefore(DateTime(hoje.year, hoje.month, hoje.day))) {
+          return false;
+        }
+
+        // 🔹 Apenas sem acordo (data_prevista NULL)
+        if (p['data_prevista'] != null) return false;
+
+        // 🔹 Filtros opcionais de data
         if (dataInicio != null && venc.isBefore(dataInicio)) return false;
         if (dataFim != null && venc.isAfter(dataFim)) return false;
+
         return true;
       }).toList();
 
-      // 🔹 Ordena por data de vencimento
       filtradas.sort((a, b) {
         final da = DateTime.tryParse(a['vencimento'] ?? '') ?? DateTime(2100);
         final db = DateTime.tryParse(b['vencimento'] ?? '') ?? DateTime(2100);
         return da.compareTo(db);
       });
 
-      // 🔹 Monta a lista com o cálculo atualizado
       setState(() {
         relatorio = filtradas.map<Map<String, dynamic>>((p) {
           final nomeCliente = p['cliente'] ?? 'Sem cliente';
@@ -109,7 +119,6 @@ class _RelatorioParcelasEmAbertoState
           final jurosSupabase = (p['juros_total'] ?? 0).toDouble();
           final qtdParcelas = (p['qtd_parcelas'] ?? 1).toDouble();
 
-          // 🔸 Novo cálculo automático:
           final pgPrincipal = capitalTotal / qtdParcelas;
           final pgJuros = jurosSupabase / qtdParcelas;
           final total = pgPrincipal + pgJuros;
@@ -148,7 +157,7 @@ class _RelatorioParcelasEmAbertoState
           mainAxisAlignment: MainAxisAlignment.end,
           children: [
             ElevatedButton.icon(
-              onPressed: carregando ? null : _buscarParcelasEmAberto,
+              onPressed: carregando ? null : _buscarParcelasVencidas,
               icon: const Icon(Icons.search),
               label: const Text("Buscar"),
             ),
@@ -156,12 +165,11 @@ class _RelatorioParcelasEmAbertoState
         ),
         const SizedBox(height: 10),
         const Text(
-          "📄 Parcelas em aberto",
+          "📄 Parcelas em atraso",
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 10),
 
-        // 🔹 Cabeçalho
         Container(
           color: Colors.grey[300],
           padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
@@ -177,12 +185,11 @@ class _RelatorioParcelasEmAbertoState
           ),
         ),
 
-        // 🔹 Corpo
         Expanded(
           child: carregando
               ? const Center(child: CircularProgressIndicator())
               : relatorio.isEmpty
-                  ? const Center(child: Text("Nenhuma parcela em aberto encontrada."))
+                  ? const Center(child: Text("Nenhuma parcela em atraso encontrada."))
                   : ListView.builder(
                       itemCount: relatorio.length,
                       itemBuilder: (context, index) {
@@ -207,43 +214,18 @@ class _RelatorioParcelasEmAbertoState
                     ),
         ),
 
-        // 🔹 Totais
         if (relatorio.isNotEmpty)
           Container(
             color: Colors.grey[200],
             padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
             child: Row(
               children: [
-                const Expanded(
-                  flex: 3,
-                  child: Text(
-                    "Totais:",
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ),
-                const Expanded(flex: 1, child: SizedBox()), // Nº
-                const Expanded(flex: 2, child: SizedBox()), // Vencimento
-                Expanded(
-                  flex: 2,
-                  child: Text(
-                    formatador.format(totalCapital),
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ),
-                Expanded(
-                  flex: 2,
-                  child: Text(
-                    formatador.format(totalJuros),
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ),
-                Expanded(
-                  flex: 2,
-                  child: Text(
-                    formatador.format(totalGeral),
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ),
+                const Expanded(flex: 3, child: Text("Totais:", style: TextStyle(fontWeight: FontWeight.bold))),
+                const Expanded(flex: 1, child: SizedBox()),
+                const Expanded(flex: 2, child: SizedBox()),
+                Expanded(flex: 2, child: Text(formatador.format(totalCapital), style: const TextStyle(fontWeight: FontWeight.bold))),
+                Expanded(flex: 2, child: Text(formatador.format(totalJuros), style: const TextStyle(fontWeight: FontWeight.bold))),
+                Expanded(flex: 2, child: Text(formatador.format(totalGeral), style: const TextStyle(fontWeight: FontWeight.bold))),
               ],
             ),
           ),
