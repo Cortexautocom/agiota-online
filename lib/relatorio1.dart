@@ -28,6 +28,30 @@ class _RelatorioParcelasEmAbertoState
     _buscarParcelasEmAberto();
   }
 
+  String formatarData(String? isoDate) {
+    if (isoDate == null || isoDate.isEmpty) return '';
+    try {
+      final date = DateTime.parse(isoDate);
+      return DateFormat('dd/MM/yyyy').format(date);
+    } catch (_) {
+      return '';
+    }
+  }
+
+  DateTime? _parseDataFiltro(String? text) {
+    if (text == null || text.isEmpty) return null;
+    try {
+      final parts = text.split('/');
+      return DateTime(
+        int.parse(parts[2]),
+        int.parse(parts[1]),
+        int.parse(parts[0]),
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<void> _buscarParcelasEmAberto() async {
     setState(() {
       carregando = true;
@@ -37,69 +61,67 @@ class _RelatorioParcelasEmAbertoState
     try {
       final supabase = Supabase.instance.client;
 
-      // 🔹 Busca na VIEW com dados completos
-      final query = supabase.from('vw_parcelas_detalhes').select('''
-        id,
-        numero,
-        valor,
-        juros,
-        residual,
-        vencimento,
-        cliente,
-        ativo,
-        capital_total,
-        juros_total,
-        qtd_parcelas
-      ''').gt('residual', 0).eq('ativo', 'sim');
+      final response = await supabase
+          .from('vw_parcelas_detalhes')
+          .select('''
+            id,
+            numero,
+            valor,
+            juros,
+            residual,
+            vencimento,
+            cliente,
+            ativo,
+            capital_total,
+            juros_total,
+            qtd_parcelas
+          ''')
+          .gt('residual', 0)
+          .eq('ativo', 'sim')
+          .order('vencimento', ascending: true);
 
-      // 🔹 Filtro de datas (se preenchido)
-      if (widget.dataInicioCtrl.text.isNotEmpty &&
-          widget.dataFimCtrl.text.isNotEmpty) {
-        final inicioParts = widget.dataInicioCtrl.text.split('/');
-        final fimParts = widget.dataFimCtrl.text.split('/');
-
-        final dataInicio = DateTime(
-          int.parse(inicioParts[2]),
-          int.parse(inicioParts[1]),
-          int.parse(inicioParts[0]),
-        );
-        final dataFim = DateTime(
-          int.parse(fimParts[2]),
-          int.parse(fimParts[1]),
-          int.parse(fimParts[0]),
-        );
-
-        query
-          ..gte('vencimento', dataInicio.toIso8601String())
-          ..lte('vencimento', dataFim.toIso8601String());
-      }
-
-      final response = await query.order('vencimento', ascending: true);
       final dados = response as List;
 
+      final dataInicio = _parseDataFiltro(widget.dataInicioCtrl.text);
+      final dataFim = _parseDataFiltro(widget.dataFimCtrl.text);
+
+      final filtradas = dados.where((p) {
+        final venc = DateTime.tryParse(p['vencimento'] ?? '');
+        if (venc == null) return false;
+        if (dataInicio != null && venc.isBefore(dataInicio)) return false;
+        if (dataFim != null && venc.isAfter(dataFim)) return false;
+        return true;
+      }).toList();
+
+      filtradas.sort((a, b) {
+        final da = DateTime.tryParse(a['vencimento'] ?? '') ?? DateTime(2100);
+        final db = DateTime.tryParse(b['vencimento'] ?? '') ?? DateTime(2100);
+        return da.compareTo(db);
+      });
+
       setState(() {
-        relatorio = dados.map<Map<String, dynamic>>((p) {
+        relatorio = filtradas.map<Map<String, dynamic>>((p) {
           final nomeCliente = p['cliente'] ?? 'Sem cliente';
           final capital = (p['valor'] ?? 0).toDouble();
           final jurosSupabase = (p['juros_total'] ?? 0).toDouble();
           final qtdParcelas = (p['qtd_parcelas'] ?? 1).toDouble();
 
-          // 🔹 Cálculo replicado da tela ParcelasTable:
           final pgPrincipal = (p['capital_total'] ?? 0) / qtdParcelas;
-          final pgJuros = jurosSupabase / qtdParcelas; // sem desconto nem juros digitado
+          final pgJuros = jurosSupabase / qtdParcelas;
           final total = capital + pgJuros;
 
           return {
             'cliente': nomeCliente,
             'numero': p['numero'],
+            'vencimento': formatarData(p['vencimento']),
             'capital': capital,
             'juros': pgJuros,
             'total': total,
           };
         }).toList();
       });
-    } catch (e) {
-      debugPrint("❌ Erro ao buscar parcelas em aberto: $e");
+    } catch (_) {
+      // Silencia erros
     } finally {
       setState(() {
         carregando = false;
@@ -118,7 +140,6 @@ class _RelatorioParcelasEmAbertoState
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // 🔹 Botão Buscar
         Row(
           mainAxisAlignment: MainAxisAlignment.end,
           children: [
@@ -129,7 +150,6 @@ class _RelatorioParcelasEmAbertoState
             ),
           ],
         ),
-
         const SizedBox(height: 10),
         const Text(
           "📄 Parcelas em aberto",
@@ -137,7 +157,7 @@ class _RelatorioParcelasEmAbertoState
         ),
         const SizedBox(height: 10),
 
-        // 🔹 Cabeçalho da tabela
+        // 🔹 Cabeçalho
         Container(
           color: Colors.grey[300],
           padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
@@ -145,6 +165,7 @@ class _RelatorioParcelasEmAbertoState
             children: [
               Expanded(flex: 3, child: Text("Cliente", style: TextStyle(fontWeight: FontWeight.bold))),
               Expanded(flex: 1, child: Text("Nº", style: TextStyle(fontWeight: FontWeight.bold))),
+              Expanded(flex: 2, child: Text("Vencimento", style: TextStyle(fontWeight: FontWeight.bold))),
               Expanded(flex: 2, child: Text("Capital", style: TextStyle(fontWeight: FontWeight.bold))),
               Expanded(flex: 2, child: Text("Juros", style: TextStyle(fontWeight: FontWeight.bold))),
               Expanded(flex: 2, child: Text("Total", style: TextStyle(fontWeight: FontWeight.bold))),
@@ -152,7 +173,7 @@ class _RelatorioParcelasEmAbertoState
           ),
         ),
 
-        // 🔹 Corpo do relatório
+        // 🔹 Corpo
         Expanded(
           child: carregando
               ? const Center(child: CircularProgressIndicator())
@@ -171,6 +192,7 @@ class _RelatorioParcelasEmAbertoState
                             children: [
                               Expanded(flex: 3, child: Text(item['cliente'])),
                               Expanded(flex: 1, child: Text(item['numero'].toString())),
+                              Expanded(flex: 2, child: Text(item['vencimento'] ?? '-')),
                               Expanded(flex: 2, child: Text(formatador.format(item['capital']))),
                               Expanded(flex: 2, child: Text(formatador.format(item['juros']))),
                               Expanded(flex: 2, child: Text(formatador.format(item['total']))),
@@ -181,17 +203,43 @@ class _RelatorioParcelasEmAbertoState
                     ),
         ),
 
-        // 🔹 Totais
+        // 🔹 Totais — agora alinhados corretamente
         if (relatorio.isNotEmpty)
           Container(
             color: Colors.grey[200],
             padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
             child: Row(
               children: [
-                const Expanded(flex: 4, child: Text("Totais:", style: TextStyle(fontWeight: FontWeight.bold))),
-                Expanded(flex: 2, child: Text(formatador.format(totalCapital), style: const TextStyle(fontWeight: FontWeight.bold))),
-                Expanded(flex: 2, child: Text(formatador.format(totalJuros), style: const TextStyle(fontWeight: FontWeight.bold))),
-                Expanded(flex: 2, child: Text(formatador.format(totalGeral), style: const TextStyle(fontWeight: FontWeight.bold))),
+                const Expanded(
+                  flex: 3,
+                  child: Text(
+                    "Totais:",
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+                const Expanded(flex: 1, child: SizedBox()), // Nº
+                const Expanded(flex: 2, child: SizedBox()), // Vencimento
+                Expanded(
+                  flex: 2,
+                  child: Text(
+                    formatador.format(totalCapital),
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+                Expanded(
+                  flex: 2,
+                  child: Text(
+                    formatador.format(totalJuros),
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+                Expanded(
+                  flex: 2,
+                  child: Text(
+                    formatador.format(totalGeral),
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
               ],
             ),
           ),
