@@ -1,24 +1,30 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:mask_text_input_formatter/mask_text_input_formatter.dart';
-import 'clientes_page.dart'; // 🔹 vamos mover ClientesPage para arquivo separado
+import 'package:flutter_dotenv/flutter_dotenv.dart'; // ADICIONE ESTA LINHA
+import 'clientes_page.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'relatorios_page.dart';
+import 'config/env.dart'; // ADICIONE ESTA LINHA
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 🔹 Substitua pelos dados do seu projeto Supabase
+  // 🔹 Carrega as variáveis do .env para desenvolvimento
+  await dotenv.load(fileName: '.env');
+
+  // 🔹 Agora usando as credenciais do arquivo de configuração
   await Supabase.initialize(
-    url: 'https://zqvbgfqzdcejgxthdmht.supabase.co',
-    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpxdmJnZnF6ZGNlamd4dGhkbWh0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUxMTI5ODAsImV4cCI6MjA3MDY4ODk4MH0.e4NhuarlGNnXrXUWKdLmGoa1DGejn2jmgpbRR_Ztyqw',
+    url: Env.supabaseUrl,          // ← ALTERADO
+    anonKey: Env.supabaseAnonKey,  // ← ALTERADO
   );
 
   await initializeDateFormatting("pt_BR", null);
 
   runApp(const MyApp());
 }
+
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
