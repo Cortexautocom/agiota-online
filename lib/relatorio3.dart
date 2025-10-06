@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'parcelas_page.dart'; // ✅ para abrir a tela de parcelas
 
 class RelatorioParcelasComAcordo extends StatefulWidget {
   final TextEditingController dataInicioCtrl;
@@ -65,6 +66,7 @@ class _RelatorioParcelasComAcordoState
           .from('vw_parcelas_detalhes')
           .select('''
             id,
+            id_emprestimo,
             numero,
             valor,
             juros,
@@ -113,6 +115,7 @@ class _RelatorioParcelasComAcordoState
           final total = pgPrincipal + pgJuros;
 
           return {
+            'id_emprestimo': p['id_emprestimo'],
             'cliente': nomeCliente,
             'numero': p['numero'],
             'vencimento': formatarData(p['vencimento']),
@@ -123,8 +126,8 @@ class _RelatorioParcelasComAcordoState
           };
         }).toList();
       });
-    } catch (_) {
-      // Silencia erros
+    } catch (e) {
+      debugPrint("❌ Erro ao buscar parcelas com acordo: $e");
     } finally {
       setState(() {
         carregando = false;
@@ -160,7 +163,6 @@ class _RelatorioParcelasComAcordoState
         ),
         const SizedBox(height: 10),
 
-        // 🔹 Cabeçalho
         Container(
           color: Colors.grey[300],
           padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
@@ -169,7 +171,7 @@ class _RelatorioParcelasComAcordoState
               Expanded(flex: 3, child: Text("Cliente", style: TextStyle(fontWeight: FontWeight.bold))),
               Expanded(flex: 1, child: Text("Nº", style: TextStyle(fontWeight: FontWeight.bold))),
               Expanded(flex: 2, child: Text("Vencimento", style: TextStyle(fontWeight: FontWeight.bold))),
-              Expanded(flex: 2, child: Text("Data prevista", style: TextStyle(fontWeight: FontWeight.bold))), // ✅ nova coluna
+              Expanded(flex: 2, child: Text("Data prevista", style: TextStyle(fontWeight: FontWeight.bold))),
               Expanded(flex: 2, child: Text("Capital", style: TextStyle(fontWeight: FontWeight.bold))),
               Expanded(flex: 2, child: Text("Juros", style: TextStyle(fontWeight: FontWeight.bold))),
               Expanded(flex: 2, child: Text("Total", style: TextStyle(fontWeight: FontWeight.bold))),
@@ -177,7 +179,6 @@ class _RelatorioParcelasComAcordoState
           ),
         ),
 
-        // 🔹 Corpo
         Expanded(
           child: carregando
               ? const Center(child: CircularProgressIndicator())
@@ -187,28 +188,50 @@ class _RelatorioParcelasComAcordoState
                       itemCount: relatorio.length,
                       itemBuilder: (context, index) {
                         final item = relatorio[index];
-                        return Container(
-                          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-                          decoration: BoxDecoration(
-                            border: Border(bottom: BorderSide(color: Colors.grey[300]!)),
-                          ),
-                          child: Row(
-                            children: [
-                              Expanded(flex: 3, child: Text(item['cliente'])),
-                              Expanded(flex: 1, child: Text(item['numero'].toString())),
-                              Expanded(flex: 2, child: Text(item['vencimento'] ?? '-')),
-                              Expanded(flex: 2, child: Text(item['data_prevista'] ?? '-')), // ✅ exibe data prevista
-                              Expanded(flex: 2, child: Text(formatador.format(item['capital']))),
-                              Expanded(flex: 2, child: Text(formatador.format(item['juros']))),
-                              Expanded(flex: 2, child: Text(formatador.format(item['total']))),
-                            ],
+                        return InkWell(
+                          onTap: () {
+                            debugPrint("🖱 Clique: abrindo parcelas do empréstimo ${item['id_emprestimo']} (${item['cliente']})");
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => ParcelasPage(
+                                  emprestimo: {
+                                    'id': item['id_emprestimo'],
+                                    'cliente': item['cliente'],
+                                    'numero': item['numero'],
+                                    'valor': item['capital'] ?? 0,
+                                    'juros': item['juros'] ?? 0,
+                                    'prestacao': item['total'] ?? 0,
+                                    'data_inicio': item['vencimento'],
+                                    'id_usuario': Supabase.instance.client.auth.currentUser?.id ?? '',
+                                  },
+                                  onSaved: () {},
+                                ),
+                              ),
+                            );
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                            decoration: BoxDecoration(
+                              border: Border(bottom: BorderSide(color: Colors.grey[300]!)),
+                            ),
+                            child: Row(
+                              children: [
+                                Expanded(flex: 3, child: Text(item['cliente'])),
+                                Expanded(flex: 1, child: Text(item['numero'].toString())),
+                                Expanded(flex: 2, child: Text(item['vencimento'] ?? '-')),
+                                Expanded(flex: 2, child: Text(item['data_prevista'] ?? '-')),
+                                Expanded(flex: 2, child: Text(formatador.format(item['capital']))),
+                                Expanded(flex: 2, child: Text(formatador.format(item['juros']))),
+                                Expanded(flex: 2, child: Text(formatador.format(item['total']))),
+                              ],
+                            ),
                           ),
                         );
                       },
                     ),
         ),
 
-        // 🔹 Totais — alinhados
         if (relatorio.isNotEmpty)
           Container(
             color: Colors.grey[200],
@@ -218,7 +241,7 @@ class _RelatorioParcelasComAcordoState
                 const Expanded(flex: 3, child: Text("Totais:", style: TextStyle(fontWeight: FontWeight.bold))),
                 const Expanded(flex: 1, child: SizedBox()),
                 const Expanded(flex: 2, child: SizedBox()),
-                const Expanded(flex: 2, child: SizedBox()), // Data prevista
+                const Expanded(flex: 2, child: SizedBox()),
                 Expanded(flex: 2, child: Text(formatador.format(totalCapital), style: const TextStyle(fontWeight: FontWeight.bold))),
                 Expanded(flex: 2, child: Text(formatador.format(totalJuros), style: const TextStyle(fontWeight: FontWeight.bold))),
                 Expanded(flex: 2, child: Text(formatador.format(totalGeral), style: const TextStyle(fontWeight: FontWeight.bold))),

@@ -40,15 +40,6 @@ class _RelatoriosPageState extends State<RelatoriosPage> {
           dataFimCtrl: dataFimCtrl,
         );
 
-      case 'Empréstimos ativos':
-        return const Center(child: Text("📊 Empréstimos ativos (em breve)"));
-
-      case 'Empréstimos quitados':
-        return const Center(child: Text("📊 Empréstimos quitados (em breve)"));
-
-      case 'Clientes x Dívida':
-        return const Center(child: Text("📊 Clientes x Dívida (em breve)"));
-
       default:
         return const Center(child: Text("Selecione um tipo de relatório."));
     }

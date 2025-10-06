@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'parcelas_page.dart'; // ✅ Import para abrir a tela de parcelas
 
 class RelatorioParcelasVencidas extends StatefulWidget {
   final TextEditingController dataInicioCtrl;
@@ -66,6 +67,7 @@ class _RelatorioParcelasVencidasState
           .from('vw_parcelas_detalhes')
           .select('''
             id,
+            id_emprestimo,
             numero,
             valor,
             juros,
@@ -124,6 +126,7 @@ class _RelatorioParcelasVencidasState
           final total = pgPrincipal + pgJuros;
 
           return {
+            'id_emprestimo': p['id_emprestimo'],
             'cliente': nomeCliente,
             'numero': p['numero'],
             'vencimento': formatarData(p['vencimento']),
@@ -133,8 +136,8 @@ class _RelatorioParcelasVencidasState
           };
         }).toList();
       });
-    } catch (_) {
-      // Silencia erros
+    } catch (e) {
+      debugPrint("❌ Erro ao buscar parcelas vencidas: $e");
     } finally {
       setState(() {
         carregando = false;
@@ -194,20 +197,43 @@ class _RelatorioParcelasVencidasState
                       itemCount: relatorio.length,
                       itemBuilder: (context, index) {
                         final item = relatorio[index];
-                        return Container(
-                          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-                          decoration: BoxDecoration(
-                            border: Border(bottom: BorderSide(color: Colors.grey[300]!)),
-                          ),
-                          child: Row(
-                            children: [
-                              Expanded(flex: 3, child: Text(item['cliente'])),
-                              Expanded(flex: 1, child: Text(item['numero'].toString())),
-                              Expanded(flex: 2, child: Text(item['vencimento'] ?? '-')),
-                              Expanded(flex: 2, child: Text(formatador.format(item['capital']))),
-                              Expanded(flex: 2, child: Text(formatador.format(item['juros']))),
-                              Expanded(flex: 2, child: Text(formatador.format(item['total']))),
-                            ],
+                        return InkWell(
+                          onTap: () {
+                            debugPrint("🖱 Clique: abrindo parcelas do empréstimo ${item['id_emprestimo']} (${item['cliente']})");
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => ParcelasPage(
+                                  emprestimo: {
+                                    'id': item['id_emprestimo'],
+                                    'cliente': item['cliente'],
+                                    'numero': item['numero'],
+                                    'valor': item['capital'] ?? 0,
+                                    'juros': item['juros'] ?? 0,
+                                    'prestacao': item['total'] ?? 0,
+                                    'data_inicio': item['vencimento'],
+                                    'id_usuario': Supabase.instance.client.auth.currentUser?.id ?? '',
+                                  },
+                                  onSaved: () {},
+                                ),
+                              ),
+                            );
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                            decoration: BoxDecoration(
+                              border: Border(bottom: BorderSide(color: Colors.grey[300]!)),
+                            ),
+                            child: Row(
+                              children: [
+                                Expanded(flex: 3, child: Text(item['cliente'])),
+                                Expanded(flex: 1, child: Text(item['numero'].toString())),
+                                Expanded(flex: 2, child: Text(item['vencimento'] ?? '-')),
+                                Expanded(flex: 2, child: Text(formatador.format(item['capital']))),
+                                Expanded(flex: 2, child: Text(formatador.format(item['juros']))),
+                                Expanded(flex: 2, child: Text(formatador.format(item['total']))),
+                              ],
+                            ),
                           ),
                         );
                       },

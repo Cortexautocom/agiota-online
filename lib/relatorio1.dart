@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'parcelas_page.dart'; // ✅ Import para abrir a tela de parcelas
 
 class RelatorioParcelasEmAberto extends StatefulWidget {
   final TextEditingController dataInicioCtrl;
@@ -53,6 +54,7 @@ class _RelatorioParcelasEmAbertoState
   }
 
   Future<void> _buscarParcelasEmAberto() async {
+    print("🔍 Iniciando busca de parcelas em aberto...");
     setState(() {
       carregando = true;
       relatorio = [];
@@ -61,10 +63,12 @@ class _RelatorioParcelasEmAbertoState
     try {
       final supabase = Supabase.instance.client;
 
+      print("📡 Consultando vw_parcelas_detalhes...");
       final response = await supabase
           .from('vw_parcelas_detalhes')
           .select('''
             id,
+            id_emprestimo,
             numero,
             valor,
             juros,
@@ -80,19 +84,26 @@ class _RelatorioParcelasEmAbertoState
           .eq('ativo', 'sim')
           .order('vencimento', ascending: true);
 
-      final dados = response as List;
+      print("✅ Consulta concluída. Registros recebidos: ${(response as List).length}");
+      for (final r in response) {
+        print("➡️  Parcela: id=${r['id']}, id_emprestimo=${r['id_emprestimo']}, cliente=${r['cliente']}, venc=${r['vencimento']}, residual=${r['residual']}");
+      }
 
       final dataInicio = _parseDataFiltro(widget.dataInicioCtrl.text);
       final dataFim = _parseDataFiltro(widget.dataFimCtrl.text);
 
-      // 🔹 Aplica filtro de data (funcional)
-      final filtradas = dados.where((p) {
+      print("📆 Filtros de data -> Início: $dataInicio | Fim: $dataFim");
+
+      // 🔹 Aplica filtro de data
+      final filtradas = response.where((p) {
         final venc = DateTime.tryParse(p['vencimento'] ?? '');
         if (venc == null) return false;
         if (dataInicio != null && venc.isBefore(dataInicio)) return false;
         if (dataFim != null && venc.isAfter(dataFim)) return false;
         return true;
       }).toList();
+
+      print("📊 Após filtro de data: ${filtradas.length} registros");
 
       // 🔹 Ordena por data de vencimento
       filtradas.sort((a, b) {
@@ -101,7 +112,6 @@ class _RelatorioParcelasEmAbertoState
         return da.compareTo(db);
       });
 
-      // 🔹 Monta a lista com o cálculo atualizado
       setState(() {
         relatorio = filtradas.map<Map<String, dynamic>>((p) {
           final nomeCliente = p['cliente'] ?? 'Sem cliente';
@@ -109,12 +119,12 @@ class _RelatorioParcelasEmAbertoState
           final jurosSupabase = (p['juros_total'] ?? 0).toDouble();
           final qtdParcelas = (p['qtd_parcelas'] ?? 1).toDouble();
 
-          // 🔸 Novo cálculo automático:
           final pgPrincipal = capitalTotal / qtdParcelas;
           final pgJuros = jurosSupabase / qtdParcelas;
           final total = pgPrincipal + pgJuros;
 
           return {
+            'id_emprestimo': p['id_emprestimo'],
             'cliente': nomeCliente,
             'numero': p['numero'],
             'vencimento': formatarData(p['vencimento']),
@@ -124,12 +134,16 @@ class _RelatorioParcelasEmAbertoState
           };
         }).toList();
       });
-    } catch (_) {
-      // Silencia erros
+
+      print("📋 Relatório final com ${relatorio.length} linhas montado com sucesso.");
+    } catch (e, st) {
+      print("❌ Erro ao buscar parcelas em aberto: $e");
+      print(st);
     } finally {
       setState(() {
         carregando = false;
       });
+      print("🔚 Busca finalizada.");
     }
   }
 
@@ -161,7 +175,6 @@ class _RelatorioParcelasEmAbertoState
         ),
         const SizedBox(height: 10),
 
-        // 🔹 Cabeçalho
         Container(
           color: Colors.grey[300],
           padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
@@ -177,7 +190,6 @@ class _RelatorioParcelasEmAbertoState
           ),
         ),
 
-        // 🔹 Corpo
         Expanded(
           child: carregando
               ? const Center(child: CircularProgressIndicator())
@@ -187,27 +199,49 @@ class _RelatorioParcelasEmAbertoState
                       itemCount: relatorio.length,
                       itemBuilder: (context, index) {
                         final item = relatorio[index];
-                        return Container(
-                          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-                          decoration: BoxDecoration(
-                            border: Border(bottom: BorderSide(color: Colors.grey[300]!)),
-                          ),
-                          child: Row(
-                            children: [
-                              Expanded(flex: 3, child: Text(item['cliente'])),
-                              Expanded(flex: 1, child: Text(item['numero'].toString())),
-                              Expanded(flex: 2, child: Text(item['vencimento'] ?? '-')),
-                              Expanded(flex: 2, child: Text(formatador.format(item['capital']))),
-                              Expanded(flex: 2, child: Text(formatador.format(item['juros']))),
-                              Expanded(flex: 2, child: Text(formatador.format(item['total']))),
-                            ],
+                        return InkWell(
+                          onTap: () {
+                            print("🖱 Clique: abrindo parcelas do empréstimo ${item['id_emprestimo']} (${item['cliente']})");
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => ParcelasPage(
+                                  emprestimo: {
+                                    'id': item['id_emprestimo'],
+                                    'cliente': item['cliente'],
+                                    'numero': item['numero'],
+                                    'valor': item['capital'] ?? 0,
+                                    'juros': item['juros'] ?? 0,
+                                    'prestacao': item['total'] ?? 0,
+                                    'data_inicio': item['vencimento'],
+                                    'id_usuario': Supabase.instance.client.auth.currentUser?.id ?? '',
+                                  },
+                                  onSaved: () {},
+                                ),
+                              ),
+                            );
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                            decoration: BoxDecoration(
+                              border: Border(bottom: BorderSide(color: Colors.grey[300]!)),
+                            ),
+                            child: Row(
+                              children: [
+                                Expanded(flex: 3, child: Text(item['cliente'])),
+                                Expanded(flex: 1, child: Text(item['numero'].toString())),
+                                Expanded(flex: 2, child: Text(item['vencimento'] ?? '-')),
+                                Expanded(flex: 2, child: Text(formatador.format(item['capital']))),
+                                Expanded(flex: 2, child: Text(formatador.format(item['juros']))),
+                                Expanded(flex: 2, child: Text(formatador.format(item['total']))),
+                              ],
+                            ),
                           ),
                         );
                       },
                     ),
         ),
 
-        // 🔹 Totais
         if (relatorio.isNotEmpty)
           Container(
             color: Colors.grey[200],
@@ -221,8 +255,8 @@ class _RelatorioParcelasEmAbertoState
                     style: TextStyle(fontWeight: FontWeight.bold),
                   ),
                 ),
-                const Expanded(flex: 1, child: SizedBox()), // Nº
-                const Expanded(flex: 2, child: SizedBox()), // Vencimento
+                const Expanded(flex: 1, child: SizedBox()),
+                const Expanded(flex: 2, child: SizedBox()),
                 Expanded(
                   flex: 2,
                   child: Text(
