@@ -38,6 +38,20 @@ class _RelatorioParcelasComAcordoState
     }
   }
 
+  DateTime? _parseDataFiltro(String? text) {
+    if (text == null || text.isEmpty) return null;
+    try {
+      final parts = text.split('/');
+      return DateTime(
+        int.parse(parts[2]),
+        int.parse(parts[1]),
+        int.parse(parts[0]),
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<void> _buscarParcelasComAcordo() async {
     setState(() {
       carregando = true;
@@ -46,6 +60,7 @@ class _RelatorioParcelasComAcordoState
 
     try {
       final supabase = Supabase.instance.client;
+
       final response = await supabase
           .from('vw_parcelas_detalhes')
           .select('''
@@ -64,14 +79,27 @@ class _RelatorioParcelasComAcordoState
           ''')
           .gt('residual', 0)
           .eq('ativo', 'sim')
+          .not('data_prevista', 'is', null) // ✅ Apenas parcelas com acordo
           .order('vencimento', ascending: true);
 
       final dados = response as List;
 
+      final dataInicio = _parseDataFiltro(widget.dataInicioCtrl.text);
+      final dataFim = _parseDataFiltro(widget.dataFimCtrl.text);
+
       final filtradas = dados.where((p) {
-        // 🔹 Apenas parcelas com acordo vigente
-        return p['data_prevista'] != null;
+        final venc = DateTime.tryParse(p['vencimento'] ?? '');
+        if (venc == null) return false;
+        if (dataInicio != null && venc.isBefore(dataInicio)) return false;
+        if (dataFim != null && venc.isAfter(dataFim)) return false;
+        return true;
       }).toList();
+
+      filtradas.sort((a, b) {
+        final da = DateTime.tryParse(a['vencimento'] ?? '') ?? DateTime(2100);
+        final db = DateTime.tryParse(b['vencimento'] ?? '') ?? DateTime(2100);
+        return da.compareTo(db);
+      });
 
       setState(() {
         relatorio = filtradas.map<Map<String, dynamic>>((p) {
@@ -88,6 +116,7 @@ class _RelatorioParcelasComAcordoState
             'cliente': nomeCliente,
             'numero': p['numero'],
             'vencimento': formatarData(p['vencimento']),
+            'data_prevista': formatarData(p['data_prevista']),
             'capital': pgPrincipal,
             'juros': pgJuros,
             'total': total,
@@ -95,7 +124,7 @@ class _RelatorioParcelasComAcordoState
         }).toList();
       });
     } catch (_) {
-      // silencia erros
+      // Silencia erros
     } finally {
       setState(() {
         carregando = false;
@@ -131,7 +160,7 @@ class _RelatorioParcelasComAcordoState
         ),
         const SizedBox(height: 10),
 
-        // 🔹 Cabeçalho igual aos outros
+        // 🔹 Cabeçalho
         Container(
           color: Colors.grey[300],
           padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
@@ -140,6 +169,7 @@ class _RelatorioParcelasComAcordoState
               Expanded(flex: 3, child: Text("Cliente", style: TextStyle(fontWeight: FontWeight.bold))),
               Expanded(flex: 1, child: Text("Nº", style: TextStyle(fontWeight: FontWeight.bold))),
               Expanded(flex: 2, child: Text("Vencimento", style: TextStyle(fontWeight: FontWeight.bold))),
+              Expanded(flex: 2, child: Text("Data prevista", style: TextStyle(fontWeight: FontWeight.bold))), // ✅ nova coluna
               Expanded(flex: 2, child: Text("Capital", style: TextStyle(fontWeight: FontWeight.bold))),
               Expanded(flex: 2, child: Text("Juros", style: TextStyle(fontWeight: FontWeight.bold))),
               Expanded(flex: 2, child: Text("Total", style: TextStyle(fontWeight: FontWeight.bold))),
@@ -147,7 +177,7 @@ class _RelatorioParcelasComAcordoState
           ),
         ),
 
-        // 🔹 Corpo idêntico
+        // 🔹 Corpo
         Expanded(
           child: carregando
               ? const Center(child: CircularProgressIndicator())
@@ -167,6 +197,7 @@ class _RelatorioParcelasComAcordoState
                               Expanded(flex: 3, child: Text(item['cliente'])),
                               Expanded(flex: 1, child: Text(item['numero'].toString())),
                               Expanded(flex: 2, child: Text(item['vencimento'] ?? '-')),
+                              Expanded(flex: 2, child: Text(item['data_prevista'] ?? '-')), // ✅ exibe data prevista
                               Expanded(flex: 2, child: Text(formatador.format(item['capital']))),
                               Expanded(flex: 2, child: Text(formatador.format(item['juros']))),
                               Expanded(flex: 2, child: Text(formatador.format(item['total']))),
@@ -177,6 +208,7 @@ class _RelatorioParcelasComAcordoState
                     ),
         ),
 
+        // 🔹 Totais — alinhados
         if (relatorio.isNotEmpty)
           Container(
             color: Colors.grey[200],
@@ -186,6 +218,7 @@ class _RelatorioParcelasComAcordoState
                 const Expanded(flex: 3, child: Text("Totais:", style: TextStyle(fontWeight: FontWeight.bold))),
                 const Expanded(flex: 1, child: SizedBox()),
                 const Expanded(flex: 2, child: SizedBox()),
+                const Expanded(flex: 2, child: SizedBox()), // Data prevista
                 Expanded(flex: 2, child: Text(formatador.format(totalCapital), style: const TextStyle(fontWeight: FontWeight.bold))),
                 Expanded(flex: 2, child: Text(formatador.format(totalJuros), style: const TextStyle(fontWeight: FontWeight.bold))),
                 Expanded(flex: 2, child: Text(formatador.format(totalGeral), style: const TextStyle(fontWeight: FontWeight.bold))),
