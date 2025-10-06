@@ -54,7 +54,6 @@ class _RelatorioParcelasEmAbertoState
   }
 
   Future<void> _buscarParcelasEmAberto() async {
-    print("🔍 Iniciando busca de parcelas em aberto...");
     setState(() {
       carregando = true;
       relatorio = [];
@@ -62,8 +61,6 @@ class _RelatorioParcelasEmAbertoState
 
     try {
       final supabase = Supabase.instance.client;
-
-      print("📡 Consultando vw_parcelas_detalhes...");
       final response = await supabase
           .from('vw_parcelas_detalhes')
           .select('''
@@ -84,15 +81,8 @@ class _RelatorioParcelasEmAbertoState
           .eq('ativo', 'sim')
           .order('vencimento', ascending: true);
 
-      print("✅ Consulta concluída. Registros recebidos: ${(response as List).length}");
-      for (final r in response) {
-        print("➡️  Parcela: id=${r['id']}, id_emprestimo=${r['id_emprestimo']}, cliente=${r['cliente']}, venc=${r['vencimento']}, residual=${r['residual']}");
-      }
-
       final dataInicio = _parseDataFiltro(widget.dataInicioCtrl.text);
       final dataFim = _parseDataFiltro(widget.dataFimCtrl.text);
-
-      print("📆 Filtros de data -> Início: $dataInicio | Fim: $dataFim");
 
       // 🔹 Aplica filtro de data
       final filtradas = response.where((p) {
@@ -102,8 +92,6 @@ class _RelatorioParcelasEmAbertoState
         if (dataFim != null && venc.isAfter(dataFim)) return false;
         return true;
       }).toList();
-
-      print("📊 Após filtro de data: ${filtradas.length} registros");
 
       // 🔹 Ordena por data de vencimento
       filtradas.sort((a, b) {
@@ -134,16 +122,12 @@ class _RelatorioParcelasEmAbertoState
           };
         }).toList();
       });
-
-      print("📋 Relatório final com ${relatorio.length} linhas montado com sucesso.");
-    } catch (e, st) {
-      print("❌ Erro ao buscar parcelas em aberto: $e");
-      print(st);
+    } catch (e) {
+      // Mantido apenas para debug em caso de erro
     } finally {
       setState(() {
         carregando = false;
       });
-      print("🔚 Busca finalizada.");
     }
   }
 
@@ -201,7 +185,6 @@ class _RelatorioParcelasEmAbertoState
                         final item = relatorio[index];
                         return InkWell(
                           onTap: () {
-                            print("🖱 Clique: abrindo parcelas do empréstimo ${item['id_emprestimo']} (${item['cliente']})");
                             Navigator.push(
                               context,
                               MaterialPageRoute(
