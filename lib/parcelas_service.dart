@@ -85,8 +85,6 @@ class ParcelasService {
 
   /// 🔹 Busca parcelas no Supabase
   Future<List<Map<String, dynamic>>> buscarParcelas(String emprestimoId) async {
-    print("🔎 Buscando parcelas para id_emprestimo=$emprestimoId");
-
     try {
       final response = await Supabase.instance.client
           .from('parcelas')
@@ -94,22 +92,13 @@ class ParcelasService {
           .eq('id_emprestimo', emprestimoId.toString())
           .order('numero', ascending: true);
 
-      print("📥 Resposta bruta Supabase (parcelas): $response");
-
       final lista = (response as List).map((e) => e as Map<String, dynamic>).toList();
-      print("✅ Total de parcelas encontradas: ${lista.length}");
-      for (var p in lista) {
-        print("➡️ Parcela carregada: $p");
-      }
-
       return lista;
     } catch (e) {
-      print("❌ Erro ao buscar parcelas: $e");
       rethrow;
     }
   }
 
-  /// 🔹 Salva (atualiza ou insere) parcelas no Supabase
   Future<void> salvarParcelasNoSupabase(
     String emprestimoId,
     String usuarioId,
@@ -123,17 +112,12 @@ class ParcelasService {
         final dadosAtualizados = Map<String, dynamic>.from(p)..remove('id');
 
         if (id != null) {
-          print("✏️ Atualizando parcela ID=$id com dados=$dadosAtualizados");
           await supabase.from('parcelas').update(dadosAtualizados).eq('id', id);
         } else {
-          print("➕ Inserindo nova parcela: $p");
           await supabase.from('parcelas').insert(p);
         }
       }
-
-      print("✅ Parcelas salvas/atualizadas no Supabase!");
     } catch (e) {
-      print("❌ Erro ao salvar parcelas: $e");
       rethrow;
     }
   }

@@ -50,12 +50,14 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
     for (final p in parcelas) {
       final vencTxt = p['vencimento']?.toString() ?? "";
       if (vencTxt.isEmpty) continue;
-      final venc = DateTime.tryParse(vencTxt); // ✅ usar ISO direto
+
+      final venc = DateTime.tryParse(vencTxt);
       if (venc == null) continue;
 
       final residual = num.tryParse("${p['residual']}") ?? 0;
 
-      if (residual == 0) {
+      // 🔹 considera paga se o residual for próximo de 0
+      if (residual.abs() < 0.01) {
         pagas++;
       } else {
         abertas++;
@@ -64,6 +66,7 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
         }
       }
 
+      // 🔹 mantém a última data de vencimento
       if (ultima == null || venc.isAfter(ultima)) {
         ultima = venc;
       }
@@ -76,7 +79,7 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
       final residual = num.tryParse("${p['residual']}") ?? 0;
       final dataPrevista = p['data_prevista']?.toString().trim() ?? "";
 
-      return residual > 0 &&
+      return residual > 0.01 && // tolerância
           venc != null &&
           proxima != null &&
           venc.isAtSameMomentAs(proxima) &&
@@ -84,14 +87,18 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
     });
 
     return {
-      "proxima":
-          proxima != null ? DateFormat("dd/MM/yyyy").format(proxima) : "-",
-      "ultima": ultima != null ? DateFormat("dd/MM/yyyy").format(ultima) : "-",
+      "proxima": proxima == null
+          ? "-"
+          : DateFormat("dd/MM/yyyy").format(proxima),
+      "ultima": ultima == null
+          ? "-"
+          : DateFormat("dd/MM/yyyy").format(ultima),
       "situacao_linha1": "$pagas pagas",
       "situacao_linha2": "$abertas restando",
       "acordo": temAcordo ? "sim" : "nao",
     };
   }
+
 
   @override
   Widget build(BuildContext context) {

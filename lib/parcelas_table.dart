@@ -97,7 +97,7 @@ class ParcelasTableState extends State<ParcelasTable> {
           return false;
         }
 
-        if (residual != 0 && residual != valorTotalOriginal) {
+        if ((residual.abs() > 0.01) && (residual.abs() < (valorTotalOriginal - 0.01))) {
           if (!mounted) return false;
           await showDialog(
             context: context,
@@ -254,7 +254,7 @@ class ParcelasTableState extends State<ParcelasTable> {
                   vencimento.isBefore(DateTime(hoje.year, hoje.month, hoje.day));
 
               // 🔹 NOVA REGRA: Se residual == 0 → formatação verde (prioridade máxima)
-              final bool parcelaPaga = residualAtual == 0;
+              final bool parcelaPaga = residualAtual.abs() < 0.01;
 
               // 🔹 Define cores com prioridade: Paga > Acordo > Atraso > Normal
               final rowColor = parcelaPaga

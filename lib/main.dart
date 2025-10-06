@@ -1,23 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:mask_text_input_formatter/mask_text_input_formatter.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart'; // ADICIONE ESTA LINHA
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flutter/foundation.dart'; // ADICIONE ESTA LINHA
 import 'clientes_page.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'relatorios_page.dart';
-import 'config/env.dart'; // ADICIONE ESTA LINHA
+import 'config/env.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 🔹 Carrega as variáveis do .env para desenvolvimento
-  await dotenv.load(fileName: '.env');
+  // 🔹 SOLUÇÃO: Só carrega o .env se NÃO for web
+  if (!kIsWeb) {
+    await dotenv.load(fileName: '.env');
+  }
 
-  // 🔹 Agora usando as credenciais do arquivo de configuração
+  // 🔹 Usando as credenciais do arquivo de configuração
   await Supabase.initialize(
-    url: Env.supabaseUrl,          // ← ALTERADO
-    anonKey: Env.supabaseAnonKey,  // ← ALTERADO
+    url: Env.supabaseUrl,
+    anonKey: Env.supabaseAnonKey,
   );
 
   await initializeDateFormatting("pt_BR", null);
