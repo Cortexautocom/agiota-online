@@ -161,16 +161,18 @@ class _RelatorioParcelasEmAbertoState
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        /*
         Row(
           mainAxisAlignment: MainAxisAlignment.end,
           children: [
-            /*ElevatedButton.icon(
+            ElevatedButton.icon(
               onPressed: carregando ? null : _buscarParcelasEmAberto,
               icon: const Icon(Icons.search),
               label: const Text("Buscar"),
-            ),*/
+            ),
           ],
         ),
+        */
         const SizedBox(height: 10),
         const Text(
           "📄 Parcelas em aberto",
@@ -279,6 +281,26 @@ class _RelatorioParcelasEmAbertoState
                     formatador.format(totalGeral),
                     style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
+                ),
+              ],
+            ),
+          ),
+
+        // ✅ LEGENDA PADRONIZADA (igual aos outros relatórios)
+        if (relatorio.isNotEmpty)
+          Container(
+            color: Colors.blue[50],
+            padding: const EdgeInsets.all(8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  "Total de parcelas: ${relatorio.length}",
+                  style: const TextStyle(fontSize: 12, color: Colors.blue),
+                ),
+                Text(
+                  "Atualizado: ${DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now())}",
+                  style: const TextStyle(fontSize: 12, color: Colors.blue),
                 ),
               ],
             ),

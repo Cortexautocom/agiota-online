@@ -6,11 +6,13 @@ import 'parcelas_page.dart'; // ✅ para abrir a tela de parcelas
 class RelatorioParcelasComAcordo extends StatefulWidget {
   final TextEditingController dataInicioCtrl;
   final TextEditingController dataFimCtrl;
+  final VoidCallback? onBuscarPressed; // ✅ Novo callback
 
   const RelatorioParcelasComAcordo({
     super.key,
     required this.dataInicioCtrl,
     required this.dataFimCtrl,
+    this.onBuscarPressed, // ✅ Recebe o callback
   });
 
   @override
@@ -27,6 +29,25 @@ class _RelatorioParcelasComAcordoState
   void initState() {
     super.initState();
     _buscarParcelasComAcordo();
+    
+    // ✅ Escuta mudanças nos controladores de data
+    widget.dataInicioCtrl.addListener(_onDatasAlteradas);
+    widget.dataFimCtrl.addListener(_onDatasAlteradas);
+  }
+
+  @override
+  void dispose() {
+    // ✅ Remove os listeners
+    widget.dataInicioCtrl.removeListener(_onDatasAlteradas);
+    widget.dataFimCtrl.removeListener(_onDatasAlteradas);
+    super.dispose();
+  }
+
+  void _onDatasAlteradas() {
+    // ✅ Busca automática quando as datas são alteradas
+    if (widget.dataInicioCtrl.text.isNotEmpty || widget.dataFimCtrl.text.isNotEmpty) {
+      _buscarParcelasComAcordo();
+    }
   }
 
   String formatarData(String? isoDate) {
@@ -54,6 +75,9 @@ class _RelatorioParcelasComAcordoState
   }
 
   Future<void> _buscarParcelasComAcordo() async {
+    // ✅ VERIFICAÇÃO mounted ANTES de iniciar o loading
+    if (!mounted) return;
+    
     setState(() {
       carregando = true;
       relatorio = [];
@@ -82,7 +106,12 @@ class _RelatorioParcelasComAcordoState
           .gt('residual', 0)
           .eq('ativo', 'sim')
           .not('data_prevista', 'is', null) // ✅ Apenas parcelas com acordo
+          // 🔹 Ordena primeiro por cliente, depois por vencimento (igual relatorio1 e 2)
+          .order('cliente', ascending: true)
           .order('vencimento', ascending: true);
+
+      // ✅ VERIFICAÇÃO mounted após a requisição
+      if (!mounted) return;
 
       final dados = response as List;
 
@@ -97,12 +126,21 @@ class _RelatorioParcelasComAcordoState
         return true;
       }).toList();
 
+      // 🔹 ORDENAÇÃO LOCAL - Primeiro por cliente (alfabético), depois por vencimento
       filtradas.sort((a, b) {
+        final nomeA = (a['cliente'] ?? '').toString().toLowerCase();
+        final nomeB = (b['cliente'] ?? '').toString().toLowerCase();
+        final compNome = nomeA.compareTo(nomeB);
+        if (compNome != 0) return compNome;
+
         final da = DateTime.tryParse(a['vencimento'] ?? '') ?? DateTime(2100);
         final db = DateTime.tryParse(b['vencimento'] ?? '') ?? DateTime(2100);
         return da.compareTo(db);
       });
 
+      // ✅ VERIFICAÇÃO mounted antes de atualizar os dados
+      if (!mounted) return;
+      
       setState(() {
         relatorio = filtradas.map<Map<String, dynamic>>((p) {
           final nomeCliente = p['cliente'] ?? 'Sem cliente';
@@ -127,11 +165,24 @@ class _RelatorioParcelasComAcordoState
         }).toList();
       });
     } catch (e) {
-      debugPrint("❌ Erro ao buscar parcelas com acordo: $e");
+      // ✅ VERIFICAÇÃO mounted no catch também
+      if (mounted) {
+        debugPrint("❌ Erro ao buscar parcelas com acordo: $e");
+        // Mostra snackbar de erro para o usuário
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erro ao buscar parcelas com acordo: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     } finally {
-      setState(() {
-        carregando = false;
-      });
+      // ✅ VERIFICAÇÃO mounted no finally
+      if (mounted) {
+        setState(() {
+          carregando = false;
+        });
+      }
     }
   }
 
@@ -146,22 +197,18 @@ class _RelatorioParcelasComAcordoState
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            ElevatedButton.icon(
-              onPressed: carregando ? null : _buscarParcelasComAcordo,
-              icon: const Icon(Icons.search),
-              label: const Text("Buscar"),
-            ),
-          ],
-        ),
+        // ✅ REMOVIDO o botão buscar individual - agora usa o botão principal do RelatoriosPage
+        
         const SizedBox(height: 10),
         const Text(
           "📄 Parcelas com acordo vigente",
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 10),
+
+        // Indicador de carregamento quando estiver buscando
+        if (carregando)
+          const LinearProgressIndicator(),
 
         Container(
           color: Colors.grey[300],
@@ -180,10 +227,27 @@ class _RelatorioParcelasComAcordoState
         ),
 
         Expanded(
-          child: carregando
+          child: carregando && relatorio.isEmpty
               ? const Center(child: CircularProgressIndicator())
               : relatorio.isEmpty
-                  ? const Center(child: Text("Nenhuma parcela com acordo vigente encontrada."))
+                  ? const Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.handshake, size: 50, color: Colors.green),
+                          SizedBox(height: 10),
+                          Text(
+                            "Nenhuma parcela com acordo vigente encontrada.",
+                            style: TextStyle(fontSize: 16, color: Colors.grey),
+                          ),
+                          SizedBox(height: 5),
+                          Text(
+                            "Tente ajustar os filtros de data.",
+                            style: TextStyle(fontSize: 14, color: Colors.grey),
+                          ),
+                        ],
+                      ),
+                    )
                   : ListView.builder(
                       itemCount: relatorio.length,
                       itemBuilder: (context, index) {
@@ -205,7 +269,10 @@ class _RelatorioParcelasComAcordoState
                                     'data_inicio': item['vencimento'],
                                     'id_usuario': Supabase.instance.client.auth.currentUser?.id ?? '',
                                   },
-                                  onSaved: () {},
+                                  onSaved: () {
+                                    // ✅ Recarrega os dados quando volta da tela de parcelas
+                                    _buscarParcelasComAcordo();
+                                  },
                                 ),
                               ),
                             );
@@ -214,13 +281,23 @@ class _RelatorioParcelasComAcordoState
                             padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
                             decoration: BoxDecoration(
                               border: Border(bottom: BorderSide(color: Colors.grey[300]!)),
+                              color: index.isEven ? Colors.white : Colors.grey[50],
                             ),
                             child: Row(
                               children: [
                                 Expanded(flex: 3, child: Text(item['cliente'])),
                                 Expanded(flex: 1, child: Text(item['numero'].toString())),
                                 Expanded(flex: 2, child: Text(item['vencimento'] ?? '-')),
-                                Expanded(flex: 2, child: Text(item['data_prevista'] ?? '-')),
+                                Expanded(
+                                  flex: 2, 
+                                  child: Text(
+                                    item['data_prevista'] ?? '-',
+                                    style: TextStyle(
+                                      color: Colors.green[700],
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
                                 Expanded(flex: 2, child: Text(formatador.format(item['capital']))),
                                 Expanded(flex: 2, child: Text(formatador.format(item['juros']))),
                                 Expanded(flex: 2, child: Text(formatador.format(item['total']))),
@@ -245,6 +322,26 @@ class _RelatorioParcelasComAcordoState
                 Expanded(flex: 2, child: Text(formatador.format(totalCapital), style: const TextStyle(fontWeight: FontWeight.bold))),
                 Expanded(flex: 2, child: Text(formatador.format(totalJuros), style: const TextStyle(fontWeight: FontWeight.bold))),
                 Expanded(flex: 2, child: Text(formatador.format(totalGeral), style: const TextStyle(fontWeight: FontWeight.bold))),
+              ],
+            ),
+          ),
+
+        // ✅ Informações sobre o relatório
+        if (relatorio.isNotEmpty)
+          Container(
+            color: Colors.green[50],
+            padding: const EdgeInsets.all(8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  "Total de parcelas com acordo: ${relatorio.length}",
+                  style: const TextStyle(fontSize: 12, color: Colors.green),
+                ),
+                Text(
+                  "Atualizado: ${DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now())}",
+                  style: const TextStyle(fontSize: 12, color: Colors.green),
+                ),
               ],
             ),
           ),
