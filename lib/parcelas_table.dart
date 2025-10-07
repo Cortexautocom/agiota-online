@@ -138,6 +138,28 @@ class ParcelasTableState extends State<ParcelasTable> {
           return false;
         }
 
+        // 🔹 NOVA REGRA: Se há pagamento, mas sem data de pagamento, bloqueia
+        if (valorPago > 0 && dataPag.isEmpty) {
+          if (!mounted) return false;
+          await showDialog(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              content: const Text(
+                "Há parcelas com pagamento inserido, mas sem data de pagamento.\n\n"
+                "Inclua a data antes de sair da página.",
+                textAlign: TextAlign.center,
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text("OK"),
+                ),
+              ],
+            ),
+          );
+          return false;
+        }
+
         parcelasAtualizadas.add({
           'id': p['id'],
           'id_emprestimo':
@@ -207,24 +229,26 @@ class ParcelasTableState extends State<ParcelasTable> {
       child: SingleChildScrollView(
         scrollDirection: Axis.vertical,
         child: DataTable(
-          columnSpacing: 12,
+          columnSpacing: 20,
           headingRowColor: MaterialStateProperty.all(Colors.grey[300]),
+          dataRowMinHeight: 38, // 🔹 Altura mínima das linhas
+          dataRowMaxHeight: 42,          
           headingTextStyle: const TextStyle(
               color: Colors.black, fontWeight: FontWeight.bold),
           dataTextStyle: const TextStyle(color: Colors.black87, fontSize: 13),
           columns: const [
-            DataColumn(label: Text("Nº")),
-            DataColumn(label: Text("Vencimento")),
-            DataColumn(label: Text("     Valor")),
-            DataColumn(label: Text("    Juros")),
-            DataColumn(label: Text("Desconto")),
-            DataColumn(label: Text("  Calc.")),
-            DataColumn(label: Text("Pg. Principal")),
-            DataColumn(label: Text("Pg. Juros")),
-            DataColumn(label: Text("Valor Pago")),
-            DataColumn(label: Text("    Saldo")),
-            DataColumn(label: Text("  Data Pag.")),
-            DataColumn(label: Text("Ações")),
+            DataColumn(label: SizedBox(width: 50, child: Text("Nº"))),
+            DataColumn(label: SizedBox(width: 100, child: Text("Vencimento"))),
+            DataColumn(label: SizedBox(width: 90, child: Text("     Valor"))),
+            DataColumn(label: SizedBox(width: 80, child: Text("Juros"))),
+            DataColumn(label: SizedBox(width: 90, child: Text("Desconto"))),
+            DataColumn(label: SizedBox(width: 60, child: Text(" Calc."))),
+            DataColumn(label: SizedBox(width: 110, child: Text("Pg. Principal"))),
+            DataColumn(label: SizedBox(width: 100, child: Text("Pg. Juros"))),
+            DataColumn(label: SizedBox(width: 100, child: Text("Valor Pago"))),
+            DataColumn(label: SizedBox(width: 100, child: Text("    Saldo"))),
+            DataColumn(label: SizedBox(width: 110, child: Text("  Data Pag."))),
+            DataColumn(label: SizedBox(width: 90, child: Text("Ações"))),
           ],
           rows: [
             ...List.generate(widget.parcelas.length, (i) {
