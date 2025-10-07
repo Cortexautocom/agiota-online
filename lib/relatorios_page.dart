@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:mask_text_input_formatter/mask_text_input_formatter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
 import 'relatorio1.dart'; // 🔹 Parcelas em Aberto
 import 'relatorio2.dart'; // 🔹 Parcelas em Atraso
 import 'relatorio3.dart'; // 🔹 Parcelas com Acordo Vigente
@@ -14,48 +17,270 @@ class RelatoriosPage extends StatefulWidget {
 class _RelatoriosPageState extends State<RelatoriosPage> {
   String tipoRelatorio = 'Parcelas em aberto';
 
-  // Controladores de data (usados por todos os relatórios)
+  // Controladores de data
   final dataInicioCtrl = TextEditingController();
   final dataFimCtrl = TextEditingController();
   final dataMask = MaskTextInputFormatter(mask: '##/##/####');
 
-  /// 🔹 Monta o corpo da página com base no tipo de relatório
+  // Focus nodes para detectar perda de foco
+  late final FocusNode inicioFocusNode;
+  late final FocusNode fimFocusNode;
+
+  // Flags que indicam que o usuário "finalizou" a edição do campo
+  bool dataInicioTouched = false;
+  bool dataFimTouched = false;
+
+  // Estados de validação (mantidos para compatibilidade / debug)
+  bool dataInicioInvalida = false;
+  bool dataFimInvalida = false;
+  bool intervaloInvalido = false;
+
+  @override
+  void initState() {
+    super.initState();
+    inicioFocusNode = FocusNode();
+    fimFocusNode = FocusNode();
+
+    // Quando perder o foco marcamos como "tocado" e validamos
+    inicioFocusNode.addListener(() {
+      if (!inicioFocusNode.hasFocus) {
+        dataInicioTouched = true;
+        _validarDatas();
+      }
+    });
+
+    fimFocusNode.addListener(() {
+      if (!fimFocusNode.hasFocus) {
+        dataFimTouched = true;
+        _validarDatas();
+      }
+    });
+
+    _carregarUltimoRelatorio();
+  }
+
+  @override
+  void dispose() {
+    inicioFocusNode.dispose();
+    fimFocusNode.dispose();
+    dataInicioCtrl.dispose();
+    dataFimCtrl.dispose();
+    super.dispose();
+  }
+
+  /// Persistência do último relatório selecionado
+  Future<void> _salvarUltimoRelatorio() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('ultimoRelatorio', tipoRelatorio);
+  }
+
+  Future<void> _carregarUltimoRelatorio() async {
+    final prefs = await SharedPreferences.getInstance();
+    final salvo = prefs.getString('ultimoRelatorio');
+    if (salvo != null && salvo.isNotEmpty) {
+      setState(() => tipoRelatorio = salvo);
+    }
+  }
+
+  /// Limpa os campos de data
+  void _limparDatas() {
+    setState(() {
+      dataInicioCtrl.clear();
+      dataFimCtrl.clear();
+      dataInicioTouched = false;
+      dataFimTouched = false;
+      dataInicioInvalida = false;
+      dataFimInvalida = false;
+      intervaloInvalido = false;
+    });
+    
+    // Remove o foco dos campos
+    FocusScope.of(context).unfocus();
+  }
+
+  /// Limpa datas quando o relatório é alterado
+  void _onRelatorioAlterado(String? novoRelatorio) {
+    if (novoRelatorio == null) return;
+    
+    // Limpa os campos de data antes de trocar o relatório
+    _limparDatas();
+    
+    setState(() => tipoRelatorio = novoRelatorio);
+    _salvarUltimoRelatorio();
+  }
+
+  /// Converte texto -> DateTime (retorna null se inválido)
+  DateTime? _parseData(String? texto) {
+    if (texto == null || texto.isEmpty) return null;
+    try {
+      final partes = texto.split('/');
+      if (partes.length != 3) return null;
+
+      final dia = int.parse(partes[0]);
+      final mes = int.parse(partes[1]);
+      final ano = int.parse(partes[2]);
+
+      // Checks básicos
+      if (mes < 1 || mes > 12 || dia < 1 || dia > 31) return null;
+
+      final data = DateTime(ano, mes, dia);
+      // Garante que não houve "rollover" (ex: 31/04 -> 01/05)
+      if (data.month != mes || data.day != dia) return null;
+      return data;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Valida datas (é chamada ao perder foco ou ao escolher data no calendário)
+  void _validarDatas() {
+    final dataInicio = _parseData(dataInicioCtrl.text);
+    final dataFim = _parseData(dataFimCtrl.text);
+
+    setState(() {
+      // Só consideramos inválido se o usuário já "tocou" no campo (finalizou edição)
+      dataInicioInvalida =
+          dataInicioTouched && dataInicioCtrl.text.isNotEmpty && dataInicio == null;
+      dataFimInvalida =
+          dataFimTouched && dataFimCtrl.text.isNotEmpty && dataFim == null;
+
+      // Só validamos o intervalo se as duas datas forem válidas (não vazias)
+      intervaloInvalido = false;
+      if (dataInicio != null && dataFim != null) {
+        if (dataFim.isBefore(dataInicio)) {
+          intervaloInvalido = true;
+        }
+      }
+    });
+  }
+
+  /// Abre o calendário e marca como "tocado" o campo correto
+  Future<void> _selecionarData(
+    BuildContext context,
+    TextEditingController controller,
+  ) async {
+    FocusScope.of(context).unfocus();
+    DateTime dataInicial = _parseData(controller.text) ?? DateTime.now();
+
+    final selecionada = await showDatePicker(
+      context: context,
+      initialDate: dataInicial,
+      firstDate: DateTime(1900),
+      lastDate: DateTime(2100),
+      locale: const Locale('pt', 'BR'),
+    );
+
+    if (selecionada != null) {
+      controller.text = DateFormat('dd/MM/yyyy').format(selecionada);
+
+      // marca como tocado (pois o usuário selecionou) e valida
+      if (controller == dataInicioCtrl) {
+        dataInicioTouched = true;
+      } else if (controller == dataFimCtrl) {
+        dataFimTouched = true;
+      }
+      _validarDatas();
+    }
+  }
+
+  /// Decisão de exibir erro/relatório baseada em estado "tocado" e parsing real
   Widget _buildRelatorio() {
+    final inicioParsed = _parseData(dataInicioCtrl.text);
+    final fimParsed = _parseData(dataFimCtrl.text);
+
+    final inicioInvalidVisible =
+        dataInicioTouched && dataInicioCtrl.text.isNotEmpty && inicioParsed == null;
+    final fimInvalidVisible =
+        dataFimTouched && dataFimCtrl.text.isNotEmpty && fimParsed == null;
+    final intervalInvalidVisible = (inicioParsed != null && fimParsed != null && fimParsed.isBefore(inicioParsed));
+
+    // Se houver qualquer erro visível, mostramos a mensagem de correção
+    if (inicioInvalidVisible || fimInvalidVisible || intervalInvalidVisible) {
+      return const Center(
+        child: Text(
+          "⚠️ Corrija as datas antes de gerar o relatório.",
+          style: TextStyle(color: Colors.red, fontSize: 16),
+        ),
+      );
+    }
+
+    // Caso contrário, mostramos o relatório correspondente (campos vazios são permitidos)
     switch (tipoRelatorio) {
       case 'Parcelas em aberto':
         return RelatorioParcelasEmAberto(
           dataInicioCtrl: dataInicioCtrl,
           dataFimCtrl: dataFimCtrl,
         );
-
       case 'Parcelas em atraso':
         return RelatorioParcelasVencidas(
           dataInicioCtrl: dataInicioCtrl,
           dataFimCtrl: dataFimCtrl,
         );
-
       case 'Parcelas com acordo vigente':
         return RelatorioParcelasComAcordo(
           dataInicioCtrl: dataInicioCtrl,
           dataFimCtrl: dataFimCtrl,
         );
-
+      case 'Empréstimos ativos':
+        return const Center(child: Text("📄 Relatório de Empréstimos Ativos"));
+      case 'Empréstimos quitados':
+        return const Center(child: Text("📄 Relatório de Empréstimos Quitados"));
+      case 'Clientes x Dívida':
+        return const Center(child: Text("📄 Relatório Clientes x Dívida"));
       default:
         return const Center(child: Text("Selecione um tipo de relatório."));
     }
   }
 
+  InputDecoration _decoracaoCampo({
+    required String label,
+    required bool invalido,
+    required VoidCallback onCalendario,
+  }) {
+    return InputDecoration(
+      labelText: label,
+      border: const OutlineInputBorder(),
+      suffixIcon: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (invalido) const Icon(Icons.error_outline, color: Colors.red),
+          IconButton(
+            icon: Icon(
+              Icons.calendar_today,
+              color: invalido ? Colors.red : const Color.fromARGB(255, 71, 63, 63),
+            ),
+            onPressed: onCalendario,
+          ),
+        ],
+      ),
+      filled: invalido,
+      fillColor: invalido ? Colors.red.withOpacity(0.08) : null,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    // recalcula parsings para decidir a cor/estado dos campos
+    final inicioParsed = _parseData(dataInicioCtrl.text);
+    final fimParsed = _parseData(dataFimCtrl.text);
+
+    final inicioInvalidVisible =
+        dataInicioTouched && dataInicioCtrl.text.isNotEmpty && inicioParsed == null;
+    final fimInvalidVisible =
+        dataFimTouched && dataFimCtrl.text.isNotEmpty && fimParsed == null;
+    final intervalInvalidVisible =
+        (inicioParsed != null && fimParsed != null && fimParsed.isBefore(inicioParsed));
+
+    final corIntervalo = intervalInvalidVisible ? Colors.red.withOpacity(0.08) : null;
+
     return Padding(
       padding: const EdgeInsets.all(16.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 🔹 Linha superior — seleção de tipo e datas
+          // Linha superior — tipo + datas
           Row(
             children: [
-              // Tipo de relatório
               Expanded(
                 flex: 2,
                 child: DropdownButtonFormField<String>(
@@ -66,35 +291,25 @@ class _RelatoriosPageState extends State<RelatoriosPage> {
                   ),
                   items: const [
                     DropdownMenuItem(
-                      value: "Parcelas em aberto",
-                      child: Text("Parcelas em aberto"),
-                    ),
+                        value: "Parcelas em aberto",
+                        child: Text("Parcelas em aberto")),
                     DropdownMenuItem(
-                      value: "Parcelas em atraso",
-                      child: Text("Parcelas em atraso"),
-                    ),
+                        value: "Parcelas em atraso",
+                        child: Text("Parcelas em atraso")),
                     DropdownMenuItem(
-                      value: "Parcelas com acordo vigente",
-                      child: Text("Parcelas com acordo vigente"),
-                    ),
+                        value: "Parcelas com acordo vigente",
+                        child: Text("Parcelas com acordo vigente")),
                     DropdownMenuItem(
-                      value: "Empréstimos ativos",
-                      child: Text("Empréstimos ativos"),
-                    ),
+                        value: "Empréstimos ativos",
+                        child: Text("Empréstimos ativos")),
                     DropdownMenuItem(
-                      value: "Empréstimos quitados",
-                      child: Text("Empréstimos quitados"),
-                    ),
+                        value: "Empréstimos quitados",
+                        child: Text("Empréstimos quitados")),
                     DropdownMenuItem(
-                      value: "Clientes x Dívida",
-                      child: Text("Clientes x Dívida"),
-                    ),
+                        value: "Clientes x Dívida",
+                        child: Text("Clientes x Dívida")),
                   ],
-                  onChanged: (v) {
-                    setState(() {
-                      tipoRelatorio = v!;
-                    });
-                  },
+                  onChanged: _onRelatorioAlterado,
                 ),
               ),
               const SizedBox(width: 16),
@@ -103,13 +318,26 @@ class _RelatoriosPageState extends State<RelatoriosPage> {
               Expanded(
                 child: TextField(
                   controller: dataInicioCtrl,
-                  decoration: const InputDecoration(
-                    labelText: "Data inicial",
-                    border: OutlineInputBorder(),
-                    suffixIcon: Icon(Icons.calendar_today),
+                  focusNode: inicioFocusNode,
+                  decoration: _decoracaoCampo(
+                    label: "Data inicial",
+                    invalido: inicioInvalidVisible || intervalInvalidVisible,
+                    onCalendario: () => _selecionarData(context, dataInicioCtrl),
                   ),
                   keyboardType: TextInputType.number,
                   inputFormatters: [dataMask],
+                  onEditingComplete: () {
+                    // usuário finalizou edição via teclado
+                    dataInicioTouched = true;
+                    _validarDatas();
+                    FocusScope.of(context).unfocus();
+                  },
+                  style: TextStyle(
+                    color: (inicioInvalidVisible || intervalInvalidVisible)
+                        ? Colors.red[800]
+                        : Colors.black,
+                    backgroundColor: corIntervalo,
+                  ),
                 ),
               ),
               const SizedBox(width: 16),
@@ -118,21 +346,64 @@ class _RelatoriosPageState extends State<RelatoriosPage> {
               Expanded(
                 child: TextField(
                   controller: dataFimCtrl,
-                  decoration: const InputDecoration(
-                    labelText: "Data final",
-                    border: OutlineInputBorder(),
-                    suffixIcon: Icon(Icons.calendar_today),
+                  focusNode: fimFocusNode,
+                  decoration: _decoracaoCampo(
+                    label: "Data final",
+                    invalido: fimInvalidVisible || intervalInvalidVisible,
+                    onCalendario: () => _selecionarData(context, dataFimCtrl),
                   ),
                   keyboardType: TextInputType.number,
                   inputFormatters: [dataMask],
+                  onEditingComplete: () {
+                    dataFimTouched = true;
+                    _validarDatas();
+                    FocusScope.of(context).unfocus();
+                  },
+                  style: TextStyle(
+                    color: (fimInvalidVisible || intervalInvalidVisible)
+                        ? Colors.red[800]
+                        : Colors.black,
+                    backgroundColor: corIntervalo,
+                  ),
                 ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 16),
+
+          // Linha de botões - Limpar Datas e Buscar
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              // Botão Limpar Datas
+              OutlinedButton.icon(
+                onPressed: _limparDatas,
+                icon: const Icon(Icons.cleaning_services, size: 18),
+                label: const Text("Limpar Datas"),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.grey[700],
+                  side: BorderSide(color: Colors.grey[400]!),
+                ),
+              ),
+              const SizedBox(width: 12),
+              
+              // Botão Buscar (será usado pelos relatórios individuais)
+              // Este é apenas um placeholder - os relatórios específicos terão seus próprios botões
+              ElevatedButton.icon(
+                onPressed: () {
+                  // A busca é feita individualmente por cada relatório
+                  // Este botão serve como indicador visual
+                },
+                icon: const Icon(Icons.search, size: 18),
+                label: const Text("Buscar"),
               ),
             ],
           ),
 
           const SizedBox(height: 20),
 
-          // 🔹 Corpo dinâmico — relatório selecionado
+          // Corpo dinâmico — relatório selecionado
           Expanded(child: _buildRelatorio()),
         ],
       ),

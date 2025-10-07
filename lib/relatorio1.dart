@@ -54,6 +54,9 @@ class _RelatorioParcelasEmAbertoState
   }
 
   Future<void> _buscarParcelasEmAberto() async {
+    // ✅ VERIFICAÇÃO mounted ANTES de iniciar o loading
+    if (!mounted) return;
+    
     setState(() {
       carregando = true;
       relatorio = [];
@@ -79,12 +82,15 @@ class _RelatorioParcelasEmAbertoState
           ''')
           .gt('residual', 0)
           .eq('ativo', 'sim')
+          .order('cliente', ascending: true)
           .order('vencimento', ascending: true);
+
+      // ✅ VERIFICAÇÃO mounted após a requisição
+      if (!mounted) return;
 
       final dataInicio = _parseDataFiltro(widget.dataInicioCtrl.text);
       final dataFim = _parseDataFiltro(widget.dataFimCtrl.text);
 
-      // 🔹 Aplica filtro de data
       final filtradas = response.where((p) {
         final venc = DateTime.tryParse(p['vencimento'] ?? '');
         if (venc == null) return false;
@@ -93,13 +99,20 @@ class _RelatorioParcelasEmAbertoState
         return true;
       }).toList();
 
-      // 🔹 Ordena por data de vencimento
       filtradas.sort((a, b) {
+        final nomeA = (a['cliente'] ?? '').toString().toLowerCase();
+        final nomeB = (b['cliente'] ?? '').toString().toLowerCase();
+        final compNome = nomeA.compareTo(nomeB);
+        if (compNome != 0) return compNome;
+
         final da = DateTime.tryParse(a['vencimento'] ?? '') ?? DateTime(2100);
         final db = DateTime.tryParse(b['vencimento'] ?? '') ?? DateTime(2100);
         return da.compareTo(db);
       });
 
+      // ✅ VERIFICAÇÃO mounted antes de atualizar os dados
+      if (!mounted) return;
+      
       setState(() {
         relatorio = filtradas.map<Map<String, dynamic>>((p) {
           final nomeCliente = p['cliente'] ?? 'Sem cliente';
@@ -123,11 +136,17 @@ class _RelatorioParcelasEmAbertoState
         }).toList();
       });
     } catch (e) {
-      // Mantido apenas para debug em caso de erro
+      // ✅ VERIFICAÇÃO mounted no catch também
+      if (mounted) {
+        debugPrint('Erro ao buscar parcelas: $e');
+      }
     } finally {
-      setState(() {
-        carregando = false;
-      });
+      // ✅ VERIFICAÇÃO mounted no finally
+      if (mounted) {
+        setState(() {
+          carregando = false;
+        });
+      }
     }
   }
 
@@ -145,11 +164,11 @@ class _RelatorioParcelasEmAbertoState
         Row(
           mainAxisAlignment: MainAxisAlignment.end,
           children: [
-            ElevatedButton.icon(
+            /*ElevatedButton.icon(
               onPressed: carregando ? null : _buscarParcelasEmAberto,
               icon: const Icon(Icons.search),
               label: const Text("Buscar"),
-            ),
+            ),*/
           ],
         ),
         const SizedBox(height: 10),
