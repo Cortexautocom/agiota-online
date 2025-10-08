@@ -15,10 +15,10 @@ class ParcelasPage extends StatefulWidget {
   });
 
   @override
-  State<ParcelasPage> createState() => _ParcelasPageState();
+  State<ParcelasPage> createState() => ParcelasPageState();
 }
 
-class _ParcelasPageState extends State<ParcelasPage> {
+class ParcelasPageState extends State<ParcelasPage> {
   late Future<List<Map<String, dynamic>>> _parcelasFuture;
   final ParcelasService service = ParcelasService();
 
@@ -33,6 +33,15 @@ class _ParcelasPageState extends State<ParcelasPage> {
     );
   }
 
+  /// 🔹 Torna público para ser acessado pela ParcelasTable
+  Future<void> atualizarParcelas() async {
+    setState(() {
+      _parcelasFuture = service.buscarParcelas(
+        widget.emprestimo['id'] ?? widget.emprestimo['id_emprestimo'],
+      );
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final cliente = widget.emprestimo["cliente"] ?? "";
@@ -42,6 +51,12 @@ class _ParcelasPageState extends State<ParcelasPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text("Parcelas - $cliente"),
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: atualizarParcelas,
+        tooltip: "Recarregar parcelas",
+        backgroundColor: Colors.blueAccent,
+        child: const Icon(Icons.refresh, color: Colors.white),
       ),
       body: Container(
         color: const Color(0xFFFAF9F6),
@@ -63,11 +78,10 @@ class _ParcelasPageState extends State<ParcelasPage> {
 
             final parcelasList = snapshot.data ?? [];
 
-            // ✅ pega o valor da primeira parcela (se existir) para o resumo
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // 🔹 Resumo
+                // 🔹 Resumo do empréstimo
                 Text(
                   "Nº $numero   |   Data do empréstimo: $dataInicio\n"
                   "Capital: ${service.fmtMoeda2(widget.emprestimo['valor'])}   |   "
@@ -78,7 +92,7 @@ class _ParcelasPageState extends State<ParcelasPage> {
                 ),
                 const SizedBox(height: 12),
 
-                // 🔹 Lista de parcelas
+                // 🔹 Tabela de parcelas
                 if (parcelasList.isEmpty)
                   const Expanded(
                     child: Center(
@@ -99,7 +113,7 @@ class _ParcelasPageState extends State<ParcelasPage> {
 
                 const SizedBox(height: 12),
 
-                // 🔹 Botões inferior direito
+                // 🔹 Botões inferiores
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [

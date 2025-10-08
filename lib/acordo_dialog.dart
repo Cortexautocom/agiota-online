@@ -1,81 +1,25 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; // ✅ NECESSÁRIO para TextInputFormatter
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 Future<bool?> abrirAcordoDialog(
     BuildContext context, Map<String, dynamic> parcela) async {
-  // 🔹 Valida se pode abrir acordo
-  try {
-    final vencimentoTxt = parcela["vencimento"]?.toString() ?? "";
-    DateTime? vencimento;
-
-    try {
-      // ✅ Detecta automaticamente o formato
-      if (vencimentoTxt.contains('-')) {
-        // formato ISO (2025-10-03)
-        vencimento = DateTime.parse(vencimentoTxt);
-      } else if (vencimentoTxt.contains('/')) {
-        // formato brasileiro (03/10/2025)
-        vencimento = DateFormat("dd/MM/yyyy").parseStrict(vencimentoTxt);
-      }
-    } catch (_) {
-      vencimento = null;
-    }
-
-    if (vencimento == null) {
-      await showDialog(
-        context: context,
-        builder: (ctx) => const AlertDialog(
-          content: Text(
-            "Data de vencimento inválida para criar acordo.",
-            textAlign: TextAlign.center,
-          ),
-        ),
-      );
-      return false;
-    }
-
-    final hoje = DateTime.now();
-    final limite = hoje.add(const Duration(days: 7));
-
-    if (vencimento.isAfter(limite)) {
-      await showDialog(
-        context: context,
-        builder: (ctx) => const AlertDialog(
-          content: Text(
-            "Só é possível criar acordo para parcelas que estão vencendo nos próximos 7 dias.",
-            textAlign: TextAlign.center,
-          ),
-        ),
-      );
-      return false;
-    }
-  } catch (_) {
-    // Se a data não for válida, não abre
-    await showDialog(
-      context: context,
-      builder: (ctx) => const AlertDialog(
-        content: Text(
-          "Data de vencimento inválida para criar acordo.",
-          textAlign: TextAlign.center,
-        ),
-      ),
-    );
-    return false;
-  }
-
+  // 🔹 Controladores
   final comentarioCtrl = TextEditingController(text: parcela["comentario"] ?? "");
-  
-  // 🔹 CORREÇÃO: Inicializar com formato de exibição, mas converter para DateTime
-  final dataInicial = parcela["data_prevista"] != null 
+  final jurosCtrl = TextEditingController(
+      text: parcela["juros_acordo"] != null && parcela["juros_acordo"] != 0
+          ? _formatarMoeda(parcela["juros_acordo"].toDouble())
+          : "");
+
+  final dataInicial = parcela["data_prevista"] != null
       ? _parseDateFromBackend(parcela["data_prevista"])
       : null;
-  
+
   final dataCtrl = TextEditingController(
-    text: dataInicial != null 
-        ? DateFormat("dd/MM/yyyy").format(dataInicial) 
-        : ""
+    text: dataInicial != null
+        ? DateFormat("dd/MM/yyyy").format(dataInicial)
+        : "",
   );
 
   final resultado = await showDialog<bool>(
@@ -105,6 +49,16 @@ Future<bool?> abrirAcordoDialog(
             ),
           ),
           const SizedBox(height: 12),
+          TextField(
+            controller: jurosCtrl,
+            inputFormatters: [_moedaFormatter()],
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(
+              labelText: "Juros pelo acordo",
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 12),
           Row(
             children: [
               Expanded(
@@ -115,7 +69,6 @@ Future<bool?> abrirAcordoDialog(
                   decoration: const InputDecoration(
                     labelText: "Data prevista",
                     border: OutlineInputBorder(),
-                    hintText: "dd/mm/aaaa",
                   ),
                 ),
               ),
@@ -138,7 +91,8 @@ Future<bool?> abrirAcordoDialog(
                     lastDate: DateTime(2100),
                   );
                   if (picked != null) {
-                    dataCtrl.text = DateFormat("dd/MM/yyyy", "pt_BR").format(picked);
+                    dataCtrl.text =
+                        DateFormat("dd/MM/yyyy", "pt_BR").format(picked);
                   }
                 },
               ),
@@ -147,16 +101,21 @@ Future<bool?> abrirAcordoDialog(
         ],
       ),
       actions: [
+        // 🔹 Botão Excluir acordo
         TextButton(
           onPressed: () async {
             await Supabase.instance.client
                 .from("parcelas")
-                .update({"data_prevista": null, "comentario": null})
+                .update({
+                  "data_prevista": null,
+                  "comentario": null,
+                  "juros_acordo": null,
+                })
                 .eq("id", parcela["id"]);
 
-            // Atualiza localmente
             parcela["data_prevista"] = null;
             parcela["comentario"] = null;
+            parcela["juros_acordo"] = null;
 
             if (!context.mounted) return;
             Navigator.pop(context, true);
@@ -182,8 +141,136 @@ Future<bool?> abrirAcordoDialog(
             style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
           ),
         ),
+
+        // 🔹 Botão Efetivar acordo
+        ElevatedButton(
+          style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange, foregroundColor: Colors.white),
+          onPressed: () async {
+            final jurosAcordo = _parseMoeda(jurosCtrl.text.trim());
+            if (jurosAcordo <= 0) {
+              await showDialog(
+                context: context,
+                builder: (ctx) => const AlertDialog(
+                  content: Text(
+                    "Informe um valor de juros maior que zero antes de efetivar o acordo.",
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              );
+              return;
+            }
+
+            final confirmar = await showDialog<bool>(
+              context: context,
+              builder: (ctx) => AlertDialog(
+                content: const Text(
+                  "Tem certeza que deseja efetivar o acordo?\n\nEssa ação vai alterar a situação da parcela.",
+                  textAlign: TextAlign.center,
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx, false),
+                    child: const Text("Cancelar"),
+                  ),
+                  ElevatedButton(
+                    onPressed: () => Navigator.pop(ctx, true),
+                    style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.orange,
+                        foregroundColor: Colors.white),
+                    child: const Text("Sim, efetivar"),
+                  ),
+                ],
+              ),
+            );
+
+            if (confirmar != true) return;
+
+            final hoje = DateTime.now();
+            final dataISO =
+                "${hoje.year}-${hoje.month.toString().padLeft(2, '0')}-${hoje.day.toString().padLeft(2, '0')}";
+
+            // 🔹 1. Copia juros_acordo → juros e zera juros_acordo
+            await Supabase.instance.client
+                .from("parcelas")
+                .update({
+                  "juros": jurosAcordo,
+                  "juros_acordo": null,
+                  "data_pagamento": dataISO,
+                })
+                .eq("id", parcela["id"]);
+
+            // 🔹 2. Simula o cálculo automático (mesma lógica do botão Calc.)
+            final emprestimoId = parcela['id_emprestimo'];
+            final emprestimo = await Supabase.instance.client
+                .from('emprestimos')
+                .select()
+                .eq('id', emprestimoId)
+                .single();
+
+            final capital = num.tryParse("${emprestimo["valor"]}") ?? 0;
+            final jurosSupabase = num.tryParse("${emprestimo["juros"]}") ?? 0;
+            final qtdParcelas = num.tryParse("${emprestimo["parcelas"]}") ?? 1;
+
+            final pgPrincipal = capital / qtdParcelas;
+            final pgJuros = (jurosSupabase / qtdParcelas) + jurosAcordo;
+
+            await Supabase.instance.client
+                .from("parcelas")
+                .update({
+                  "pg_principal": pgPrincipal,
+                  "pg_juros": pgJuros,
+                })
+                .eq("id", parcela["id"]);
+
+            // 🔹 3. Atualiza o objeto local e fecha o diálogo
+            parcela["juros"] = jurosAcordo;
+            parcela["juros_acordo"] = null;
+            parcela["data_pagamento"] = dataISO;
+            parcela["pg_principal"] = pgPrincipal;
+            parcela["pg_juros"] = pgJuros;
+
+            if (!context.mounted) return;
+            Navigator.pop(context, true); // ✅ força o refresh da tela de parcelas
+
+            Future.delayed(const Duration(milliseconds: 300), () {
+              showDialog(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  content: const Text(
+                    "Acordo efetivado com sucesso!",
+                    textAlign: TextAlign.center,
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      child: const Text("OK"),
+                    ),
+                  ],
+                ),
+              );
+            });
+          },
+          child: const Text("Efetivar acordo"),
+        ),
+
+        // 🔹 Botão Salvar (mantém o original)
         ElevatedButton(
           onPressed: () async {
+            final jurosAcordo = _parseMoeda(jurosCtrl.text.trim());
+            if (jurosAcordo <= 0) {
+              await showDialog(
+                context: context,
+                builder: (ctx) => const AlertDialog(
+                  content: Text(
+                    "Informe um valor de juros maior que zero.",
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              );
+              return;
+            }
+
             if (dataCtrl.text.isEmpty) {
               await showDialog(
                 context: context,
@@ -197,74 +284,25 @@ Future<bool?> abrirAcordoDialog(
               return;
             }
 
-            DateTime? acordoDate;
-            try {
-              acordoDate = DateFormat("dd/MM/yyyy").parseStrict(dataCtrl.text);
-            } catch (_) {
-              acordoDate = null;
-            }
-
-            if (acordoDate == null) {
-              await showDialog(
-                context: context,
-                builder: (ctx) => const AlertDialog(
-                  content: Text(
-                    "Verifique a data inserida.",
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-              );
-              return;
-            }
-
-            final hoje = DateTime.now();
-            final hojeSemHora = DateTime(hoje.year, hoje.month, hoje.day);
-
-            // Critério 2: não pode ser retroativa
-            if (!acordoDate.isAfter(hojeSemHora)) {
-              await showDialog(
-                context: context,
-                builder: (ctx) => const AlertDialog(
-                  content: Text(
-                    "Não é possível criar acordo com data retroativa.",
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-              );
-              return;
-            }
-
-            // Critério 1: máximo 90 dias
-            if (acordoDate.difference(hojeSemHora).inDays > 90) {
-              await showDialog(
-                context: context,
-                builder: (ctx) => const AlertDialog(
-                  content: Text(
-                    "Verifique a data inserida.",
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-              );
-              return;
-            }
-
-            // 🔹 CORREÇÃO CRÍTICA: Converter para formato ISO
+            final acordoDate =
+                DateFormat("dd/MM/yyyy").parseStrict(dataCtrl.text);
             final dataISO = DateFormat("yyyy-MM-dd").format(acordoDate);
 
             await Supabase.instance.client
                 .from("parcelas")
                 .update({
-                  "data_prevista": dataISO, // ✅ Agora envia "2024-01-15"
+                  "data_prevista": dataISO,
                   "comentario": comentarioCtrl.text,
+                  "juros_acordo": jurosAcordo,
                 })
                 .eq("id", parcela["id"]);
 
-            // Atualiza localmente (mantém formato de exibição)
             parcela["data_prevista"] = dataCtrl.text;
             parcela["comentario"] = comentarioCtrl.text;
+            parcela["juros_acordo"] = jurosAcordo;
 
             if (!context.mounted) return;
-            Navigator.pop(context, true);
+            Navigator.pop(context, true); // 🔹 Atualiza tela ao voltar
 
             await showDialog(
               context: context,
@@ -291,18 +329,13 @@ Future<bool?> abrirAcordoDialog(
   return resultado ?? false;
 }
 
-// ✅ FUNÇÃO LOCAL para máscara de data
-TextInputFormatter _dateMaskFormatter() {
+// 🔹 Máscara de moeda
+TextInputFormatter _moedaFormatter() {
   return TextInputFormatter.withFunction((oldValue, newValue) {
     var text = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
-    if (text.length > 8) text = text.substring(0, 8);
-
-    String formatted = '';
-    for (int i = 0; i < text.length; i++) {
-      formatted += text[i];
-      if (i == 1 || i == 3) formatted += '/';
-    }
-
+    if (text.isEmpty) return newValue;
+    final value = int.parse(text) / 100;
+    final formatted = _formatarMoeda(value);
     return TextEditingValue(
       text: formatted,
       selection: TextSelection.collapsed(offset: formatted.length),
@@ -310,17 +343,57 @@ TextInputFormatter _dateMaskFormatter() {
   });
 }
 
-// ✅ FUNÇÃO AUXILIAR para converter dados do backend
+// 🔹 Formata no padrão R$ 1.234,56
+String _formatarMoeda(double value) {
+  final parts = value.toStringAsFixed(2).split('.');
+  final real = parts[0];
+  final centavos = parts[1];
+  String realFormatado = '';
+  for (int i = real.length - 1, j = 0; i >= 0; i--, j++) {
+    if (j > 0 && j % 3 == 0) {
+      realFormatado = '.$realFormatado';
+    }
+    realFormatado = real[i] + realFormatado;
+  }
+  return 'R\$ $realFormatado,$centavos';
+}
+
+// 🔹 Converte texto formatado de volta para número
+double _parseMoeda(String texto) {
+  if (texto.isEmpty) return 0.0;
+  final cleaned = texto
+      .replaceAll('R\$', '')
+      .replaceAll('.', '')
+      .replaceAll(',', '.')
+      .trim();
+  return double.tryParse(cleaned) ?? 0.0;
+}
+
+// 🔹 Máscara de data
+TextInputFormatter _dateMaskFormatter() {
+  return TextInputFormatter.withFunction((oldValue, newValue) {
+    var text = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
+    if (text.length > 8) text = text.substring(0, 8);
+    String formatted = '';
+    for (int i = 0; i < text.length; i++) {
+      formatted += text[i];
+      if (i == 1 || i == 3) formatted += '/';
+    }
+    return TextEditingValue(
+      text: formatted,
+      selection: TextSelection.collapsed(offset: formatted.length),
+    );
+  });
+}
+
+// 🔹 Converte data do backend
 DateTime? _parseDateFromBackend(dynamic backendDate) {
   if (backendDate == null) return null;
-  
   try {
     if (backendDate is String) {
-      // Tenta parse como ISO primeiro
       if (backendDate.contains('-')) {
         return DateTime.parse(backendDate);
       }
-      // Se não for ISO, tenta o formato brasileiro
       return DateFormat("dd/MM/yyyy").parseStrict(backendDate);
     }
   } catch (_) {

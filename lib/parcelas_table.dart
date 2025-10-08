@@ -3,6 +3,7 @@ import 'parcelas_service.dart';
 import 'acordo_dialog.dart';
 //import 'package:intl/intl.dart';
 import 'utils.dart';
+import 'parcelas_page.dart';
 
 class ParcelasTable extends StatefulWidget {
   final Map<String, dynamic> emprestimo;
@@ -440,78 +441,103 @@ class ParcelasTableState extends State<ParcelasTable> {
                     ),
                   )),
                   DataCell(
-                    Builder(builder: (context) {
-                      final vencimentoTxt = p['vencimento']?.toString() ?? "";
-                      DateTime? vencimento;
-                      try {
-                        // Agora o banco retorna "2025-10-03" (yyyy-MM-dd)
-                        vencimento = DateTime.parse(vencimentoTxt);
-                      } catch (_) {
-                        vencimento = null;
-                      }
+                    Builder(
+                      builder: (context) {
+                        final vencimentoTxt = p['vencimento']?.toString() ?? "";
+                        DateTime? vencimento;
+                        try {
+                          // Agora o banco retorna "2025-10-03" (yyyy-MM-dd)
+                          vencimento = DateTime.parse(vencimentoTxt);
+                        } catch (_) {
+                          vencimento = null;
+                        }
 
-                      final hoje = DateTime.now();
-                      final limite = hoje.add(const Duration(days: 7));
+                        final hoje = DateTime.now();
+                        final limite = hoje.add(const Duration(days: 7));
 
-                      final temAcordo = p['data_prevista'] != null &&
-                          p['data_prevista'].toString().isNotEmpty;
+                        final temAcordo = p['data_prevista'] != null &&
+                            p['data_prevista'].toString().isNotEmpty;
 
-                      final podeFazerAcordo = vencimento != null && 
-                          vencimento.isBefore(limite.add(const Duration(days: 1)));
+                        final podeFazerAcordo = vencimento != null &&
+                            vencimento.isBefore(limite.add(const Duration(days: 1)));
 
-                      // 🔹 ALTERAÇÃO: Mantém o ícone visível mesmo quando a parcela está paga
-                      // Apenas muda o comportamento do clique
-                      if (temAcordo) {
-                        return IconButton(
-                          icon: const Icon(Icons.warning_amber_rounded,
-                              color: Colors.orange, size: 22),
-                          tooltip: residualAtual == 0 
-                              ? "Acordo concluído (parcela paga)" 
-                              : "Acordo ativo",
-                          onPressed: () async {
-                            final resultado = await abrirAcordoDialog(context, p);
-                            if (resultado == true && mounted) {
-                              setState(() {});
-                            }
-                          },
-                        );
-                      } else if (!podeFazerAcordo) {
-                        return IconButton(
-                          icon: const Icon(Icons.handshake, color: Colors.grey, size: 22),
-                          tooltip: residualAtual == 0
-                              ? "Parcela paga"
-                              : "Só é possível criar acordo até 7 dias antes do vencimento",
-                          onPressed: residualAtual == 0
-                              ? null // Desabilita o clique se parcela paga
-                              : () async {
-                                  await showDialog(
-                                    context: context,
-                                    builder: (ctx) => const AlertDialog(
-                                      content: Text(
-                                        "Só é possível criar acordo para parcelas que estão vencendo nos próximos 7 dias.",
-                                        textAlign: TextAlign.center,
+                        // 🔹 Mantém o ícone visível mesmo quando a parcela está paga
+                        // Apenas muda o comportamento do clique
+                        if (temAcordo) {
+                          return IconButton(
+                            icon: const Icon(
+                              Icons.warning_amber_rounded,
+                              color: Colors.orange,
+                              size: 22,
+                            ),
+                            tooltip: residualAtual == 0
+                                ? "Acordo concluído (parcela paga)"
+                                : "Acordo ativo",
+                            onPressed: () async {
+                              final resultado = await abrirAcordoDialog(context, p);
+                              if (resultado == true && mounted) {
+                                // 🔹 Atualiza a tela de ParcelasPage (força recarga completa)
+                                final state =
+                                    context.findAncestorStateOfType<ParcelasPageState>();
+                                if (state != null && state.mounted) {
+                                  await state.atualizarParcelas();
+                                }
+                                // 🔹 Atualiza também o estado local da tabela
+                                setState(() {});
+                              }
+                            },
+                          );
+                        } else if (!podeFazerAcordo) {
+                          return IconButton(
+                            icon: const Icon(
+                              Icons.handshake,
+                              color: Colors.grey,
+                              size: 22,
+                            ),
+                            tooltip: residualAtual == 0
+                                ? "Parcela paga"
+                                : "Só é possível criar acordo até 7 dias antes do vencimento",
+                            onPressed: residualAtual == 0
+                                ? null
+                                : () async {
+                                    await showDialog(
+                                      context: context,
+                                      builder: (ctx) => const AlertDialog(
+                                        content: Text(
+                                          "Só é possível criar acordo para parcelas que estão vencendo nos próximos 7 dias.",
+                                          textAlign: TextAlign.center,
+                                        ),
                                       ),
-                                    ),
-                                  );
-                                },
-                        );
-                      } else {
-                        return IconButton(
-                          icon: Icon(Icons.handshake, 
-                              color: residualAtual == 0 ? Colors.green : Colors.blue, 
-                              size: 22),
-                          tooltip: residualAtual == 0
-                              ? "Parcela paga - Clique para ver histórico"
-                              : "Fazer acordo",
-                          onPressed: () async {
-                            final resultado = await abrirAcordoDialog(context, p);
-                            if (resultado == true && mounted) {
-                              setState(() {});
-                            }
-                          },
-                        );
-                      }
-                    }),
+                                    );
+                                  },
+                          );
+                        } else {
+                          return IconButton(
+                            icon: Icon(
+                              Icons.handshake,
+                              color: residualAtual == 0 ? Colors.green : Colors.blue,
+                              size: 22,
+                            ),
+                            tooltip: residualAtual == 0
+                                ? "Parcela paga - Clique para ver histórico"
+                                : "Fazer acordo",
+                            onPressed: () async {
+                              final resultado = await abrirAcordoDialog(context, p);
+                              if (resultado == true && mounted) {
+                                // 🔹 Atualiza a tela de ParcelasPage (força recarga completa)
+                                final state =
+                                    context.findAncestorStateOfType<ParcelasPageState>();
+                                if (state != null && state.mounted) {
+                                  await state.atualizarParcelas();
+                                }
+                                // 🔹 Atualiza também o estado local da tabela
+                                setState(() {});
+                              }
+                            },
+                          );
+                        }
+                      },
+                    ),
                   ),
                 ],
               );
