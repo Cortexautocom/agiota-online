@@ -4,7 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 Future<bool?> abrirAcordoDialog(
-    BuildContext context, Map<String, dynamic> parcela) async {
+    BuildContext context, Map<String, dynamic> parcela, Map<String, dynamic> emprestimo) async {
   // 🔹 Controladores
   final comentarioCtrl = TextEditingController(text: parcela["comentario"] ?? "");
   final jurosCtrl = TextEditingController(
@@ -21,6 +21,46 @@ Future<bool?> abrirAcordoDialog(
         ? DateFormat("dd/MM/yyyy").format(dataInicial)
         : "",
   );
+
+  // 🔹 Função para calcular juros automaticamente
+  void _calcularJurosAutomaticos() {
+    if (dataCtrl.text.isEmpty) return;
+    
+    try {
+      final dataPrevista = DateFormat("dd/MM/yyyy").parseStrict(dataCtrl.text);
+      final vencimentoOriginal = _parseDateFromBackend(parcela["vencimento"]);
+      
+      if (vencimentoOriginal == null) return;
+      
+      // Calcula diferença em dias
+      final diferencaDias = dataPrevista.difference(vencimentoOriginal).inDays;
+      
+      if (diferencaDias > 0) {
+        final jurosTotal = num.tryParse("${emprestimo["juros"]}") ?? 0;
+        final numParcelas = num.tryParse("${emprestimo["parcelas"]}") ?? 1;
+        
+        final jurosPorParcela = jurosTotal / numParcelas;
+        final jurosDiarios = jurosPorParcela / 30;
+        final jurosAcordo = jurosDiarios * diferencaDias;
+        
+        // Atualiza o campo de juros apenas se não foi modificado manualmente
+        if (jurosCtrl.text.isEmpty || 
+            _parseMoeda(jurosCtrl.text) == parcela["juros_acordo"]?.toDouble() || 
+            _parseMoeda(jurosCtrl.text) == 0) {
+          jurosCtrl.text = _formatarMoeda(jurosAcordo);
+        }
+      }
+    } catch (_) {
+      // Ignora erros de parsing
+    }
+  }
+
+  // 🔹 Calcula juros automaticamente se já houver data inicial
+  if (dataInicial != null) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _calcularJurosAutomaticos();
+    });
+  }
 
   final resultado = await showDialog<bool>(
     context: context,
@@ -39,26 +79,7 @@ Future<bool?> abrirAcordoDialog(
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          TextField(
-            controller: comentarioCtrl,
-            maxLength: 100,
-            maxLines: 3,
-            decoration: const InputDecoration(
-              labelText: "Comentário",
-              border: OutlineInputBorder(),
-            ),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: jurosCtrl,
-            inputFormatters: [_moedaFormatter()],
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(
-              labelText: "Juros pelo acordo",
-              border: OutlineInputBorder(),
-            ),
-          ),
-          const SizedBox(height: 12),
+          // 🔹 DATA PREVISTA (agora em primeiro)
           Row(
             children: [
               Expanded(
@@ -70,6 +91,12 @@ Future<bool?> abrirAcordoDialog(
                     labelText: "Data prevista",
                     border: OutlineInputBorder(),
                   ),
+                  onChanged: (value) {
+                    // Recalcula juros quando a data é alterada manualmente
+                    if (value.length == 10) { // Data completa (dd/MM/yyyy)
+                      _calcularJurosAutomaticos();
+                    }
+                  },
                 ),
               ),
               const SizedBox(width: 8),
@@ -93,15 +120,41 @@ Future<bool?> abrirAcordoDialog(
                   if (picked != null) {
                     dataCtrl.text =
                         DateFormat("dd/MM/yyyy", "pt_BR").format(picked);
+                    _calcularJurosAutomaticos();
                   }
                 },
               ),
             ],
           ),
+          const SizedBox(height: 12),
+          
+          // 🔹 JUROS DO ACORDO (agora em segundo)
+          TextField(
+            controller: jurosCtrl,
+            inputFormatters: [_moedaFormatter()],
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(
+              labelText: "Juros pelo acordo",
+              border: OutlineInputBorder(),
+              hintText: "Será calculado automaticamente pela data",
+            ),
+          ),
+          const SizedBox(height: 12),
+          
+          // 🔹 COMENTÁRIO (agora em terceiro)
+          TextField(
+            controller: comentarioCtrl,
+            maxLength: 100,
+            maxLines: 3,
+            decoration: const InputDecoration(
+              labelText: "Comentário",
+              border: OutlineInputBorder(),
+            ),
+          ),
         ],
       ),
       actions: [
-        // 🔹 Botão Excluir acordo
+        // 🔹 Botão Excluir acordo - VERMELHO
         TextButton(
           onPressed: () async {
             await Supabase.instance.client
@@ -142,10 +195,10 @@ Future<bool?> abrirAcordoDialog(
           ),
         ),
 
-        // 🔹 Botão Efetivar acordo
+        // 🔹 Botão Efetivar acordo - VERDE
         ElevatedButton(
           style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.orange, foregroundColor: Colors.white),
+              backgroundColor: Colors.green, foregroundColor: Colors.white),
           onPressed: () async {
             final jurosAcordo = _parseMoeda(jurosCtrl.text.trim());
             if (jurosAcordo <= 0) {
@@ -176,7 +229,7 @@ Future<bool?> abrirAcordoDialog(
                   ElevatedButton(
                     onPressed: () => Navigator.pop(ctx, true),
                     style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.orange,
+                        backgroundColor: Colors.green,
                         foregroundColor: Colors.white),
                     child: const Text("Sim, efetivar"),
                   ),
@@ -254,7 +307,7 @@ Future<bool?> abrirAcordoDialog(
           child: const Text("Efetivar acordo"),
         ),
 
-        // 🔹 Botão Salvar (mantém o original)
+        // 🔹 Botão Salvar - SEM ALTERAÇÕES (mantém cor original)
         ElevatedButton(
           onPressed: () async {
             final jurosAcordo = _parseMoeda(jurosCtrl.text.trim());

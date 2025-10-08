@@ -474,7 +474,8 @@ class ParcelasTableState extends State<ParcelasTable> {
                                 ? "Acordo concluído (parcela paga)"
                                 : "Acordo ativo",
                             onPressed: () async {
-                              final resultado = await abrirAcordoDialog(context, p);
+                              // 🔹 CORREÇÃO: Passa o widget.emprestimo como terceiro parâmetro
+                              final resultado = await abrirAcordoDialog(context, p, widget.emprestimo);
                               if (resultado == true && mounted) {
                                 // 🔹 Atualiza a tela de ParcelasPage (força recarga completa)
                                 final state =
@@ -522,7 +523,8 @@ class ParcelasTableState extends State<ParcelasTable> {
                                 ? "Parcela paga - Clique para ver histórico"
                                 : "Fazer acordo",
                             onPressed: () async {
-                              final resultado = await abrirAcordoDialog(context, p);
+                              // 🔹 CORREÇÃO: Passa o widget.emprestimo como terceiro parâmetro
+                              final resultado = await abrirAcordoDialog(context, p, widget.emprestimo);
                               if (resultado == true && mounted) {
                                 // 🔹 Atualiza a tela de ParcelasPage (força recarga completa)
                                 final state =
