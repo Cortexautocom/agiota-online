@@ -154,8 +154,8 @@ Future<bool?> abrirAcordoDialog(
         ],
       ),
       actions: [
-        // 🔹 Botão Excluir acordo - VERMELHO
-        TextButton(
+        // 🔹 Botão Excluir acordo - ROSA CLARO
+        FilledButton.tonal(
           onPressed: () async {
             await Supabase.instance.client
                 .from("parcelas")
@@ -189,16 +189,20 @@ Future<bool?> abrirAcordoDialog(
               ),
             );
           },
+          style: FilledButton.styleFrom(
+            backgroundColor: const Color.fromARGB(255, 231, 228, 228), // rosa bem claro
+            foregroundColor: Colors.red,
+            elevation: 4,
+            shadowColor: Colors.red.withOpacity(0.3), // texto vermelho
+          ),
           child: const Text(
             "Excluir acordo",
-            style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+            style: TextStyle(fontWeight: FontWeight.bold),
           ),
         ),
 
-        // 🔹 Botão Efetivar acordo - VERDE
-        ElevatedButton(
-          style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.green, foregroundColor: Colors.white),
+        // 🔹 Botão Efetivar acordo - VERDE CLARO
+        FilledButton.tonal(
           onPressed: () async {
             final jurosAcordo = _parseMoeda(jurosCtrl.text.trim());
             if (jurosAcordo <= 0) {
@@ -226,12 +230,19 @@ Future<bool?> abrirAcordoDialog(
                     onPressed: () => Navigator.pop(ctx, false),
                     child: const Text("Cancelar"),
                   ),
-                  ElevatedButton(
+                  FilledButton.tonal(
                     onPressed: () => Navigator.pop(ctx, true),
-                    style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green,
-                        foregroundColor: Colors.white),
-                    child: const Text("Sim, efetivar"),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color.fromARGB(255, 242, 253, 243), // verde bem claro
+                      foregroundColor: const Color.fromARGB(255, 24, 146, 28),
+                      elevation: 4, // 🔹 ADICIONE ISSO
+                      shadowColor: Colors.green.withOpacity(0.3), // texto verde
+                    ),
+                    child: const Text(
+                      "Sim, efetivar",
+                      style: TextStyle(fontWeight: FontWeight.bold),
+
+                    ),
                   ),
                 ],
               ),
@@ -304,10 +315,19 @@ Future<bool?> abrirAcordoDialog(
               );
             });
           },
-          child: const Text("Efetivar acordo"),
+          style: FilledButton.styleFrom(
+            backgroundColor: Colors.green[50], // verde bem claro
+            foregroundColor: Colors.green, // texto verde
+            elevation: 4, // 🔹 ADICIONE ISSO
+            shadowColor: Colors.green.withOpacity(0.3),            
+          ),
+          child: const Text(
+            "Efetivar acordo",
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
         ),
 
-        // 🔹 Botão Salvar - SEM ALTERAÇÕES (mantém cor original)
+        // 🔹 Botão Salvar - NEGRITO
         ElevatedButton(
           onPressed: () async {
             final jurosAcordo = _parseMoeda(jurosCtrl.text.trim());
@@ -373,7 +393,10 @@ Future<bool?> abrirAcordoDialog(
               ),
             );
           },
-          child: const Text("Salvar"),
+          child: const Text(
+            "Salvar",
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
         ),
       ],
     ),
