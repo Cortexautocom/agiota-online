@@ -4,6 +4,7 @@ import 'acordo_dialog.dart';
 //import 'package:intl/intl.dart';
 import 'utils.dart';
 import 'parcelas_page.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class ParcelasTable extends StatefulWidget {
   final Map<String, dynamic> emprestimo;
@@ -474,8 +475,14 @@ class ParcelasTableState extends State<ParcelasTable> {
                                 ? "Acordo concluído (parcela paga)"
                                 : "Acordo ativo",
                             onPressed: () async {
-                              // 🔹 CORREÇÃO: Passa o widget.emprestimo como terceiro parâmetro
-                              final resultado = await abrirAcordoDialog(context, p, widget.emprestimo);
+                              // 🔹 BUSCA DADOS ATUALIZADOS DO SUPABASE ANTES DE ABRIR O DIÁLOGO
+                              final parcelaAtualizada = await Supabase.instance.client
+                                  .from("parcelas")
+                                  .select()
+                                  .eq("id", p['id'])
+                                  .single();
+                              
+                              final resultado = await abrirAcordoDialog(context, parcelaAtualizada, widget.emprestimo);
                               if (resultado == true && mounted) {
                                 // 🔹 Atualiza a tela de ParcelasPage (força recarga completa)
                                 final state =
@@ -521,10 +528,16 @@ class ParcelasTableState extends State<ParcelasTable> {
                             ),
                             tooltip: residualAtual == 0
                                 ? "Parcela paga - Clique para ver histórico"
-                                : "Fazer acordo",
+                                : "Acordo",
                             onPressed: () async {
-                              // 🔹 CORREÇÃO: Passa o widget.emprestimo como terceiro parâmetro
-                              final resultado = await abrirAcordoDialog(context, p, widget.emprestimo);
+                              // 🔹 BUSCA DADOS ATUALIZADOS DO SUPABASE ANTES DE ABRIR O DIÁLOGO
+                              final parcelaAtualizada = await Supabase.instance.client
+                                  .from("parcelas")
+                                  .select()
+                                  .eq("id", p['id'])
+                                  .single();
+                              
+                              final resultado = await abrirAcordoDialog(context, parcelaAtualizada, widget.emprestimo);
                               if (resultado == true && mounted) {
                                 // 🔹 Atualiza a tela de ParcelasPage (força recarga completa)
                                 final state =

@@ -56,11 +56,11 @@ Future<bool?> abrirAcordoDialog(
   }
 
   // 🔹 Calcula juros automaticamente se já houver data inicial
-  if (dataInicial != null) {
+  /*if (dataInicial != null) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _calcularJurosAutomaticos();
     });
-  }
+  }*/
 
   final resultado = await showDialog<bool>(
     context: context,
@@ -205,18 +205,6 @@ Future<bool?> abrirAcordoDialog(
         FilledButton.tonal(
           onPressed: () async {
             final jurosAcordo = _parseMoeda(jurosCtrl.text.trim());
-            if (jurosAcordo <= 0) {
-              await showDialog(
-                context: context,
-                builder: (ctx) => const AlertDialog(
-                  content: Text(
-                    "Informe um valor de juros maior que zero antes de efetivar o acordo.",
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-              );
-              return;
-            }
 
             final confirmar = await showDialog<bool>(
               context: context,
@@ -331,18 +319,6 @@ Future<bool?> abrirAcordoDialog(
         ElevatedButton(
           onPressed: () async {
             final jurosAcordo = _parseMoeda(jurosCtrl.text.trim());
-            if (jurosAcordo <= 0) {
-              await showDialog(
-                context: context,
-                builder: (ctx) => const AlertDialog(
-                  content: Text(
-                    "Informe um valor de juros maior que zero.",
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-              );
-              return;
-            }
 
             if (dataCtrl.text.isEmpty) {
               await showDialog(
