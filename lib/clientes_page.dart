@@ -13,16 +13,64 @@ class ClientesPage extends StatefulWidget {
 
 class _ClientesPageState extends State<ClientesPage> {
   late Future<List<Map<String, dynamic>>> _clientesFuture;
+  final TextEditingController _pesquisaController = TextEditingController();
+  List<Map<String, dynamic>> _clientesFiltrados = [];
+  List<Map<String, dynamic>> _todosClientes = [];
 
   @override
   void initState() {
     super.initState();
     _clientesFuture = _buscarClientes();
+    _pesquisaController.addListener(_filtrarClientes);
+  }
+
+  @override
+  void dispose() {
+    _pesquisaController.dispose();
+    super.dispose();
   }
 
   Future<List<Map<String, dynamic>>> _buscarClientes() async {
-    final response = await Supabase.instance.client.from('clientes').select();
-    return (response as List).map((e) => e as Map<String, dynamic>).toList();
+    final response = await Supabase.instance.client
+        .from('clientes')
+        .select()
+        .order('nome', ascending: true); // 🔹 Ordena por nome por padrão
+    final clientes = (response as List).map((e) => e as Map<String, dynamic>).toList();
+    
+    // Armazena todos os clientes e os filtrados inicialmente
+    _todosClientes = clientes;
+    _clientesFiltrados = List.from(_todosClientes);
+    
+    return clientes;
+  }
+
+  void _filtrarClientes() {
+    final termoPesquisa = _pesquisaController.text.toLowerCase().trim();
+    
+    setState(() {
+      if (termoPesquisa.isEmpty) {
+        _clientesFiltrados = List.from(_todosClientes);
+      } else {
+        _clientesFiltrados = _todosClientes.where((cliente) {
+          final nome = cliente['nome']?.toString().toLowerCase() ?? '';
+          final cpf = cliente['cpf']?.toString().toLowerCase() ?? '';
+          final cidade = cliente['cidade']?.toString().toLowerCase() ?? '';
+          
+          return nome.contains(termoPesquisa) ||
+                 cpf.contains(termoPesquisa) ||
+                 cidade.contains(termoPesquisa);
+        }).toList();
+      }
+    });
+  }
+
+  void _recarregarClientes() {
+    setState(() {
+      _clientesFuture = _buscarClientes().then((clientes) {
+        _filtrarClientes(); // Reaplica o filtro após recarregar
+        return clientes;
+      });
+    });
   }
 
   @override
@@ -31,89 +79,186 @@ class _ClientesPageState extends State<ClientesPage> {
       children: [
         Container(
           color: const Color(0xFFFAF9F6), // 🔹 fundo creme
-          child: FutureBuilder<List<Map<String, dynamic>>>(
-            future: _clientesFuture,
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
-              }
-              if (snapshot.hasError) {
-                return Center(
-                  child: Text(
-                    "Erro ao carregar: ${snapshot.error}",
-                    style: const TextStyle(color: Colors.red),
-                  ),
-                );
-              }
-              final clientes = snapshot.data ?? [];
-              if (clientes.isEmpty) {
-                return const Center(
-                  child: Text(
-                    "Nenhum cliente encontrado.",
-                    style: TextStyle(color: Colors.black87),
-                  ),
-                );
-              }
-              return ListView.separated(
+          child: Column(
+            children: [
+              // 🔹 CAMPO DE PESQUISA
+              Container(
                 padding: const EdgeInsets.all(16),
-                itemCount: clientes.length,
-                separatorBuilder: (context, index) =>
-                    const Divider(height: 8, color: Colors.black26),
-                itemBuilder: (context, index) {
-                  final cliente = clientes[index];
-                  return Card(
-                    color: Colors.white,
-                    child: ListTile(
-                      dense: true,
-                      leading: const Icon(
-                        Icons.person,
-                        size: 22,
-                        color: Colors.black87,
-                      ),
-                      title: Text(
-                        cliente['nome'] ?? 'Sem nome',
-                        style: const TextStyle(color: Colors.black87),
-                      ),
-                      subtitle: Text(
-                        "CPF: ${cliente['cpf'] ?? '-'} | Cidade: ${cliente['cidade'] ?? '-'}",
-                        style: const TextStyle(color: Colors.black54),
-                      ),
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) =>
-                                FinanceiroPage(cliente: cliente),
+                color: Colors.white,
+                child: TextField(
+                  controller: _pesquisaController,
+                  decoration: InputDecoration(
+                    hintText: "Pesquisar cliente por nome, CPF ou cidade...",
+                    prefixIcon: const Icon(Icons.search, color: Colors.grey),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: const BorderSide(color: Colors.grey),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: const BorderSide(color: Colors.blue),
+                    ),
+                    filled: true,
+                    fillColor: Colors.grey[50],
+                    contentPadding: const EdgeInsets.symmetric(
+                      vertical: 12,
+                      horizontal: 16,
+                    ),
+                  ),
+                ),
+              ),
+
+              // 🔹 CONTADOR DE RESULTADOS
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                color: Colors.grey[100],
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    FutureBuilder<List<Map<String, dynamic>>>(
+                      future: _clientesFuture,
+                      builder: (context, snapshot) {
+                        final totalClientes = _todosClientes.length;
+                        final clientesExibidos = _clientesFiltrados.length;
+                        
+                        return Text(
+                          "Exibindo $clientesExibidos de $totalClientes clientes",
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey,
+                            fontWeight: FontWeight.w500,
                           ),
                         );
                       },
-                      trailing: IconButton(
-                        icon: const Icon(Icons.edit, color: Colors.blue),
-                        tooltip: "Editar cliente",
-                        onPressed: () async {
-                          final resultado = await Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => EditarClientePage(cliente: cliente),
-                            ),
-                          );
-
-                          if (resultado == true) {
-                            setState(() {
-                              _clientesFuture = _buscarClientes(); // recarrega lista após editar/excluir
-                            });
-                          }
-                        },
-                      ),
                     ),
-                  );
-                },
-              );
-            },
+                    if (_pesquisaController.text.isNotEmpty)
+                      IconButton(
+                        icon: const Icon(Icons.clear, size: 18),
+                        onPressed: () {
+                          _pesquisaController.clear();
+                        },
+                        tooltip: "Limpar pesquisa",
+                      ),
+                  ],
+                ),
+              ),
+
+              // 🔹 LISTA DE CLIENTES (mantida igual)
+              Expanded(
+                child: FutureBuilder<List<Map<String, dynamic>>>(
+                  future: _clientesFuture,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    if (snapshot.hasError) {
+                      return Center(
+                        child: Text(
+                          "Erro ao carregar: ${snapshot.error}",
+                          style: const TextStyle(color: Colors.red),
+                        ),
+                      );
+                    }
+
+                    // Usa a lista filtrada em vez da lista completa
+                    final clientes = _clientesFiltrados;
+
+                    if (clientes.isEmpty) {
+                      return Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              _pesquisaController.text.isEmpty 
+                                  ? Icons.people_outline 
+                                  : Icons.search_off,
+                              size: 64,
+                              color: Colors.grey[400],
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              _pesquisaController.text.isEmpty
+                                  ? "Nenhum cliente encontrado."
+                                  : "Nenhum cliente encontrado para '${_pesquisaController.text}'",
+                              style: const TextStyle(
+                                color: Colors.black87,
+                                fontSize: 16,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                            if (_pesquisaController.text.isNotEmpty)
+                              TextButton(
+                                onPressed: () {
+                                  _pesquisaController.clear();
+                                },
+                                child: const Text("Limpar pesquisa"),
+                              ),
+                          ],
+                        ),
+                      );
+                    }
+
+                    return ListView.separated(
+                      padding: const EdgeInsets.all(16),
+                      itemCount: clientes.length,
+                      separatorBuilder: (context, index) =>
+                          const Divider(height: 8, color: Colors.black26),
+                      itemBuilder: (context, index) {
+                        final cliente = clientes[index];
+                        return Card(
+                          color: Colors.white,
+                          child: ListTile(
+                            dense: true,
+                            leading: const Icon(
+                              Icons.person,
+                              size: 22,
+                              color: Colors.black87,
+                            ),
+                            title: Text(
+                              cliente['nome'] ?? 'Sem nome',
+                              style: const TextStyle(color: Colors.black87),
+                            ),
+                            subtitle: Text(
+                              "CPF: ${cliente['cpf'] ?? '-'} | Cidade: ${cliente['cidade'] ?? '-'}",
+                              style: const TextStyle(color: Colors.black54),
+                            ),
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) =>
+                                      FinanceiroPage(cliente: cliente),
+                                ),
+                              );
+                            },
+                            trailing: IconButton(
+                              icon: const Icon(Icons.edit, color: Colors.blue),
+                              tooltip: "Editar cliente",
+                              onPressed: () async {
+                                final resultado = await Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => EditarClientePage(cliente: cliente),
+                                  ),
+                                );
+
+                                if (resultado == true) {
+                                  _recarregarClientes(); // Recarrega e refiltra
+                                }
+                              },
+                            ),
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
           ),
         ),
 
-        // 🔹 Botão flutuante
+        // 🔹 Botão flutuante (mantido igual)
         Positioned(
           bottom: 16,
           right: 16,
@@ -124,9 +269,7 @@ class _ClientesPageState extends State<ClientesPage> {
                 await Supabase.instance.client
                     .from('clientes')
                     .insert(novoCliente);
-                setState(() {
-                  _clientesFuture = _buscarClientes();
-                });
+                _recarregarClientes(); // Usa a nova função de recarregar
               }
             },
             backgroundColor: Colors.green,
@@ -138,7 +281,7 @@ class _ClientesPageState extends State<ClientesPage> {
   }
 }
 
-// 🔹 mantém a função de criar novo cliente
+// 🔹 mantém a função de criar novo cliente (inalterada)
 Future<Map<String, dynamic>?> open_client_form(BuildContext context) async {
   final nomeController = TextEditingController();
   final cpfController = TextEditingController();
