@@ -62,6 +62,50 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
     return double.tryParse(cleaned) ?? 0.0;
   }
 
+  // 🔹 MÉTODO PARA FORMATAÇÃO DE DATA (MÁSCARA dd/mm/aaaa)
+  TextInputFormatter _dateMaskFormatter() {
+    return TextInputFormatter.withFunction((oldValue, newValue) {
+      var text = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
+      
+      if (text.length >= 3) {
+        text = '${text.substring(0, 2)}/${text.substring(2)}';
+      }
+      if (text.length >= 6) {
+        text = '${text.substring(0, 5)}/${text.substring(5)}';
+      }
+      if (text.length > 10) {
+        text = text.substring(0, 10);
+      }
+      
+      return TextEditingValue(
+        text: text,
+        selection: TextSelection.collapsed(offset: text.length),
+      );
+    });
+  }
+  
+  // 🔹 VALIDA DATA
+  bool _isValidDate(String text) {
+    if (text.isEmpty) return true;
+    final parts = text.split('/');
+    if (parts.length != 3) return false;
+    
+    try {
+      final dia = int.parse(parts[0]);
+      final mes = int.parse(parts[1]);
+      final ano = int.parse(parts[2]);
+      
+      if (dia < 1 || dia > 31) return false;
+      if (mes < 1 || mes > 12) return false;
+      if (ano < 1900 || ano > 2100) return false;
+      
+      final date = DateTime(ano, mes, dia);
+      return date.day == dia && date.month == mes && date.year == ano;
+    } catch (e) {
+      return false;
+    }
+  }
+
   void _recalcularSaldos() {
     for (int i = 0; i < _linhas.length; i++) {
       final linha = _linhas[i];
@@ -94,7 +138,7 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
         _linhas.isNotEmpty ? _linhas.last['saldo_final'] ?? 0.0 : 0.0;
 
     _linhas.add({
-      'data': DateFormat('dd/MM/yyyy').format(DateTime.now()),
+      'data': '',   //DateFormat('dd/MM/yyyy').format(DateTime.now()),
       'saldo_inicial': ultimoSaldoFinal,
       'aporte': 0.0,
       'pg_capital': 0.0,
@@ -104,7 +148,7 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
     });
 
     _controllers.add({
-      'data': TextEditingController(text: DateFormat('dd/MM/yyyy').format(DateTime.now())),
+      'data':TextEditingController(),   //TextEditingController(text: DateFormat('dd/MM/yyyy').format(DateTime.now())),
       'aporte': TextEditingController(),
       'pg_capital': TextEditingController(),
       'pg_juros': TextEditingController(),
@@ -127,7 +171,11 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            _buildHeader(),
+            // 🔹 HEADER COM MESMA LARGURA DA TABELA
+            ConstrainedBox(
+              constraints: const BoxConstraints(minWidth: 880), // 🔹 MESMA LARGURA DA TABELA
+              child: _buildHeader(),
+            ),
             const SizedBox(height: 8),
             Expanded(
               child: SingleChildScrollView(
@@ -135,7 +183,7 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
                 child: SingleChildScrollView(
                   scrollDirection: Axis.vertical,
                   child: DataTable(
-                    columnSpacing: 20,
+                    columnSpacing: 16,
                     headingRowColor: MaterialStateProperty.all(Colors.grey[300]),
                     dataRowMinHeight: 38,
                     dataRowMaxHeight: 42,
@@ -148,13 +196,13 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
                     dividerThickness: 0.5,
                     horizontalMargin: 12,
                     columns: const [
-                      DataColumn(label: SizedBox(width: 100, child: Center(child: Text("Data")))),
-                      DataColumn(label: SizedBox(width: 120, child: Center(child: Text("Saldo inicial")))),
-                      DataColumn(label: SizedBox(width: 100, child: Center(child: Text("Aporte")))),
-                      DataColumn(label: SizedBox(width: 120, child: Center(child: Text("Pag. capital")))),
-                      DataColumn(label: SizedBox(width: 110, child: Center(child: Text("Pag. juros")))),
-                      DataColumn(label: SizedBox(width: 100, child: Center(child: Text("Juros mês")))),
-                      DataColumn(label: SizedBox(width: 120, child: Center(child: Text("Saldo final")))),
+                      DataColumn(label: SizedBox(width: 95, child: Center(child: Text("Data")))),
+                      DataColumn(label: SizedBox(width: 130, child: Center(child: Text("Saldo Inicial")))),
+                      DataColumn(label: SizedBox(width: 105, child: Center(child: Text("Aporte")))),
+                      DataColumn(label: SizedBox(width: 115, child: Center(child: Text("Pag. Capital")))),
+                      DataColumn(label: SizedBox(width: 105, child: Center(child: Text("Pag. Juros")))),
+                      DataColumn(label: SizedBox(width: 95, child: Center(child: Text("Juros Mês")))),
+                      DataColumn(label: SizedBox(width: 130, child: Center(child: Text("Saldo Final")))),
                     ],
                     rows: _linhas
                         .asMap()
@@ -162,7 +210,7 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
                         .map(
                           (entry) => DataRow(
                             cells: [
-                              _buildReadOnlyCell(entry.value['data'].toString()),
+                              _buildDateCell(entry.key), // 🔹 AGORA EDITÁVEL
                               _buildReadOnlyCell(_fmt.format(entry.value['saldo_inicial'] ?? 0.0)),
                               _buildEditableCell(entry.key, 'aporte', cor: Colors.red),
                               _buildEditableCell(entry.key, 'pg_capital'),
@@ -189,6 +237,52 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  // 🔹 CÉLULA DE DATA EDITÁVEL
+  DataCell _buildDateCell(int index) {
+    final controller = _controllers[index]['data']!;
+    final isEmpty = controller.text.isEmpty;
+
+    return DataCell(
+      Container(
+        decoration: BoxDecoration(
+          color: isEmpty ? const Color.fromARGB(255, 250, 218, 222) : null,
+          border: Border(
+            right: BorderSide(color: Colors.grey[300]!, width: 0.5),
+          ),
+        ),
+        child: TextField(
+          controller: controller,
+          textAlign: TextAlign.center,
+          style: _cellStyle.copyWith(
+            color: isEmpty ? Colors.red[700] : Colors.black87, // 🔹 TEXTO VERMELHO SE VAZIO
+          ),
+          inputFormatters: [_dateMaskFormatter()],
+          decoration: const InputDecoration(
+            border: InputBorder.none,
+            isDense: true,
+            contentPadding: EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+            hintText: 'dd/mm/aaaa',
+          ),
+          onChanged: (text) {
+            // Validação em tempo real - opcional
+            if (text.length == 10 && !_isValidDate(text)) {
+              // Pode adicionar feedback visual se quiser
+            }
+          },
+          onTap: () {
+            // Seleciona todo o texto ao clicar
+            if (controller.text.isNotEmpty) {
+              controller.selection = TextSelection(
+                baseOffset: 0,
+                extentOffset: controller.text.length,
+              );
+            }
+          },
         ),
       ),
     );
@@ -278,9 +372,12 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: Colors.green.shade200),
       ),
-      child: Text(
-        "Empréstimo nº ${widget.emprestimo['id'] ?? ''}  |  Cliente: ${widget.emprestimo['cliente'] ?? ''}",
-        style: _cellStyle.copyWith(fontWeight: FontWeight.bold),
+      child: Center(
+        child: Text(
+          "Empréstimo nº ${widget.emprestimo['id'] ?? ''}  |  Cliente: ${widget.emprestimo['cliente'] ?? ''}",
+          style: _cellStyle.copyWith(fontWeight: FontWeight.bold),
+          textAlign: TextAlign.center,
+        ),
       ),
     );
   }
