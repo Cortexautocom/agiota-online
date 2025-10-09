@@ -8,11 +8,13 @@ import 'package:flutter/services.dart'; // Adicionar para TextInputFormatter
 
 class EmprestimoForm extends StatefulWidget {
   final String idCliente;   // vem do cliente selecionado
+  final String? idUsuario;
   final VoidCallback onSaved; // callback para atualizar tela de financeiro
 
   const EmprestimoForm({
     super.key,
     required this.idCliente,
+    this.idUsuario,
     required this.onSaved,
   });
 

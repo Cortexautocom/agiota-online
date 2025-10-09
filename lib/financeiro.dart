@@ -6,6 +6,8 @@ import 'utils.dart'; // 🔹 função fmtMoeda
 import 'package:intl/intl.dart';
 import 'garantias.dart';
 import 'arquivados_page.dart';
+import 'tipo_emprestimo_dialog.dart';
+import 'emprestimo_amortizacao_form.dart'; // (vai ser criado depois)
 
 class FinanceiroPage extends StatefulWidget {
   final Map<String, dynamic> cliente;
@@ -307,22 +309,44 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
                           bottom: 16,
                           right: 16,
                           child: FloatingActionButton.extended(
-                            onPressed: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => EmprestimoForm(
-                                    idCliente: cliente['id_cliente'],
-                                    onSaved: _buscarEmprestimos, // ✅ callback unificado
-                                  ),
-                                ),
+                            onPressed: () async {
+                              final tipo = await showDialog<String>(
+                                context: context,
+                                builder: (context) => const TipoEmprestimoDialog(),
                               );
+
+                              if (tipo == null) return; // Usuário cancelou
+
+                              if (tipo == 'parcelamento') {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => EmprestimoForm(
+                                      idCliente: cliente['id_cliente'],
+                                      idUsuario: cliente['id_usuario'] ?? '',
+                                      onSaved: _buscarEmprestimos,
+                                    ),
+                                  ),
+                                );
+                              } else if (tipo == 'amortizacao') {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => EmprestimoAmortizacaoForm(
+                                      idCliente: cliente['id_cliente'],
+                                      idUsuario: cliente['id_usuario'] ?? '',
+                                      onSaved: _buscarEmprestimos,
+                                    ),
+                                  ),
+                                );
+                              }
                             },
                             icon: const Icon(Icons.add),
                             label: const Text("Novo Empréstimo"),
                             backgroundColor: Colors.green,
                           ),
                         ),
+
                       ],
                     ),
                   ),
