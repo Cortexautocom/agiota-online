@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'amortizacao_tabela.dart';
 
 class EmprestimoAmortizacaoForm extends StatefulWidget {
   final String idCliente;
@@ -25,10 +26,28 @@ class _EmprestimoAmortizacaoFormState extends State<EmprestimoAmortizacaoForm> {
         title: const Text("Novo Empréstimo - Amortização"),
         backgroundColor: Colors.green,
       ),
-      body: const Center(
-        child: Text(
-          "🧮 Tela de Amortização (em desenvolvimento)",
-          style: TextStyle(fontSize: 18),
+      body: Center(
+        child: ElevatedButton.icon(
+          icon: const Icon(Icons.arrow_forward),
+          label: const Text("Avançar para Conta-Corrente"),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.green,
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+          ),
+          onPressed: () {
+            // 🔹 Aqui futuramente virão os dados reais do Supabase
+            final emprestimo = {
+              'id': DateTime.now().millisecondsSinceEpoch, // temporário
+              'cliente': 'Cliente Exemplo',
+            };
+
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => AmortizacaoTabela(emprestimo: emprestimo),
+              ),
+            );
+          },
         ),
       ),
     );
