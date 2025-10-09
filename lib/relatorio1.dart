@@ -43,7 +43,6 @@ class _RelatorioParcelasEmAbertoState
 
   // 🔹 Método chamado quando o botão Buscar é pressionado
   void _onRefreshRequested() {
-    print('🔄 Relatorio1: Recebendo solicitação de atualização!');
     _buscarParcelasEmAberto();
   }
 
@@ -72,16 +71,13 @@ class _RelatorioParcelasEmAbertoState
   }
 
   Future<void> _buscarParcelasEmAberto() async {
-    print('🔍 Relatorio1: Iniciando busca com filtros...');
-    print('   Data Início: ${widget.dataInicioCtrl.text}');
-    print('   Data Fim: ${widget.dataFimCtrl.text}');
     
     // ✅ VERIFICAÇÃO mounted ANTES de iniciar o loading
     if (!mounted) return;
     
     setState(() {
       carregando = true;
-      relatorio = [];
+      // 🔹 MANTÉM os dados antigos durante o carregamento para evitar flicker
     });
 
     try {
@@ -113,10 +109,6 @@ class _RelatorioParcelasEmAbertoState
       final dataInicio = _parseDataFiltro(widget.dataInicioCtrl.text);
       final dataFim = _parseDataFiltro(widget.dataFimCtrl.text);
 
-      print('   Filtros aplicados:');
-      print('   - Data início: $dataInicio');
-      print('   - Data fim: $dataFim');
-
       final filtradas = response.where((p) {
         final venc = DateTime.tryParse(p['vencimento'] ?? '');
         if (venc == null) return false;
@@ -124,8 +116,6 @@ class _RelatorioParcelasEmAbertoState
         if (dataFim != null && venc.isAfter(dataFim)) return false;
         return true;
       }).toList();
-
-      print('   ✅ Parcelas encontradas: ${filtradas.length}');
 
       filtradas.sort((a, b) {
         final nomeA = (a['cliente'] ?? '').toString().toLowerCase();
@@ -166,7 +156,10 @@ class _RelatorioParcelasEmAbertoState
     } catch (e) {
       // ✅ VERIFICAÇÃO mounted no catch também
       if (mounted) {
-        debugPrint('❌ Erro ao buscar parcelas: $e');
+        // 🔹 GARANTE que a lista seja limpa em caso de erro
+        setState(() {
+          relatorio = [];
+        });
       }
     } finally {
       // ✅ VERIFICAÇÃO mounted no finally

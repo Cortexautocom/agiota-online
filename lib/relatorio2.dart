@@ -43,7 +43,6 @@ class _RelatorioParcelasVencidasState
 
   // 🔹 Método chamado quando o botão Buscar é pressionado
   void _onRefreshRequested() {
-    print('🔄 Relatorio2: Recebendo solicitação de atualização!');
     _buscarParcelasVencidas();
   }
 
@@ -72,9 +71,6 @@ class _RelatorioParcelasVencidasState
   }
 
   Future<void> _buscarParcelasVencidas() async {
-    print('🔍 Relatorio2: Iniciando busca com filtros...');
-    print('   Data Início: ${widget.dataInicioCtrl.text}');
-    print('   Data Fim: ${widget.dataFimCtrl.text}');
     
     // ✅ VERIFICAÇÃO mounted ANTES de iniciar o loading
     if (!mounted) return;
@@ -117,10 +113,6 @@ class _RelatorioParcelasVencidasState
       final dataInicio = _parseDataFiltro(widget.dataInicioCtrl.text);
       final dataFim = _parseDataFiltro(widget.dataFimCtrl.text);
 
-      print('   Filtros aplicados:');
-      print('   - Data início: $dataInicio');
-      print('   - Data fim: $dataFim');
-
       final filtradas = response.where((p) {
         final venc = DateTime.tryParse(p['vencimento'] ?? '');
         if (venc == null) return false;
@@ -139,8 +131,6 @@ class _RelatorioParcelasVencidasState
 
         return true;
       }).toList();
-
-      print('   ✅ Parcelas vencidas encontradas: ${filtradas.length}');
 
       // 🔹 ORDENAÇÃO LOCAL - Primeiro por cliente (alfabético), depois por vencimento
       filtradas.sort((a, b) {
@@ -182,7 +172,6 @@ class _RelatorioParcelasVencidasState
     } catch (e) {
       // ✅ VERIFICAÇÃO mounted no catch também
       if (mounted) {
-        debugPrint("❌ Erro ao buscar parcelas vencidas: $e");
         // Mostra snackbar de erro para o usuário
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -262,7 +251,6 @@ class _RelatorioParcelasVencidasState
                         final item = relatorio[index];
                         return InkWell(
                           onTap: () {
-                            debugPrint("🖱 Clique: abrindo parcelas do empréstimo ${item['id_emprestimo']} (${item['cliente']})");
                             Navigator.push(
                               context,
                               MaterialPageRoute(

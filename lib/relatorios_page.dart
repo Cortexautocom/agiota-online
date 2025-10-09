@@ -88,7 +88,6 @@ class _RelatoriosPageState extends State<RelatoriosPage> {
 
   /// 🔹 MÉTODO CENTRALIZADO para executar a busca
   void _executarBusca() {
-    print('🔍 Executando busca nos relatórios...');
     // Notifica todos os relatórios para atualizar
     _refreshRelatorios.value = !_refreshRelatorios.value;
     FocusScope.of(context).unfocus();
@@ -174,8 +173,6 @@ class _RelatoriosPageState extends State<RelatoriosPage> {
     FocusScope.of(context).unfocus();
     DateTime dataInicial = _parseData(controller.text) ?? DateTime.now();
 
-    print('🎯 _selecionarData chamado!');
-
     // 🔹 SOLUÇÃO DEFINITIVA: Criar um DatePickerDialog customizado
     DateTime? dataSelecionada;
 
@@ -203,7 +200,6 @@ class _RelatoriosPageState extends State<RelatoriosPage> {
                     firstDate: DateTime(1900),
                     lastDate: DateTime(2100),
                     onDateChanged: (DateTime value) {
-                      print('📅 Data clicada: $value');
                       dataSelecionada = value;
                       // 🔹 FECHA IMEDIATAMENTE ao clicar na data
                       Navigator.of(context).pop();
@@ -219,7 +215,6 @@ class _RelatoriosPageState extends State<RelatoriosPage> {
 
     if (dataSelecionada != null) {
       controller.text = DateFormat('dd/MM/yyyy').format(dataSelecionada!);
-      print('✏️ Campo preenchido com: ${controller.text}');
 
       if (controller == dataInicioCtrl) {
         dataInicioTouched = true;
@@ -230,7 +225,6 @@ class _RelatoriosPageState extends State<RelatoriosPage> {
       
       // 🔹 BUSCA AUTOMÁTICA quando seleciona data final
       if (controller == dataFimCtrl) {
-        print('🚀 Data final selecionada - executando busca automática!');
         _executarBusca();
       }
     }

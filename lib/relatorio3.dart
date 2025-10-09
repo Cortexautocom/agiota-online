@@ -43,7 +43,6 @@ class _RelatorioParcelasComAcordoState
 
   // 🔹 Método chamado quando o botão Buscar é pressionado
   void _onRefreshRequested() {
-    print('🔄 Relatorio3: Recebendo solicitação de atualização!');
     _buscarParcelasComAcordo();
   }
 
@@ -72,9 +71,6 @@ class _RelatorioParcelasComAcordoState
   }
 
   Future<void> _buscarParcelasComAcordo() async {
-    print('🔍 Relatorio3: Iniciando busca com filtros...');
-    print('   Data Início: ${widget.dataInicioCtrl.text}');
-    print('   Data Fim: ${widget.dataFimCtrl.text}');
     
     // ✅ VERIFICAÇÃO mounted ANTES de iniciar o loading
     if (!mounted) return;
@@ -117,10 +113,6 @@ class _RelatorioParcelasComAcordoState
       final dataInicio = _parseDataFiltro(widget.dataInicioCtrl.text);
       final dataFim = _parseDataFiltro(widget.dataFimCtrl.text);
 
-      print('   Filtros aplicados:');
-      print('   - Data início: $dataInicio');
-      print('   - Data fim: $dataFim');
-
       final filtradas = response.where((p) {
         final venc = DateTime.tryParse(p['vencimento'] ?? '');
         if (venc == null) return false;
@@ -128,8 +120,6 @@ class _RelatorioParcelasComAcordoState
         if (dataFim != null && venc.isAfter(dataFim)) return false;
         return true;
       }).toList();
-
-      print('   ✅ Parcelas com acordo encontradas: ${filtradas.length}');
 
       // 🔹 ORDENAÇÃO LOCAL - Primeiro por cliente (alfabético), depois por vencimento
       filtradas.sort((a, b) {
@@ -172,7 +162,6 @@ class _RelatorioParcelasComAcordoState
     } catch (e) {
       // ✅ VERIFICAÇÃO mounted no catch também
       if (mounted) {
-        debugPrint("❌ Erro ao buscar parcelas com acordo: $e");
         // Mostra snackbar de erro para o usuário
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -253,7 +242,6 @@ class _RelatorioParcelasComAcordoState
                         final item = relatorio[index];
                         return InkWell(
                           onTap: () {
-                            debugPrint("🖱 Clique: abrindo parcelas do empréstimo ${item['id_emprestimo']} (${item['cliente']})");
                             Navigator.push(
                               context,
                               MaterialPageRoute(
