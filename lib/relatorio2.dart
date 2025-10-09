@@ -6,13 +6,13 @@ import 'parcelas_page.dart'; // ✅ Import para abrir a tela de parcelas
 class RelatorioParcelasVencidas extends StatefulWidget {
   final TextEditingController dataInicioCtrl;
   final TextEditingController dataFimCtrl;
-  final VoidCallback? onBuscarPressed; // ✅ Novo callback
+  final ValueNotifier<bool> refreshNotifier; // 🔹 Novo parâmetro padronizado
 
   const RelatorioParcelasVencidas({
     super.key,
     required this.dataInicioCtrl,
     required this.dataFimCtrl,
-    this.onBuscarPressed, // ✅ Recebe o callback
+    required this.refreshNotifier, // 🔹 Novo parâmetro obrigatório
   });
 
   @override
@@ -30,24 +30,21 @@ class _RelatorioParcelasVencidasState
     super.initState();
     _buscarParcelasVencidas();
     
-    // ✅ Escuta mudanças nos controladores de data
-    widget.dataInicioCtrl.addListener(_onDatasAlteradas);
-    widget.dataFimCtrl.addListener(_onDatasAlteradas);
+    // 🔹 OUVINTE para atualizar quando o notificador mudar
+    widget.refreshNotifier.addListener(_onRefreshRequested);
   }
 
   @override
   void dispose() {
-    // ✅ Remove os listeners
-    widget.dataInicioCtrl.removeListener(_onDatasAlteradas);
-    widget.dataFimCtrl.removeListener(_onDatasAlteradas);
+    // 🔹 IMPORTANTE: Remover o listener para evitar vazamentos de memória
+    widget.refreshNotifier.removeListener(_onRefreshRequested);
     super.dispose();
   }
 
-  void _onDatasAlteradas() {
-    // ✅ Busca automática quando as datas são alteradas
-    if (widget.dataInicioCtrl.text.isNotEmpty || widget.dataFimCtrl.text.isNotEmpty) {
-      _buscarParcelasVencidas();
-    }
+  // 🔹 Método chamado quando o botão Buscar é pressionado
+  void _onRefreshRequested() {
+    print('🔄 Relatorio2: Recebendo solicitação de atualização!');
+    _buscarParcelasVencidas();
   }
 
   String formatarData(String? isoDate) {
@@ -75,6 +72,10 @@ class _RelatorioParcelasVencidasState
   }
 
   Future<void> _buscarParcelasVencidas() async {
+    print('🔍 Relatorio2: Iniciando busca com filtros...');
+    print('   Data Início: ${widget.dataInicioCtrl.text}');
+    print('   Data Fim: ${widget.dataFimCtrl.text}');
+    
     // ✅ VERIFICAÇÃO mounted ANTES de iniciar o loading
     if (!mounted) return;
     
@@ -113,12 +114,14 @@ class _RelatorioParcelasVencidasState
       // ✅ VERIFICAÇÃO mounted após a requisição
       if (!mounted) return;
 
-      final dados = response as List;
-
       final dataInicio = _parseDataFiltro(widget.dataInicioCtrl.text);
       final dataFim = _parseDataFiltro(widget.dataFimCtrl.text);
 
-      final filtradas = dados.where((p) {
+      print('   Filtros aplicados:');
+      print('   - Data início: $dataInicio');
+      print('   - Data fim: $dataFim');
+
+      final filtradas = response.where((p) {
         final venc = DateTime.tryParse(p['vencimento'] ?? '');
         if (venc == null) return false;
 
@@ -136,6 +139,8 @@ class _RelatorioParcelasVencidasState
 
         return true;
       }).toList();
+
+      print('   ✅ Parcelas vencidas encontradas: ${filtradas.length}');
 
       // 🔹 ORDENAÇÃO LOCAL - Primeiro por cliente (alfabético), depois por vencimento
       filtradas.sort((a, b) {
@@ -207,18 +212,12 @@ class _RelatorioParcelasVencidasState
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // ✅ REMOVIDO o botão buscar individual - agora usa o botão principal do RelatoriosPage
-        
         const SizedBox(height: 10),
         const Text(
           "📄 Parcelas em atraso",
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 10),
-
-        // Indicador de carregamento quando estiver buscando
-        if (carregando)
-          const LinearProgressIndicator(),
 
         Container(
           color: Colors.grey[300],
@@ -236,7 +235,7 @@ class _RelatorioParcelasVencidasState
         ),
 
         Expanded(
-          child: carregando && relatorio.isEmpty
+          child: carregando
               ? const Center(child: CircularProgressIndicator())
               : relatorio.isEmpty
                   ? const Center(
@@ -324,7 +323,7 @@ class _RelatorioParcelasVencidasState
             ),
           ),
 
-        // ✅ Informações sobre o relatório
+        // ✅ LEGENDA PADRONIZADA (igual ao relatorio1)
         if (relatorio.isNotEmpty)
           Container(
             color: Colors.orange[50],

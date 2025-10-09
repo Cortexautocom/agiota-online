@@ -6,11 +6,13 @@ import 'parcelas_page.dart'; // ✅ Import para abrir a tela de parcelas
 class RelatorioParcelasEmAberto extends StatefulWidget {
   final TextEditingController dataInicioCtrl;
   final TextEditingController dataFimCtrl;
+  final ValueNotifier<bool> refreshNotifier; // 🔹 Novo parâmetro
 
   const RelatorioParcelasEmAberto({
     super.key,
     required this.dataInicioCtrl,
     required this.dataFimCtrl,
+    required this.refreshNotifier, // 🔹 Novo parâmetro obrigatório
   });
 
   @override
@@ -26,6 +28,22 @@ class _RelatorioParcelasEmAbertoState
   @override
   void initState() {
     super.initState();
+    _buscarParcelasEmAberto();
+    
+    // 🔹 OUVINTE para atualizar quando o notificador mudar
+    widget.refreshNotifier.addListener(_onRefreshRequested);
+  }
+
+  @override
+  void dispose() {
+    // 🔹 IMPORTANTE: Remover o listener para evitar vazamentos de memória
+    widget.refreshNotifier.removeListener(_onRefreshRequested);
+    super.dispose();
+  }
+
+  // 🔹 Método chamado quando o botão Buscar é pressionado
+  void _onRefreshRequested() {
+    print('🔄 Relatorio1: Recebendo solicitação de atualização!');
     _buscarParcelasEmAberto();
   }
 
@@ -54,6 +72,10 @@ class _RelatorioParcelasEmAbertoState
   }
 
   Future<void> _buscarParcelasEmAberto() async {
+    print('🔍 Relatorio1: Iniciando busca com filtros...');
+    print('   Data Início: ${widget.dataInicioCtrl.text}');
+    print('   Data Fim: ${widget.dataFimCtrl.text}');
+    
     // ✅ VERIFICAÇÃO mounted ANTES de iniciar o loading
     if (!mounted) return;
     
@@ -91,6 +113,10 @@ class _RelatorioParcelasEmAbertoState
       final dataInicio = _parseDataFiltro(widget.dataInicioCtrl.text);
       final dataFim = _parseDataFiltro(widget.dataFimCtrl.text);
 
+      print('   Filtros aplicados:');
+      print('   - Data início: $dataInicio');
+      print('   - Data fim: $dataFim');
+
       final filtradas = response.where((p) {
         final venc = DateTime.tryParse(p['vencimento'] ?? '');
         if (venc == null) return false;
@@ -98,6 +124,8 @@ class _RelatorioParcelasEmAbertoState
         if (dataFim != null && venc.isAfter(dataFim)) return false;
         return true;
       }).toList();
+
+      print('   ✅ Parcelas encontradas: ${filtradas.length}');
 
       filtradas.sort((a, b) {
         final nomeA = (a['cliente'] ?? '').toString().toLowerCase();
@@ -138,7 +166,7 @@ class _RelatorioParcelasEmAbertoState
     } catch (e) {
       // ✅ VERIFICAÇÃO mounted no catch também
       if (mounted) {
-        debugPrint('Erro ao buscar parcelas: $e');
+        debugPrint('❌ Erro ao buscar parcelas: $e');
       }
     } finally {
       // ✅ VERIFICAÇÃO mounted no finally
@@ -161,18 +189,6 @@ class _RelatorioParcelasEmAbertoState
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        /*
-        Row(
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            ElevatedButton.icon(
-              onPressed: carregando ? null : _buscarParcelasEmAberto,
-              icon: const Icon(Icons.search),
-              label: const Text("Buscar"),
-            ),
-          ],
-        ),
-        */
         const SizedBox(height: 10),
         const Text(
           "📄 Parcelas em aberto",

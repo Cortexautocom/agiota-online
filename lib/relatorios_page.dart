@@ -16,6 +16,9 @@ class RelatoriosPage extends StatefulWidget {
 
 class _RelatoriosPageState extends State<RelatoriosPage> {
   String tipoRelatorio = 'Parcelas em aberto';
+  
+  // 🔹 NOTIFICADOR GLOBAL para atualizar todos os relatórios
+  final _refreshRelatorios = ValueNotifier<bool>(false);
 
   // Controladores de data
   final dataInicioCtrl = TextEditingController();
@@ -65,6 +68,7 @@ class _RelatoriosPageState extends State<RelatoriosPage> {
     fimFocusNode.dispose();
     dataInicioCtrl.dispose();
     dataFimCtrl.dispose();
+    _refreshRelatorios.dispose(); // 🔹 Importante: dispose do notificador
     super.dispose();
   }
 
@@ -80,6 +84,14 @@ class _RelatoriosPageState extends State<RelatoriosPage> {
     if (salvo != null && salvo.isNotEmpty) {
       setState(() => tipoRelatorio = salvo);
     }
+  }
+
+  /// 🔹 MÉTODO CENTRALIZADO para executar a busca
+  void _executarBusca() {
+    print('🔍 Executando busca nos relatórios...');
+    // Notifica todos os relatórios para atualizar
+    _refreshRelatorios.value = !_refreshRelatorios.value;
+    FocusScope.of(context).unfocus();
   }
 
   /// Limpa os campos de data
@@ -162,24 +174,65 @@ class _RelatoriosPageState extends State<RelatoriosPage> {
     FocusScope.of(context).unfocus();
     DateTime dataInicial = _parseData(controller.text) ?? DateTime.now();
 
-    final selecionada = await showDatePicker(
+    print('🎯 _selecionarData chamado!');
+
+    // 🔹 SOLUÇÃO DEFINITIVA: Criar um DatePickerDialog customizado
+    DateTime? dataSelecionada;
+
+    await showDialog<DateTime>(
       context: context,
-      initialDate: dataInicial,
-      firstDate: DateTime(1900),
-      lastDate: DateTime(2100),
-      locale: const Locale('pt', 'BR'),
+      builder: (context) {
+        return Dialog(
+          child: SizedBox(
+            width: 330,
+            height: 430,
+            child: Column(
+              children: [
+                // Cabeçalho com título
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  child: const Text(
+                    'Selecione a data',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                ),
+                // Calendário
+                Expanded(
+                  child: CalendarDatePicker(
+                    initialDate: dataInicial,
+                    firstDate: DateTime(1900),
+                    lastDate: DateTime(2100),
+                    onDateChanged: (DateTime value) {
+                      print('📅 Data clicada: $value');
+                      dataSelecionada = value;
+                      // 🔹 FECHA IMEDIATAMENTE ao clicar na data
+                      Navigator.of(context).pop();
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
 
-    if (selecionada != null) {
-      controller.text = DateFormat('dd/MM/yyyy').format(selecionada);
+    if (dataSelecionada != null) {
+      controller.text = DateFormat('dd/MM/yyyy').format(dataSelecionada!);
+      print('✏️ Campo preenchido com: ${controller.text}');
 
-      // marca como tocado (pois o usuário selecionou) e valida
       if (controller == dataInicioCtrl) {
         dataInicioTouched = true;
       } else if (controller == dataFimCtrl) {
         dataFimTouched = true;
       }
       _validarDatas();
+      
+      // 🔹 BUSCA AUTOMÁTICA quando seleciona data final
+      if (controller == dataFimCtrl) {
+        print('🚀 Data final selecionada - executando busca automática!');
+        _executarBusca();
+      }
     }
   }
 
@@ -210,16 +263,19 @@ class _RelatoriosPageState extends State<RelatoriosPage> {
         return RelatorioParcelasEmAberto(
           dataInicioCtrl: dataInicioCtrl,
           dataFimCtrl: dataFimCtrl,
+          refreshNotifier: _refreshRelatorios, // 🔹 Passe o notificador
         );
       case 'Parcelas em atraso':
         return RelatorioParcelasVencidas(
           dataInicioCtrl: dataInicioCtrl,
           dataFimCtrl: dataFimCtrl,
+          refreshNotifier: _refreshRelatorios, // 🔹 Passe o notificador
         );
       case 'Parcelas com acordo vigente':
         return RelatorioParcelasComAcordo(
           dataInicioCtrl: dataInicioCtrl,
           dataFimCtrl: dataFimCtrl,
+          refreshNotifier: _refreshRelatorios, // 🔹 Passe o notificador
         );
       case 'Empréstimos ativos':
         return const Center(child: Text("📄 Relatório de Empréstimos Ativos"));
@@ -358,6 +414,8 @@ class _RelatoriosPageState extends State<RelatoriosPage> {
                     dataFimTouched = true;
                     _validarDatas();
                     FocusScope.of(context).unfocus();
+                    // 🔹 BUSCA ao finalizar edição da data final
+                    _executarBusca();
                   },
                   style: TextStyle(
                     color: (fimInvalidVisible || intervalInvalidVisible)
@@ -388,13 +446,9 @@ class _RelatoriosPageState extends State<RelatoriosPage> {
               ),
               const SizedBox(width: 12),
               
-              // Botão Buscar (será usado pelos relatórios individuais)
-              // Este é apenas um placeholder - os relatórios específicos terão seus próprios botões
+              // 🔹 Botão Buscar AGORA FUNCIONAL
               ElevatedButton.icon(
-                onPressed: () {
-                  // A busca é feita individualmente por cada relatório
-                  // Este botão serve como indicador visual
-                },
+                onPressed: _executarBusca,
                 icon: const Icon(Icons.search, size: 18),
                 label: const Text("Buscar"),
               ),

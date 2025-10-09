@@ -6,13 +6,13 @@ import 'parcelas_page.dart'; // ✅ para abrir a tela de parcelas
 class RelatorioParcelasComAcordo extends StatefulWidget {
   final TextEditingController dataInicioCtrl;
   final TextEditingController dataFimCtrl;
-  final VoidCallback? onBuscarPressed; // ✅ Novo callback
+  final ValueNotifier<bool> refreshNotifier; // 🔹 Novo parâmetro padronizado
 
   const RelatorioParcelasComAcordo({
     super.key,
     required this.dataInicioCtrl,
     required this.dataFimCtrl,
-    this.onBuscarPressed, // ✅ Recebe o callback
+    required this.refreshNotifier, // 🔹 Novo parâmetro obrigatório
   });
 
   @override
@@ -30,24 +30,21 @@ class _RelatorioParcelasComAcordoState
     super.initState();
     _buscarParcelasComAcordo();
     
-    // ✅ Escuta mudanças nos controladores de data
-    widget.dataInicioCtrl.addListener(_onDatasAlteradas);
-    widget.dataFimCtrl.addListener(_onDatasAlteradas);
+    // 🔹 OUVINTE para atualizar quando o notificador mudar
+    widget.refreshNotifier.addListener(_onRefreshRequested);
   }
 
   @override
   void dispose() {
-    // ✅ Remove os listeners
-    widget.dataInicioCtrl.removeListener(_onDatasAlteradas);
-    widget.dataFimCtrl.removeListener(_onDatasAlteradas);
+    // 🔹 IMPORTANTE: Remover o listener para evitar vazamentos de memória
+    widget.refreshNotifier.removeListener(_onRefreshRequested);
     super.dispose();
   }
 
-  void _onDatasAlteradas() {
-    // ✅ Busca automática quando as datas são alteradas
-    if (widget.dataInicioCtrl.text.isNotEmpty || widget.dataFimCtrl.text.isNotEmpty) {
-      _buscarParcelasComAcordo();
-    }
+  // 🔹 Método chamado quando o botão Buscar é pressionado
+  void _onRefreshRequested() {
+    print('🔄 Relatorio3: Recebendo solicitação de atualização!');
+    _buscarParcelasComAcordo();
   }
 
   String formatarData(String? isoDate) {
@@ -75,6 +72,10 @@ class _RelatorioParcelasComAcordoState
   }
 
   Future<void> _buscarParcelasComAcordo() async {
+    print('🔍 Relatorio3: Iniciando busca com filtros...');
+    print('   Data Início: ${widget.dataInicioCtrl.text}');
+    print('   Data Fim: ${widget.dataFimCtrl.text}');
+    
     // ✅ VERIFICAÇÃO mounted ANTES de iniciar o loading
     if (!mounted) return;
     
@@ -113,18 +114,22 @@ class _RelatorioParcelasComAcordoState
       // ✅ VERIFICAÇÃO mounted após a requisição
       if (!mounted) return;
 
-      final dados = response as List;
-
       final dataInicio = _parseDataFiltro(widget.dataInicioCtrl.text);
       final dataFim = _parseDataFiltro(widget.dataFimCtrl.text);
 
-      final filtradas = dados.where((p) {
+      print('   Filtros aplicados:');
+      print('   - Data início: $dataInicio');
+      print('   - Data fim: $dataFim');
+
+      final filtradas = response.where((p) {
         final venc = DateTime.tryParse(p['vencimento'] ?? '');
         if (venc == null) return false;
         if (dataInicio != null && venc.isBefore(dataInicio)) return false;
         if (dataFim != null && venc.isAfter(dataFim)) return false;
         return true;
       }).toList();
+
+      print('   ✅ Parcelas com acordo encontradas: ${filtradas.length}');
 
       // 🔹 ORDENAÇÃO LOCAL - Primeiro por cliente (alfabético), depois por vencimento
       filtradas.sort((a, b) {
@@ -197,18 +202,12 @@ class _RelatorioParcelasComAcordoState
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // ✅ REMOVIDO o botão buscar individual - agora usa o botão principal do RelatoriosPage
-        
         const SizedBox(height: 10),
         const Text(
           "📄 Parcelas com acordo vigente",
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 10),
-
-        // Indicador de carregamento quando estiver buscando
-        if (carregando)
-          const LinearProgressIndicator(),
 
         Container(
           color: Colors.grey[300],
@@ -227,7 +226,7 @@ class _RelatorioParcelasComAcordoState
         ),
 
         Expanded(
-          child: carregando && relatorio.isEmpty
+          child: carregando
               ? const Center(child: CircularProgressIndicator())
               : relatorio.isEmpty
                   ? const Center(
@@ -326,7 +325,7 @@ class _RelatorioParcelasComAcordoState
             ),
           ),
 
-        // ✅ Informações sobre o relatório
+        // ✅ LEGENDA PADRONIZADA (igual aos relatórios 1 e 2)
         if (relatorio.isNotEmpty)
           Container(
             color: Colors.green[50],
