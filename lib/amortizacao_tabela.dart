@@ -17,6 +17,9 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
   final NumberFormat _fmt = NumberFormat.simpleCurrency(locale: 'pt_BR');
   final TextStyle _cellStyle =
       const TextStyle(fontSize: 13, color: Colors.black87);
+  
+  final TextEditingController _taxaJurosCtrl = TextEditingController();
+  double _taxaJuros = 0.0;
 
   @override
   void initState() {
@@ -62,6 +65,30 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
     return double.tryParse(cleaned) ?? 0.0;
   }
 
+  // 🔹 MÉTODO PARA FORMATAÇÃO DE PORCENTAGEM
+  TextInputFormatter _percentMaskFormatter() {
+    return TextInputFormatter.withFunction((oldValue, newValue) {
+      var text = newValue.text.replaceAll(RegExp(r'[^0-9,]'), '');
+      
+      // Permite apenas uma vírgula
+      final commaCount = text.split(',').length - 1;
+      if (commaCount > 1) {
+        text = text.substring(0, text.length - 1);
+      }
+      
+      return TextEditingValue(
+        text: text,
+        selection: TextSelection.collapsed(offset: text.length),
+      );
+    });
+  }
+
+  double _parsePercent(String texto) {
+    if (texto.isEmpty) return 0.0;
+    final cleaned = texto.replaceAll(',', '.');
+    return double.tryParse(cleaned) ?? 0.0;
+  }
+
   // 🔹 MÉTODO PARA FORMATAÇÃO DE DATA (MÁSCARA dd/mm/aaaa)
   TextInputFormatter _dateMaskFormatter() {
     return TextInputFormatter.withFunction((oldValue, newValue) {
@@ -83,27 +110,88 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
       );
     });
   }
-  
-  // 🔹 VALIDA DATA
-  bool _isValidDate(String text) {
-    if (text.isEmpty) return true;
-    final parts = text.split('/');
-    if (parts.length != 3) return false;
-    
+
+  // 🔹 CALCULA DIFERENÇA DE DIAS ENTRE DATAS
+  int _calcularDiferencaDias(String dataAnteriorStr, String dataAtualStr) {
     try {
-      final dia = int.parse(parts[0]);
-      final mes = int.parse(parts[1]);
-      final ano = int.parse(parts[2]);
+      final partsAnterior = dataAnteriorStr.split('/');
+      final partsAtual = dataAtualStr.split('/');
       
-      if (dia < 1 || dia > 31) return false;
-      if (mes < 1 || mes > 12) return false;
-      if (ano < 1900 || ano > 2100) return false;
+      if (partsAnterior.length != 3 || partsAtual.length != 3) return 0;
       
-      final date = DateTime(ano, mes, dia);
-      return date.day == dia && date.month == mes && date.year == ano;
+      final dataAnterior = DateTime(
+        int.parse(partsAnterior[2]),
+        int.parse(partsAnterior[1]),
+        int.parse(partsAnterior[0]),
+      );
+      
+      final dataAtual = DateTime(
+        int.parse(partsAtual[2]),
+        int.parse(partsAtual[1]),
+        int.parse(partsAtual[0]),
+      );
+      
+      return dataAtual.difference(dataAnterior).inDays;
     } catch (e) {
-      return false;
+      return 0;
     }
+  }
+
+  // 🔹 CALCULA JUROS AUTOMATICAMENTE
+  void _calcularJurosAutomatico(int index) {
+    if (index == 0) return; // Primeira linha não tem linha anterior
+    
+    final dataAtual = _controllers[index]['data']!.text;
+    final dataAnterior = _controllers[index - 1]['data']!.text;
+    
+    // Só calcula se ambas as datas estiverem preenchidas (dd/mm/aaaa)
+    if (dataAtual.length == 10 && dataAnterior.length == 10) {
+      final diferencaDias = _calcularDiferencaDias(dataAnterior, dataAtual);
+      
+      if (diferencaDias > 0 && _taxaJuros > 0) {
+        final saldoAnterior = _linhas[index - 1]['saldo_final'] ?? 0.0;
+        final jurosCalculado = saldoAnterior * (_taxaJuros / 100 / 30) * diferencaDias;
+        
+        // Atualiza o campo de juros apenas se estiver vazio ou se for o cálculo automático
+        final jurosAtual = _parseMoeda(_controllers[index]['juros_mes']!.text);
+        if (jurosAtual == 0.0) {
+          _controllers[index]['juros_mes']!.text = _fmtMoeda(jurosCalculado);
+          _linhas[index]['juros_mes'] = jurosCalculado;
+          _recalcularSaldos();
+        }
+      }
+    }
+  }
+
+  // 🔹 RECALCULA TODOS OS JUROS DA PLANILHA
+  void _recalcularTodosJuros() {
+    for (int i = 1; i < _linhas.length; i++) {
+      final dataAtual = _controllers[i]['data']!.text;
+      final dataAnterior = _controllers[i - 1]['data']!.text;
+      
+      if (dataAtual.length == 10 && dataAnterior.length == 10) {
+        final diferencaDias = _calcularDiferencaDias(dataAnterior, dataAtual);
+        
+        if (diferencaDias > 0 && _taxaJuros > 0) {
+          final saldoAnterior = _linhas[i - 1]['saldo_final'] ?? 0.0;
+          final jurosCalculado = saldoAnterior * (_taxaJuros / 100 / 30) * diferencaDias;
+          
+          _controllers[i]['juros_mes']!.text = _fmtMoeda(jurosCalculado);
+          _linhas[i]['juros_mes'] = jurosCalculado;
+        }
+      }
+    }
+    _recalcularSaldos();
+  }
+
+  // 🔹 VERIFICA SE HÁ ALGUMA DATA VAZIA NA TABELA
+  bool _haDataVazia() {
+    for (final controller in _controllers) {
+      if (controller['data']!.text.isEmpty) {
+        return true;
+      }
+    }
+    return false;
   }
 
   void _recalcularSaldos() {
@@ -116,6 +204,7 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
       linha['pg_capital'] = _parseMoeda(controller['pg_capital']!.text);
       linha['pg_juros'] = _parseMoeda(controller['pg_juros']!.text);
       linha['juros_mes'] = _parseMoeda(controller['juros_mes']!.text);
+      linha['data'] = controller['data']!.text;
 
       final double saldoInicial = linha['saldo_inicial'] ?? 0.0;
       final double aporte = linha['aporte'] ?? 0.0;
@@ -134,11 +223,22 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
   }
 
   void _adicionarLinha() {
+    // 🔹 VERIFICA SE HÁ ALGUMA DATA VAZIA
+    if (_haDataVazia()) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Preencha todas as datas antes de criar nova linha."),
+          duration: Duration(seconds: 3),
+        ),
+      );
+      return;
+    }
+
     final double ultimoSaldoFinal =
         _linhas.isNotEmpty ? _linhas.last['saldo_final'] ?? 0.0 : 0.0;
 
     _linhas.add({
-      'data': '',   //DateFormat('dd/MM/yyyy').format(DateTime.now()),
+      'data': '',
       'saldo_inicial': ultimoSaldoFinal,
       'aporte': 0.0,
       'pg_capital': 0.0,
@@ -148,7 +248,7 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
     });
 
     _controllers.add({
-      'data':TextEditingController(),   //TextEditingController(text: DateFormat('dd/MM/yyyy').format(DateTime.now())),
+      'data': TextEditingController(),
       'aporte': TextEditingController(),
       'pg_capital': TextEditingController(),
       'pg_juros': TextEditingController(),
@@ -168,72 +268,175 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
       ),
       body: Container(
         color: Colors.grey[100],
-        padding: const EdgeInsets.all(16),
-        child: Column(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 🔹 HEADER COM MESMA LARGURA DA TABELA
-            ConstrainedBox(
-              constraints: const BoxConstraints(minWidth: 880), // 🔹 MESMA LARGURA DA TABELA
-              child: _buildHeader(),
-            ),
-            const SizedBox(height: 8),
-            Expanded(
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.vertical,
-                  child: DataTable(
-                    columnSpacing: 16,
-                    headingRowColor: MaterialStateProperty.all(Colors.grey[300]),
-                    dataRowMinHeight: 38,
-                    dataRowMaxHeight: 42,
-                    headingTextStyle: const TextStyle(
-                      color: Colors.black, 
-                      fontWeight: FontWeight.bold,
-                      fontSize: 13,
+            // 🔹 LADO ESQUERDO - PAINEL DE CONTROLE (200px)
+            Container(
+              width: 250,
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // 🔹 CARD TAXA DE JUROS
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.blue[50],
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.blue.shade200),
                     ),
-                    dataTextStyle: const TextStyle(color: Colors.black87, fontSize: 13),
-                    dividerThickness: 0.5,
-                    horizontalMargin: 12,
-                    columns: const [
-                      DataColumn(label: SizedBox(width: 95, child: Center(child: Text("Data")))),
-                      DataColumn(label: SizedBox(width: 130, child: Center(child: Text("Saldo Inicial")))),
-                      DataColumn(label: SizedBox(width: 105, child: Center(child: Text("Aporte")))),
-                      DataColumn(label: SizedBox(width: 115, child: Center(child: Text("Pag. Capital")))),
-                      DataColumn(label: SizedBox(width: 105, child: Center(child: Text("Pag. Juros")))),
-                      DataColumn(label: SizedBox(width: 95, child: Center(child: Text("Juros Mês")))),
-                      DataColumn(label: SizedBox(width: 130, child: Center(child: Text("Saldo Final")))),
-                    ],
-                    rows: _linhas
-                        .asMap()
-                        .entries
-                        .map(
-                          (entry) => DataRow(
-                            cells: [
-                              _buildDateCell(entry.key), // 🔹 AGORA EDITÁVEL
-                              _buildReadOnlyCell(_fmt.format(entry.value['saldo_inicial'] ?? 0.0)),
-                              _buildEditableCell(entry.key, 'aporte', cor: Colors.red),
-                              _buildEditableCell(entry.key, 'pg_capital'),
-                              _buildEditableCell(entry.key, 'pg_juros', cor: const Color(0xFF001F3F)),
-                              _buildEditableCell(entry.key, 'juros_mes', cor: const Color(0xFF001F3F)),
-                              _buildReadOnlyCell(_fmt.format(entry.value['saldo_final'] ?? 0.0)),
-                            ],
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          "Taxa de Juros",
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
                           ),
-                        )
-                        .toList(),
+                        ),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: _taxaJurosCtrl,
+                          textAlign: TextAlign.center,
+                          keyboardType: TextInputType.number,
+                          inputFormatters: [_percentMaskFormatter()],
+                          decoration: const InputDecoration(
+                            hintText: '0,00',
+                            border: OutlineInputBorder(),
+                            isDense: true,
+                            contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                            suffixText: '% a.m.',
+                          ),
+                          onChanged: (text) {
+                            setState(() {
+                              _taxaJuros = _parsePercent(text);
+                              // 🔹 RECALCULA TODOS OS JUROS AUTOMATICAMENTE
+                              _recalcularTodosJuros();
+                            });
+                          },
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          "Taxa: ${_taxaJuros.toStringAsFixed(2)}%",
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontStyle: FontStyle.italic,
+                            color: Color.fromARGB(255, 28, 121, 214),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
+                  
+                  const SizedBox(height: 12),
+                  
+                  // 🔹 CARD INFORMAÇÕES DO EMPRÉSTIMO
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.green[50],
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.green.shade200),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          "Empréstimo",
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          "Nº ${widget.emprestimo['id'] ?? ''}",
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          "Cliente: ${widget.emprestimo['cliente'] ?? ''}",
+                          style: const TextStyle(fontSize: 12),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                  
+                  const SizedBox(height: 16),
+                  
+                  // 🔹 BOTÃO ADICIONAR LINHA
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: _adicionarLinha,
+                      icon: const Icon(Icons.add, size: 18),
+                      label: const Text('Nova Linha'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 16),
-            ElevatedButton.icon(
-              onPressed: _adicionarLinha,
-              icon: const Icon(Icons.add),
-              label: const Text('Adicionar linha'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            
+            // 🔹 LADO DIREITO - TABELA (OCUPA O RESTANTE)
+            Expanded(
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.vertical,
+                    child: DataTable(
+                      columnSpacing: 16,
+                      headingRowColor: MaterialStateProperty.all(Colors.grey[300]),
+                      dataRowMinHeight: 38,
+                      dataRowMaxHeight: 42,
+                      headingTextStyle: const TextStyle(
+                        color: Colors.black, 
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
+                      dataTextStyle: const TextStyle(color: Colors.black87, fontSize: 13),
+                      dividerThickness: 0.5,
+                      horizontalMargin: 0,
+                      columns: const [
+                        DataColumn(label: SizedBox(width: 95, child: Center(child: Text("Data")))),
+                        DataColumn(label: SizedBox(width: 130, child: Center(child: Text("Saldo Inicial")))),
+                        DataColumn(label: SizedBox(width: 105, child: Center(child: Text("Aporte")))),
+                        DataColumn(label: SizedBox(width: 115, child: Center(child: Text("Pag. Capital")))),
+                        DataColumn(label: SizedBox(width: 105, child: Center(child: Text("Pag. Juros")))),
+                        DataColumn(label: SizedBox(width: 95, child: Center(child: Text("Juros Mês")))),
+                        DataColumn(label: SizedBox(width: 130, child: Center(child: Text("Saldo Final")))),
+                      ],
+                      rows: _linhas
+                          .asMap()
+                          .entries
+                          .map(
+                            (entry) => DataRow(
+                              cells: [
+                                _buildDateCell(entry.key),
+                                _buildReadOnlyCell(_fmt.format(entry.value['saldo_inicial'] ?? 0.0)),
+                                _buildEditableCell(entry.key, 'aporte', cor: Colors.red),
+                                _buildEditableCell(entry.key, 'pg_capital'),
+                                _buildEditableCell(entry.key, 'pg_juros', cor: const Color.fromARGB(255, 0, 21, 212)),
+                                _buildJurosMesCell(entry.key),
+                                _buildReadOnlyCell(_fmt.format(entry.value['saldo_final'] ?? 0.0)),
+                              ],
+                            ),
+                          )
+                          .toList(),
+                    ),
+                  ),
+                ),
               ),
             ),
           ],
@@ -250,7 +453,7 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
     return DataCell(
       Container(
         decoration: BoxDecoration(
-          color: isEmpty ? const Color.fromARGB(255, 250, 218, 222) : null,
+          color: isEmpty ? Colors.red[50] : null,
           border: Border(
             right: BorderSide(color: Colors.grey[300]!, width: 0.5),
           ),
@@ -259,7 +462,7 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
           controller: controller,
           textAlign: TextAlign.center,
           style: _cellStyle.copyWith(
-            color: isEmpty ? Colors.red[700] : Colors.black87, // 🔹 TEXTO VERMELHO SE VAZIO
+            color: isEmpty ? Colors.red[700] : Colors.black87,
           ),
           inputFormatters: [_dateMaskFormatter()],
           decoration: const InputDecoration(
@@ -269,13 +472,14 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
             hintText: 'dd/mm/aaaa',
           ),
           onChanged: (text) {
-            // Validação em tempo real - opcional
-            if (text.length == 10 && !_isValidDate(text)) {
-              // Pode adicionar feedback visual se quiser
+            if (text.isNotEmpty) {
+              _linhas[index]['data'] = text;
+              _recalcularSaldos();              
+              _calcularJurosAutomatico(index);
+              _recalcularTodosJuros();
             }
           },
           onTap: () {
-            // Seleciona todo o texto ao clicar
             if (controller.text.isNotEmpty) {
               controller.selection = TextSelection(
                 baseOffset: 0,
@@ -283,6 +487,58 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
               );
             }
           },
+        ),
+      ),
+    );
+  }
+
+  // 🔹 CÉLULA ESPECIAL PARA JUROS MÊS (EDITÁVEL + CÁLCULO AUTOMÁTICO)
+  DataCell _buildJurosMesCell(int index) {
+    final controller = _controllers[index]['juros_mes']!;
+
+    return DataCell(
+      Container(
+        decoration: BoxDecoration(
+          border: Border(
+            right: BorderSide(color: Colors.grey[300]!, width: 0.5),
+          ),
+        ),
+        child: Focus(
+          onFocusChange: (hasFocus) {
+            if (!hasFocus) {
+              final valor = _parseMoeda(controller.text);
+              controller.text = _fmtMoeda(valor);
+              _linhas[index]['juros_mes'] = valor;
+              _recalcularSaldos();
+              _recalcularTodosJuros();
+            }
+          },
+          child: TextField(
+            controller: controller,
+            textAlign: TextAlign.center,
+            style: _cellStyle.copyWith(color: const Color.fromARGB(255, 28, 121, 214)),
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(
+              border: InputBorder.none,
+              isDense: true,
+              contentPadding: EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+              hintText: '0,00',
+            ),
+            onChanged: (text) {
+              final valor = _parseMoeda(text);
+              _linhas[index]['juros_mes'] = valor;
+              _recalcularSaldos();
+
+            },
+            onTap: () {
+              if (controller.text.isNotEmpty) {
+                controller.selection = TextSelection(
+                  baseOffset: 0,
+                  extentOffset: controller.text.length,
+                );
+              }
+            },
+          ),
         ),
       ),
     );
@@ -302,13 +558,11 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
         child: Focus(
           onFocusChange: (hasFocus) {
             if (!hasFocus) {
-              // Formata o valor quando o campo perde o foco
               final valor = _parseMoeda(controller.text);
               controller.text = _fmtMoeda(valor);
-              
-              // Atualiza o valor na linha e recalcula
               _linhas[index][campo] = valor;
               _recalcularSaldos();
+              _recalcularTodosJuros();
             }
           },
           child: TextField(
@@ -323,13 +577,12 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
               hintText: '0,00',
             ),
             onChanged: (text) {
-              // Atualiza em tempo real para cálculo
               final valor = _parseMoeda(text);
               _linhas[index][campo] = valor;
               _recalcularSaldos();
+              _recalcularTodosJuros();
             },
             onTap: () {
-              // Seleciona todo o texto ao clicar
               if (controller.text.isNotEmpty) {
                 controller.selection = TextSelection(
                   baseOffset: 0,
@@ -358,25 +611,6 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
             textAlign: TextAlign.center,
             style: _cellStyle,
           ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildHeader() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.green[50],
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.green.shade200),
-      ),
-      child: Center(
-        child: Text(
-          "Empréstimo nº ${widget.emprestimo['id'] ?? ''}  |  Cliente: ${widget.emprestimo['cliente'] ?? ''}",
-          style: _cellStyle.copyWith(fontWeight: FontWeight.bold),
-          textAlign: TextAlign.center,
         ),
       ),
     );
