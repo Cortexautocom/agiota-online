@@ -7,7 +7,7 @@ import 'package:intl/intl.dart';
 import 'garantias.dart';
 import 'arquivados_page.dart';
 import 'tipo_emprestimo_dialog.dart';
-import 'emprestimo_amortizacao_form.dart'; // (vai ser criado depois)
+import 'amortizacao_tabela.dart';
 
 class FinanceiroPage extends StatefulWidget {
   final Map<String, dynamic> cliente;
@@ -312,7 +312,11 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
                             onPressed: () async {
                               final tipo = await showDialog<String>(
                                 context: context,
-                                builder: (context) => const TipoEmprestimoDialog(),
+                                builder: (context) => TipoEmprestimoDialog(
+                                  idCliente: cliente['id_cliente'],
+                                  idUsuario: cliente['id_usuario'] ?? '',
+                                  onSaved: _buscarEmprestimos,
+                                ),
                               );
 
                               if (tipo == null) return; // Usuário cancelou
@@ -329,14 +333,16 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
                                   ),
                                 );
                               } else if (tipo == 'amortizacao') {
+                                // 🔹 VAI DIRETO PARA AMORTIZAÇÃO
+                                final emprestimo = {
+                                  'id': DateTime.now().millisecondsSinceEpoch.toString(),
+                                  'cliente': cliente['nome'],
+                                };
+
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(
-                                    builder: (_) => EmprestimoAmortizacaoForm(
-                                      idCliente: cliente['id_cliente'],
-                                      idUsuario: cliente['id_usuario'] ?? '',
-                                      onSaved: _buscarEmprestimos,
-                                    ),
+                                    builder: (_) => AmortizacaoTabela(emprestimo: emprestimo),
                                   ),
                                 );
                               }

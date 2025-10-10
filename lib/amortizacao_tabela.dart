@@ -119,19 +119,19 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
       
       if (partsAnterior.length != 3 || partsAtual.length != 3) return 0;
       
-      final dataAnterior = DateTime(
-        int.parse(partsAnterior[2]),
-        int.parse(partsAnterior[1]),
-        int.parse(partsAnterior[0]),
-      );
+      final diaAnterior = int.parse(partsAnterior[0]);
+      final mesAnterior = int.parse(partsAnterior[1]);
+      final anoAnterior = int.parse(partsAnterior[2]);
       
-      final dataAtual = DateTime(
-        int.parse(partsAtual[2]),
-        int.parse(partsAtual[1]),
-        int.parse(partsAtual[0]),
-      );
+      final diaAtual = int.parse(partsAtual[0]);
+      final mesAtual = int.parse(partsAtual[1]);
+      final anoAtual = int.parse(partsAtual[2]);
       
-      return dataAtual.difference(dataAnterior).inDays;
+      // 🔹 CALCULA DIFERENÇA CONSIDERANDO SEMPRE 30 DIAS POR MÊS
+      final totalDiasAnterior = (anoAnterior * 360) + (mesAnterior * 30) + diaAnterior;
+      final totalDiasAtual = (anoAtual * 360) + (mesAtual * 30) + diaAtual;
+      
+      return totalDiasAtual - totalDiasAnterior;
     } catch (e) {
       return 0;
     }
@@ -260,6 +260,19 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
 
   @override
   Widget build(BuildContext context) {
+    // 🔹 CALCULAR TOTAIS
+    double totalAporte = 0;
+    double totalPgCapital = 0;
+    double totalPgJuros = 0;
+    double totalJurosPeriodo = 0;
+    double saldoFinal = _linhas.isNotEmpty ? (_linhas.last['saldo_final'] ?? 0.0) : 0.0;
+
+    for (var i = 0; i < _linhas.length; i++) {
+      totalAporte += _parseMoeda(_controllers[i]['aporte']!.text);
+      totalPgCapital += _parseMoeda(_controllers[i]['pg_capital']!.text);
+      totalPgJuros += _parseMoeda(_controllers[i]['pg_juros']!.text);
+      totalJurosPeriodo += _parseMoeda(_controllers[i]['juros_mes']!.text);
+    }
     return Scaffold(
       appBar: AppBar(
         title: const Text('Amortização - Conta Corrente'),
@@ -414,26 +427,40 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
                         DataColumn(label: SizedBox(width: 105, child: Center(child: Text("Aporte")))),
                         DataColumn(label: SizedBox(width: 115, child: Center(child: Text("Pag. Capital")))),
                         DataColumn(label: SizedBox(width: 105, child: Center(child: Text("Pag. Juros")))),
-                        DataColumn(label: SizedBox(width: 95, child: Center(child: Text("Juros Mês")))),
+                        DataColumn(label: SizedBox(width: 95, child: Center(child: Text("Juros (período)")))),
                         DataColumn(label: SizedBox(width: 130, child: Center(child: Text("Saldo Final")))),
                       ],
-                      rows: _linhas
-                          .asMap()
-                          .entries
-                          .map(
-                            (entry) => DataRow(
-                              cells: [
-                                _buildDateCell(entry.key),
-                                _buildReadOnlyCell(_fmt.format(entry.value['saldo_inicial'] ?? 0.0)),
-                                _buildEditableCell(entry.key, 'aporte', cor: Colors.red),
-                                _buildEditableCell(entry.key, 'pg_capital'),
-                                _buildEditableCell(entry.key, 'pg_juros', cor: const Color.fromARGB(255, 0, 21, 212)),
-                                _buildJurosMesCell(entry.key),
-                                _buildReadOnlyCell(_fmt.format(entry.value['saldo_final'] ?? 0.0)),
-                              ],
-                            ),
-                          )
-                          .toList(),
+                      rows: [
+                        ..._linhas
+                            .asMap()
+                            .entries
+                            .map(
+                              (entry) => DataRow(
+                                cells: [
+                                  _buildDateCell(entry.key),
+                                  _buildReadOnlyCell(_fmt.format(entry.value['saldo_inicial'] ?? 0.0)),
+                                  _buildEditableCell(entry.key, 'aporte', cor: Colors.red),
+                                  _buildEditableCell(entry.key, 'pg_capital'),
+                                  _buildEditableCell(entry.key, 'pg_juros', cor: const Color.fromARGB(255, 0, 21, 212)),
+                                  _buildJurosMesCell(entry.key),
+                                  _buildReadOnlyCell(_fmt.format(entry.value['saldo_final'] ?? 0.0)),
+                                ],
+                              ),
+                            )
+                            .toList(),
+                        DataRow( // 🔹 LINHA DE TOTAIS
+                          color: MaterialStateProperty.all(Colors.grey[200]),
+                          cells: [
+                            DataCell(Center(child: Text("TOTAIS", style: TextStyle(fontWeight: FontWeight.bold)))),
+                            DataCell(Center(child: Text(""))),
+                            DataCell(Center(child: Text(_fmtMoeda(totalAporte), style: TextStyle(fontWeight: FontWeight.bold)))),
+                            DataCell(Center(child: Text(_fmtMoeda(totalPgCapital), style: TextStyle(fontWeight: FontWeight.bold)))),
+                            DataCell(Center(child: Text(_fmtMoeda(totalPgJuros), style: TextStyle(fontWeight: FontWeight.bold)))),
+                            DataCell(Center(child: Text(_fmtMoeda(totalJurosPeriodo), style: TextStyle(fontWeight: FontWeight.bold)))),
+                            DataCell(Center(child: Text(_fmtMoeda(saldoFinal), style: TextStyle(fontWeight: FontWeight.bold)))),
+                          ],
+                        ),
+                      ],
                     ),
                   ),
                 ),

@@ -1,7 +1,18 @@
 import 'package:flutter/material.dart';
+import 'amortizacao_tabela.dart';
+import 'emprestimo_form.dart';
 
 class TipoEmprestimoDialog extends StatelessWidget {
-  const TipoEmprestimoDialog({super.key});
+  final String idCliente;
+  final String? idUsuario;
+  final VoidCallback onSaved;
+
+  const TipoEmprestimoDialog({
+    super.key,
+    required this.idCliente,
+    this.idUsuario,
+    required this.onSaved,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -9,7 +20,7 @@ class TipoEmprestimoDialog extends StatelessWidget {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       backgroundColor: Colors.white,
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 350), // 🔹 largura máxima da caixa
+        constraints: const BoxConstraints(maxWidth: 350),
         child: Padding(
           padding: const EdgeInsets.all(20),
           child: Column(
@@ -46,7 +57,17 @@ class TipoEmprestimoDialog extends StatelessWidget {
                     ),
                   ),
                   onPressed: () {
-                    Navigator.pop(context, 'parcelamento');
+                    Navigator.pop(context);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => EmprestimoForm(
+                          idCliente: idCliente,
+                          idUsuario: idUsuario,
+                          onSaved: onSaved,
+                        ),
+                      ),
+                    );
                   },
                 ),
               ),
@@ -73,7 +94,19 @@ class TipoEmprestimoDialog extends StatelessWidget {
                     ),
                   ),
                   onPressed: () {
-                    Navigator.pop(context, 'amortizacao');
+                    Navigator.pop(context);
+                    // 🔹 VAI DIRETO PARA AMORTIZAÇÃO
+                    final emprestimo = {
+                      'id': DateTime.now().millisecondsSinceEpoch.toString(),
+                      'cliente': 'Cliente $idCliente',
+                    };
+
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => AmortizacaoTabela(emprestimo: emprestimo),
+                      ),
+                    );
                   },
                 ),
               ),
@@ -82,7 +115,7 @@ class TipoEmprestimoDialog extends StatelessWidget {
 
               // 🔹 Botão cancelar
               TextButton(
-                onPressed: () => Navigator.pop(context, null),
+                onPressed: () => Navigator.pop(context),
                 child: const Text(
                   'Cancelar',
                   style: TextStyle(color: Colors.black54),
