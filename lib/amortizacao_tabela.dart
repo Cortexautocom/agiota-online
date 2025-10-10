@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:flutter/services.dart';
+import 'amortizacao_service.dart';
+import 'amortizacao_controllers.dart';
 
 class AmortizacaoTabela extends StatefulWidget {
   final Map<String, dynamic> emprestimo;
@@ -12,219 +13,24 @@ class AmortizacaoTabela extends StatefulWidget {
 }
 
 class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
-  final List<Map<String, dynamic>> _linhas = [];
-  final List<Map<String, TextEditingController>> _controllers = [];
+  final AmortizacaoService _service = AmortizacaoService();
+  final AmortizacaoControllers _controllers = AmortizacaoControllers();
   final NumberFormat _fmt = NumberFormat.simpleCurrency(locale: 'pt_BR');
-  final TextStyle _cellStyle =
-      const TextStyle(fontSize: 13, color: Colors.black87);
-  
-  final TextEditingController _taxaJurosCtrl = TextEditingController();
-  double _taxaJuros = 0.0;
+  final TextStyle _cellStyle = const TextStyle(fontSize: 13, color: Colors.black87);
 
   @override
   void initState() {
     super.initState();
-    _linhas.add({
-      'data': DateFormat('dd/MM/yyyy').format(DateTime.now()),
-      'saldo_inicial': 0.0,
-      'aporte': 0.0,
-      'pg_capital': 0.0,
-      'pg_juros': 0.0,
-      'juros_mes': 0.0,
-      'saldo_final': 0.0,
-    });
-    _preencherControllers();
+    _carregarDadosIniciais();
   }
 
-  void _preencherControllers() {
-    _controllers.clear();
-    for (final linha in _linhas) {
-      _controllers.add({
-        'data': TextEditingController(text: linha['data'].toString()),
-        'aporte': TextEditingController(text: _fmtMoeda(linha['aporte'])),
-        'pg_capital': TextEditingController(text: _fmtMoeda(linha['pg_capital'])),
-        'pg_juros': TextEditingController(text: _fmtMoeda(linha['pg_juros'])),
-        'juros_mes': TextEditingController(text: _fmtMoeda(linha['juros_mes'])),
-      });
-    }
-  }
-
-  // 🔹 MÉTODOS IDÊNTICOS AO PARCELAS_SERVICE
-  String _fmtMoeda(double valor) {
-    if (valor == 0.0) return '';
-    return _fmt.format(valor);
-  }
-
-  double _parseMoeda(String texto) {
-    if (texto.isEmpty) return 0.0;
-    final cleaned = texto
-        .replaceAll('R\$', '')
-        .replaceAll('.', '')
-        .replaceAll(',', '.')
-        .trim();
-    return double.tryParse(cleaned) ?? 0.0;
-  }
-
-  // 🔹 MÉTODO PARA FORMATAÇÃO DE PORCENTAGEM
-  TextInputFormatter _percentMaskFormatter() {
-    return TextInputFormatter.withFunction((oldValue, newValue) {
-      var text = newValue.text.replaceAll(RegExp(r'[^0-9,]'), '');
-      
-      // Permite apenas uma vírgula
-      final commaCount = text.split(',').length - 1;
-      if (commaCount > 1) {
-        text = text.substring(0, text.length - 1);
-      }
-      
-      return TextEditingValue(
-        text: text,
-        selection: TextSelection.collapsed(offset: text.length),
-      );
-    });
-  }
-
-  double _parsePercent(String texto) {
-    if (texto.isEmpty) return 0.0;
-    final cleaned = texto.replaceAll(',', '.');
-    return double.tryParse(cleaned) ?? 0.0;
-  }
-
-  // 🔹 MÉTODO PARA FORMATAÇÃO DE DATA (MÁSCARA dd/mm/aaaa)
-  TextInputFormatter _dateMaskFormatter() {
-    return TextInputFormatter.withFunction((oldValue, newValue) {
-      var text = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
-      
-      if (text.length >= 3) {
-        text = '${text.substring(0, 2)}/${text.substring(2)}';
-      }
-      if (text.length >= 6) {
-        text = '${text.substring(0, 5)}/${text.substring(5)}';
-      }
-      if (text.length > 10) {
-        text = text.substring(0, 10);
-      }
-      
-      return TextEditingValue(
-        text: text,
-        selection: TextSelection.collapsed(offset: text.length),
-      );
-    });
-  }
-
-  // 🔹 CALCULA DIFERENÇA DE DIAS ENTRE DATAS
-  int _calcularDiferencaDias(String dataAnteriorStr, String dataAtualStr) {
-    try {
-      final partsAnterior = dataAnteriorStr.split('/');
-      final partsAtual = dataAtualStr.split('/');
-      
-      if (partsAnterior.length != 3 || partsAtual.length != 3) return 0;
-      
-      final diaAnterior = int.parse(partsAnterior[0]);
-      final mesAnterior = int.parse(partsAnterior[1]);
-      final anoAnterior = int.parse(partsAnterior[2]);
-      
-      final diaAtual = int.parse(partsAtual[0]);
-      final mesAtual = int.parse(partsAtual[1]);
-      final anoAtual = int.parse(partsAtual[2]);
-      
-      // 🔹 CALCULA DIFERENÇA CONSIDERANDO SEMPRE 30 DIAS POR MÊS
-      final totalDiasAnterior = (anoAnterior * 360) + (mesAnterior * 30) + diaAnterior;
-      final totalDiasAtual = (anoAtual * 360) + (mesAtual * 30) + diaAtual;
-      
-      return totalDiasAtual - totalDiasAnterior;
-    } catch (e) {
-      return 0;
-    }
-  }
-
-  // 🔹 CALCULA JUROS AUTOMATICAMENTE
-  void _calcularJurosAutomatico(int index) {
-    if (index == 0) return; // Primeira linha não tem linha anterior
-    
-    final dataAtual = _controllers[index]['data']!.text;
-    final dataAnterior = _controllers[index - 1]['data']!.text;
-    
-    // Só calcula se ambas as datas estiverem preenchidas (dd/mm/aaaa)
-    if (dataAtual.length == 10 && dataAnterior.length == 10) {
-      final diferencaDias = _calcularDiferencaDias(dataAnterior, dataAtual);
-      
-      if (diferencaDias > 0 && _taxaJuros > 0) {
-        final saldoAnterior = _linhas[index - 1]['saldo_final'] ?? 0.0;
-        final jurosCalculado = saldoAnterior * (_taxaJuros / 100 / 30) * diferencaDias;
-        
-        // Atualiza o campo de juros apenas se estiver vazio ou se for o cálculo automático
-        final jurosAtual = _parseMoeda(_controllers[index]['juros_mes']!.text);
-        if (jurosAtual == 0.0) {
-          _controllers[index]['juros_mes']!.text = _fmtMoeda(jurosCalculado);
-          _linhas[index]['juros_mes'] = jurosCalculado;
-          _recalcularSaldos();
-        }
-      }
-    }
-  }
-
-  // 🔹 RECALCULA TODOS OS JUROS DA PLANILHA
-  void _recalcularTodosJuros() {
-    for (int i = 1; i < _linhas.length; i++) {
-      final dataAtual = _controllers[i]['data']!.text;
-      final dataAnterior = _controllers[i - 1]['data']!.text;
-      
-      if (dataAtual.length == 10 && dataAnterior.length == 10) {
-        final diferencaDias = _calcularDiferencaDias(dataAnterior, dataAtual);
-        
-        if (diferencaDias > 0 && _taxaJuros > 0) {
-          final saldoAnterior = _linhas[i - 1]['saldo_final'] ?? 0.0;
-          final jurosCalculado = saldoAnterior * (_taxaJuros / 100 / 30) * diferencaDias;
-          
-          _controllers[i]['juros_mes']!.text = _fmtMoeda(jurosCalculado);
-          _linhas[i]['juros_mes'] = jurosCalculado;
-        }
-      }
-    }
-    _recalcularSaldos();
-  }
-
-  // 🔹 VERIFICA SE HÁ ALGUMA DATA VAZIA NA TABELA
-  bool _haDataVazia() {
-    for (final controller in _controllers) {
-      if (controller['data']!.text.isEmpty) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  void _recalcularSaldos() {
-    for (int i = 0; i < _linhas.length; i++) {
-      final linha = _linhas[i];
-      final controller = _controllers[i];
-      
-      // Atualiza os valores das linhas com os dados dos controllers
-      linha['aporte'] = _parseMoeda(controller['aporte']!.text);
-      linha['pg_capital'] = _parseMoeda(controller['pg_capital']!.text);
-      linha['pg_juros'] = _parseMoeda(controller['pg_juros']!.text);
-      linha['juros_mes'] = _parseMoeda(controller['juros_mes']!.text);
-      linha['data'] = controller['data']!.text;
-
-      final double saldoInicial = linha['saldo_inicial'] ?? 0.0;
-      final double aporte = linha['aporte'] ?? 0.0;
-      final double pgCapital = linha['pg_capital'] ?? 0.0;
-      final double pgJuros = linha['pg_juros'] ?? 0.0;
-      final double jurosMes = linha['juros_mes'] ?? 0.0;
-
-      linha['saldo_final'] =
-          saldoInicial + aporte - pgCapital - pgJuros + jurosMes;
-
-      if (i < _linhas.length - 1) {
-        _linhas[i + 1]['saldo_inicial'] = linha['saldo_final'];
-      }
-    }
+  Future<void> _carregarDadosIniciais() async {
+    await _controllers.carregarParcelasDoBanco(widget.emprestimo['id']);
     setState(() {});
   }
 
   void _adicionarLinha() {
-    // 🔹 VERIFICA SE HÁ ALGUMA DATA VAZIA
-    if (_haDataVazia()) {
+    if (_controllers.haDataVazia()) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text("Preencha todas as datas antes de criar nova linha."),
@@ -233,29 +39,30 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
       );
       return;
     }
+    _controllers.adicionarLinha();
+    setState(() {});
+  }
 
-    final double ultimoSaldoFinal =
-        _linhas.isNotEmpty ? _linhas.last['saldo_final'] ?? 0.0 : 0.0;
-
-    _linhas.add({
-      'data': '',
-      'saldo_inicial': ultimoSaldoFinal,
-      'aporte': 0.0,
-      'pg_capital': 0.0,
-      'pg_juros': 0.0,
-      'juros_mes': 0.0,
-      'saldo_final': ultimoSaldoFinal,
-    });
-
-    _controllers.add({
-      'data': TextEditingController(),
-      'aporte': TextEditingController(),
-      'pg_capital': TextEditingController(),
-      'pg_juros': TextEditingController(),
-      'juros_mes': TextEditingController(),
-    });
-
-    _recalcularSaldos();
+  Future<void> _salvarNoBanco() async {
+    final sucesso = await _controllers.salvarParcelasNoBanco(widget.emprestimo['id']);
+    
+    if (sucesso && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Dados salvos com sucesso!"),
+          backgroundColor: Colors.green,
+          duration: Duration(seconds: 2),
+        ),
+      );
+    } else if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Erro ao salvar dados."),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
   }
 
   @override
@@ -265,26 +72,36 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
     double totalPgCapital = 0;
     double totalPgJuros = 0;
     double totalJurosPeriodo = 0;
-    double saldoFinal = _linhas.isNotEmpty ? (_linhas.last['saldo_final'] ?? 0.0) : 0.0;
+    double saldoFinal = _controllers.linhas.isNotEmpty 
+        ? (_controllers.linhas.last['saldo_final'] ?? 0.0) 
+        : 0.0;
 
-    for (var i = 0; i < _linhas.length; i++) {
-      totalAporte += _parseMoeda(_controllers[i]['aporte']!.text);
-      totalPgCapital += _parseMoeda(_controllers[i]['pg_capital']!.text);
-      totalPgJuros += _parseMoeda(_controllers[i]['pg_juros']!.text);
-      totalJurosPeriodo += _parseMoeda(_controllers[i]['juros_mes']!.text);
+    for (var i = 0; i < _controllers.linhas.length; i++) {
+      totalAporte += _controllers.parseMoeda(_controllers.controllers[i]['aporte']!.text);
+      totalPgCapital += _controllers.parseMoeda(_controllers.controllers[i]['pg_capital']!.text);
+      totalPgJuros += _controllers.parseMoeda(_controllers.controllers[i]['pg_juros']!.text);
+      totalJurosPeriodo += _controllers.parseMoeda(_controllers.controllers[i]['juros_mes']!.text);
     }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Amortização - Conta Corrente'),
         backgroundColor: Colors.green,
         centerTitle: true,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.save, color: Colors.white),
+            onPressed: _salvarNoBanco,
+            tooltip: 'Salvar no banco',
+          ),
+        ],
       ),
       body: Container(
         color: Colors.grey[100],
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 🔹 LADO ESQUERDO - PAINEL DE CONTROLE (200px)
+            // 🔹 LADO ESQUERDO - PAINEL DE CONTROLE (250px)
             Container(
               width: 250,
               padding: const EdgeInsets.all(16),
@@ -312,10 +129,10 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
                         ),
                         const SizedBox(height: 8),
                         TextField(
-                          controller: _taxaJurosCtrl,
+                          controller: _controllers.taxaJurosCtrl,
                           textAlign: TextAlign.center,
                           keyboardType: TextInputType.number,
-                          inputFormatters: [_percentMaskFormatter()],
+                          inputFormatters: [_service.percentMaskFormatter()],
                           decoration: const InputDecoration(
                             hintText: '0,00',
                             border: OutlineInputBorder(),
@@ -325,15 +142,14 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
                           ),
                           onChanged: (text) {
                             setState(() {
-                              _taxaJuros = _parsePercent(text);
-                              // 🔹 RECALCULA TODOS OS JUROS AUTOMATICAMENTE
-                              _recalcularTodosJuros();
+                              _controllers.taxaJuros = _service.parsePercent(text);
+                              _controllers.recalcularTodosJuros();
                             });
                           },
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          "Taxa: ${_taxaJuros.toStringAsFixed(2)}%",
+                          "Taxa: ${_controllers.taxaJuros.toStringAsFixed(2)}%",
                           style: const TextStyle(
                             fontSize: 12,
                             fontStyle: FontStyle.italic,
@@ -396,6 +212,22 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
                       ),
                     ),
                   ),
+
+                  const SizedBox(height: 8),
+
+                  // 🔹 BOTÃO SALVAR
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: _salvarNoBanco,
+                      icon: const Icon(Icons.save, size: 18),
+                      label: const Text('Salvar'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -431,7 +263,7 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
                         DataColumn(label: SizedBox(width: 130, child: Center(child: Text("Saldo Final")))),
                       ],
                       rows: [
-                        ..._linhas
+                        ..._controllers.linhas
                             .asMap()
                             .entries
                             .map(
@@ -453,11 +285,11 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
                           cells: [
                             DataCell(Center(child: Text("TOTAIS", style: TextStyle(fontWeight: FontWeight.bold)))),
                             DataCell(Center(child: Text(""))),
-                            DataCell(Center(child: Text(_fmtMoeda(totalAporte), style: TextStyle(fontWeight: FontWeight.bold)))),
-                            DataCell(Center(child: Text(_fmtMoeda(totalPgCapital), style: TextStyle(fontWeight: FontWeight.bold)))),
-                            DataCell(Center(child: Text(_fmtMoeda(totalPgJuros), style: TextStyle(fontWeight: FontWeight.bold)))),
-                            DataCell(Center(child: Text(_fmtMoeda(totalJurosPeriodo), style: TextStyle(fontWeight: FontWeight.bold)))),
-                            DataCell(Center(child: Text(_fmtMoeda(saldoFinal), style: TextStyle(fontWeight: FontWeight.bold)))),
+                            DataCell(Center(child: Text(_controllers.fmtMoeda(totalAporte), style: TextStyle(fontWeight: FontWeight.bold)))),
+                            DataCell(Center(child: Text(_controllers.fmtMoeda(totalPgCapital), style: TextStyle(fontWeight: FontWeight.bold)))),
+                            DataCell(Center(child: Text(_controllers.fmtMoeda(totalPgJuros), style: TextStyle(fontWeight: FontWeight.bold)))),
+                            DataCell(Center(child: Text(_controllers.fmtMoeda(totalJurosPeriodo), style: TextStyle(fontWeight: FontWeight.bold)))),
+                            DataCell(Center(child: Text(_controllers.fmtMoeda(saldoFinal), style: TextStyle(fontWeight: FontWeight.bold)))),
                           ],
                         ),
                       ],
@@ -474,7 +306,7 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
 
   // 🔹 CÉLULA DE DATA EDITÁVEL
   DataCell _buildDateCell(int index) {
-    final controller = _controllers[index]['data']!;
+    final controller = _controllers.controllers[index]['data']!;
     final isEmpty = controller.text.isEmpty;
 
     return DataCell(
@@ -491,7 +323,7 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
           style: _cellStyle.copyWith(
             color: isEmpty ? Colors.red[700] : Colors.black87,
           ),
-          inputFormatters: [_dateMaskFormatter()],
+          inputFormatters: [_service.dateMaskFormatter()],
           decoration: const InputDecoration(
             border: InputBorder.none,
             isDense: true,
@@ -500,10 +332,11 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
           ),
           onChanged: (text) {
             if (text.isNotEmpty) {
-              _linhas[index]['data'] = text;
-              _recalcularSaldos();              
-              _calcularJurosAutomatico(index);
-              _recalcularTodosJuros();
+              _controllers.linhas[index]['data'] = text;
+              _controllers.recalcularSaldos();              
+              _controllers.calcularJurosAutomatico(index);
+              _controllers.recalcularTodosJuros();
+              setState(() {});
             }
           },
           onTap: () {
@@ -521,7 +354,7 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
 
   // 🔹 CÉLULA ESPECIAL PARA JUROS MÊS (EDITÁVEL + CÁLCULO AUTOMÁTICO)
   DataCell _buildJurosMesCell(int index) {
-    final controller = _controllers[index]['juros_mes']!;
+    final controller = _controllers.controllers[index]['juros_mes']!;
 
     return DataCell(
       Container(
@@ -533,11 +366,12 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
         child: Focus(
           onFocusChange: (hasFocus) {
             if (!hasFocus) {
-              final valor = _parseMoeda(controller.text);
-              controller.text = _fmtMoeda(valor);
-              _linhas[index]['juros_mes'] = valor;
-              _recalcularSaldos();
-              _recalcularTodosJuros();
+              final valor = _controllers.parseMoeda(controller.text);
+              controller.text = _controllers.fmtMoeda(valor);
+              _controllers.linhas[index]['juros_mes'] = valor;
+              _controllers.recalcularSaldos();
+              _controllers.recalcularTodosJuros();
+              setState(() {});
             }
           },
           child: TextField(
@@ -552,10 +386,10 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
               hintText: '0,00',
             ),
             onChanged: (text) {
-              final valor = _parseMoeda(text);
-              _linhas[index]['juros_mes'] = valor;
-              _recalcularSaldos();
-
+              final valor = _controllers.parseMoeda(text);
+              _controllers.linhas[index]['juros_mes'] = valor;
+              _controllers.recalcularSaldos();
+              setState(() {});
             },
             onTap: () {
               if (controller.text.isNotEmpty) {
@@ -573,7 +407,7 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
 
   // 🔹 CÉLULA EDITÁVEL COM A MESMA LÓGICA DO PARCELASTABLE
   DataCell _buildEditableCell(int index, String campo, {Color? cor}) {
-    final controller = _controllers[index][campo]!;
+    final controller = _controllers.controllers[index][campo]!;
 
     return DataCell(
       Container(
@@ -585,11 +419,12 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
         child: Focus(
           onFocusChange: (hasFocus) {
             if (!hasFocus) {
-              final valor = _parseMoeda(controller.text);
-              controller.text = _fmtMoeda(valor);
-              _linhas[index][campo] = valor;
-              _recalcularSaldos();
-              _recalcularTodosJuros();
+              final valor = _controllers.parseMoeda(controller.text);
+              controller.text = _controllers.fmtMoeda(valor);
+              _controllers.linhas[index][campo] = valor;
+              _controllers.recalcularSaldos();
+              _controllers.recalcularTodosJuros();
+              setState(() {});
             }
           },
           child: TextField(
@@ -604,10 +439,11 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
               hintText: '0,00',
             ),
             onChanged: (text) {
-              final valor = _parseMoeda(text);
-              _linhas[index][campo] = valor;
-              _recalcularSaldos();
-              _recalcularTodosJuros();
+              final valor = _controllers.parseMoeda(text);
+              _controllers.linhas[index][campo] = valor;
+              _controllers.recalcularSaldos();
+              _controllers.recalcularTodosJuros();
+              setState(() {});
             },
             onTap: () {
               if (controller.text.isNotEmpty) {

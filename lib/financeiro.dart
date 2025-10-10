@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'parcelas_page.dart';
 import 'emprestimo_form.dart';
-import 'utils.dart'; // 🔹 função fmtMoeda
+import 'utils.dart';
 import 'package:intl/intl.dart';
 import 'garantias.dart';
 import 'arquivados_page.dart';
 import 'tipo_emprestimo_dialog.dart';
 import 'amortizacao_tabela.dart';
+import 'package:uuid/uuid.dart';
+
 
 class FinanceiroPage extends StatefulWidget {
   final Map<String, dynamic> cliente;
@@ -333,18 +335,43 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
                                   ),
                                 );
                               } else if (tipo == 'amortizacao') {
-                                // 🔹 VAI DIRETO PARA AMORTIZAÇÃO
-                                final emprestimo = {
-                                  'id': DateTime.now().millisecondsSinceEpoch.toString(),
-                                  'cliente': cliente['nome'],
-                                };
+                                // 🔹 PRIMEIRO CRIA O EMPRÉSTIMO NO BANCO
+                                final emprestimoId = Uuid().v4();
+                                
+                                try {
+                                  await Supabase.instance.client.from('emprestimos').insert({
+                                    'id': emprestimoId,
+                                    'id_cliente': cliente['id_cliente'],
+                                    'valor': 0.0, // Valor inicial zero (será calculado depois)
+                                    'data_inicio': DateFormat('yyyy-MM-dd').format(DateTime.now()),
+                                    'parcelas': 0, // Amortização não tem número fixo de parcelas
+                                    'juros': 0.0,
+                                    'prestacao': 0.0,
+                                    'id_usuario': cliente['id_usuario'] ?? '',
+                                    'ativo': 'sim',
+                                    'tipo': 'amortizacao', // Novo campo para diferenciar
+                                  });
 
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => AmortizacaoTabela(emprestimo: emprestimo),
-                                  ),
-                                );
+                                  // 🔹 AGORA VAI PARA AMORTIZAÇÃO
+                                  final emprestimo = {
+                                    'id': emprestimoId,
+                                    'cliente': cliente['nome'],
+                                  };
+
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => AmortizacaoTabela(emprestimo: emprestimo),
+                                    ),
+                                  );
+                                } catch (e) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('Erro ao criar empréstimo: $e'),
+                                      backgroundColor: Colors.red,
+                                    ),
+                                  );
+                                }
                               }
                             },
                             icon: const Icon(Icons.add),

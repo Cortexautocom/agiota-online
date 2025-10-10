@@ -51,13 +51,7 @@ class ParcelasPageState extends State<ParcelasPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text("Parcelas - $cliente"),
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: atualizarParcelas,
-        tooltip: "Recarregar parcelas",
-        backgroundColor: Colors.blueAccent,
-        child: const Icon(Icons.refresh, color: Colors.white),
-      ),
+      ),            
       body: Container(
         color: const Color(0xFFFAF9F6),
         padding: const EdgeInsets.all(12),

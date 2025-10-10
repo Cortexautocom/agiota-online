@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'amortizacao_tabela.dart';
 import 'emprestimo_form.dart';
+import 'package:uuid/uuid.dart';
 
 class TipoEmprestimoDialog extends StatelessWidget {
   final String idCliente;
@@ -97,7 +98,7 @@ class TipoEmprestimoDialog extends StatelessWidget {
                     Navigator.pop(context);
                     // 🔹 VAI DIRETO PARA AMORTIZAÇÃO
                     final emprestimo = {
-                      'id': DateTime.now().millisecondsSinceEpoch.toString(),
+                      'id': Uuid().v4(), // ✅ UUID válido
                       'cliente': 'Cliente $idCliente',
                     };
 
