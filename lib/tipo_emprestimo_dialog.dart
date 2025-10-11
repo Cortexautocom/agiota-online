@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
-import 'amortizacao_tabela.dart';
 import 'emprestimo_form.dart';
-import 'package:uuid/uuid.dart';
+import 'emprestimo_form_amort.dart';
 
 class TipoEmprestimoDialog extends StatelessWidget {
   final String idCliente;
@@ -96,16 +95,14 @@ class TipoEmprestimoDialog extends StatelessWidget {
                   ),
                   onPressed: () {
                     Navigator.pop(context);
-                    // 🔹 VAI DIRETO PARA AMORTIZAÇÃO
-                    final emprestimo = {
-                      'id': Uuid().v4(), // ✅ UUID válido
-                      'cliente': 'Cliente $idCliente',
-                    };
-
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => AmortizacaoTabela(emprestimo: emprestimo),
+                        builder: (_) => EmprestimoFormAmort(
+                          idCliente: idCliente,
+                          idUsuario: idUsuario,
+                          onSaved: onSaved,
+                        ),
                       ),
                     );
                   },

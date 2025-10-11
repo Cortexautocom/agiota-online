@@ -135,7 +135,7 @@ class AmortizacaoService {
           'id': parcela['id'],
           'data': toBrDate(parcela['data_mov']?.toString()) ?? '',
           'saldo_inicial': 0.0, // Será calculado
-          'aporte': 0.0, // Não usado por enquanto
+          'aporte': (parcela['aporte'] as num?)?.toDouble() ?? 0.0, // Não usado por enquanto
           'pg_capital': (parcela['pg_principal'] as num?)?.toDouble() ?? 0.0,
           'pg_juros': (parcela['pg_juros'] as num?)?.toDouble() ?? 0.0,
           'juros_mes': (parcela['juros_periodo'] as num?)?.toDouble() ?? 0.0,
@@ -169,6 +169,7 @@ class AmortizacaoService {
           'id_emprestimo': idEmprestimo,
           'numero': null, // Amortização não tem número de parcela
           'data_mov': dataMov,
+          'aporte': (linha['aporte'] as num?)?.toDouble() ?? 0.0,
           'pg_principal': (linha['pg_capital'] as num?)?.toDouble() ?? 0.0,
           'pg_juros': (linha['pg_juros'] as num?)?.toDouble() ?? 0.0,
           'juros_periodo': (linha['juros_mes'] as num?)?.toDouble() ?? 0.0,
