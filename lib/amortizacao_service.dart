@@ -118,6 +118,7 @@ class AmortizacaoService {
   }
 
   // 🔹 BUSCAR PARCELAS DO BANCO (tipo_mov = 'amortizacao')
+  // 🔹 BUSCAR PARCELAS DO BANCO (tipo_mov = 'amortizacao')
   Future<List<Map<String, dynamic>>> buscarParcelasAmortizacao(String idEmprestimo) async {
     try {
       final response = await Supabase.instance.client
@@ -135,7 +136,7 @@ class AmortizacaoService {
           'id': parcela['id'],
           'data': toBrDate(parcela['data_mov']?.toString()) ?? '',
           'saldo_inicial': 0.0, // Será calculado
-          'aporte': (parcela['aporte'] as num?)?.toDouble() ?? 0.0, // Não usado por enquanto
+          'aporte': (parcela['aporte'] as num?)?.toDouble() ?? 0.0,
           'pg_capital': (parcela['pg_principal'] as num?)?.toDouble() ?? 0.0,
           'pg_juros': (parcela['pg_juros'] as num?)?.toDouble() ?? 0.0,
           'juros_mes': (parcela['juros_periodo'] as num?)?.toDouble() ?? 0.0,
@@ -252,7 +253,7 @@ class AmortizacaoService {
         'prestacao': valorTotal,
         'id_usuario': idUsuario,
         'ativo': 'sim',
-        'tipo': 'amortizacao', // Novo campo para diferenciar
+        'tipo_mov': 'amortizacao', // Novo campo para diferenciar
       });
 
       return emprestimoId;

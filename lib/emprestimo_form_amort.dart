@@ -180,7 +180,8 @@ class _EmprestimoFormAmortState extends State<EmprestimoFormAmort> {
         "id_usuario": userId,
         "ativo": "sim",
         "tipo_mov": "amortizacao",
-        "cliente": "Cliente ${widget.idCliente}",
+        "cliente": "",
+        "valor_emprestado": valor, // 🔹 NOVO CAMPO PARA PASSAR O VALOR
       };
 
       // 🔹 Navega para a tela de amortização

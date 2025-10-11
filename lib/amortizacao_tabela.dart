@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'amortizacao_service.dart';
 import 'amortizacao_controllers.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class AmortizacaoTabela extends StatefulWidget {
   final Map<String, dynamic> emprestimo;
@@ -25,7 +26,31 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
   }
 
   Future<void> _carregarDadosIniciais() async {
+    // 🔹 PRIMEIRO: Carrega a taxa do banco
+    await _carregarTaxaDoBanco();
+    
+    // 🔹 SEGUNDO: Carrega as parcelas do banco (isso vai criar as linhas automaticamente)
     await _controllers.carregarParcelasDoBanco(widget.emprestimo['id']);
+    
+    // 🔹 TERCEIRO: Se não há parcelas no banco e é um empréstimo novo, cria linha inicial
+    if (_controllers.linhas.isEmpty) {
+      final valorEmprestado = (widget.emprestimo['valor'] as num?)?.toDouble() ?? 0.0;
+      
+      if (valorEmprestado > 0) {
+        // 🔹 CRIA PRIMEIRA LINHA COM O VALOR DO EMPRÉSTIMO COMO APORTE
+        _controllers.linhas.add({
+          'data': DateFormat('dd/MM/yyyy').format(DateTime.now()),
+          'saldo_inicial': 0.0,
+          'aporte': valorEmprestado,
+          'pg_capital': 0.0,
+          'pg_juros': 0.0,
+          'juros_mes': 0.0,
+          'saldo_final': valorEmprestado,
+        });
+        _controllers.preencherControllers(); // 🔹 ATUALIZA OS CONTROLLERS
+      }
+    }
+    
     setState(() {});
   }
 
@@ -477,5 +502,31 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
         ),
       ),
     );
+  }
+
+  Future<void> _carregarTaxaDoBanco() async {
+    try {
+      // 🔹 BUSCA EMPRÉSTIMO NO BANCO PARA PEGAR A TAXA
+      final response = await Supabase.instance.client
+          .from('emprestimos')
+          .select('taxa')
+          .eq('id', widget.emprestimo['id'])
+          .single();
+
+      final taxa = (response['taxa'] as num?)?.toDouble() ?? 0.0;
+      
+      // 🔹 PREENCHE O CAMPO DE TAXA
+      if (taxa > 0) {
+        _controllers.taxaJuros = taxa;
+        _controllers.taxaJurosCtrl.text = taxa.toStringAsFixed(2).replaceAll('.', ',');
+        
+        // 🔹 RECALCULA JUROS SE JÁ HOUVER LINHAS
+        if (_controllers.linhas.isNotEmpty) {
+          _controllers.recalcularTodosJuros();
+        }
+      }
+    } catch (e) {
+      print('Erro ao carregar taxa do banco: $e');
+    }
   }
 }

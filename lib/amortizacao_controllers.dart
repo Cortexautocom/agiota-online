@@ -38,10 +38,10 @@ class AmortizacaoControllers {
       'juros_mes': 0.0,
       'saldo_final': 0.0,
     });
-    _preencherControllers();
+    preencherControllers();
   }
 
-  void _preencherControllers() {
+  void preencherControllers() {
     _controllers.clear();
     for (final linha in _linhas) {
       _controllers.add({
@@ -61,7 +61,7 @@ class AmortizacaoControllers {
     if (parcelas.isNotEmpty) {
       _linhas.clear();
       _linhas.addAll(parcelas);
-      _preencherControllers();
+      preencherControllers();
       recalcularSaldos(); // Recalcula saldos iniciais/finais
     }
   }

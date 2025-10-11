@@ -219,15 +219,28 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
                                       return DataRow(
                                         onSelectChanged: (_) {
                                           emp['cliente'] = cliente['nome'];
-                                          Navigator.push(
-                                            context,
-                                            MaterialPageRoute(
-                                              builder: (context) => ParcelasPage(
-                                                emprestimo: emp,
-                                                onSaved: _buscarEmprestimos, // ✅ callback direto
+                                          
+                                          // 🔹 VERIFICA SE É AMORTIZAÇÃO OU PARCELAMENTO
+                                          if (emp['tipo_mov'] == 'amortizacao') {
+                                            // 🔹 AMORTIZAÇÃO: Vai para AmortizacaoTabela
+                                            Navigator.push(
+                                              context,
+                                              MaterialPageRoute(
+                                                builder: (context) => AmortizacaoTabela(emprestimo: emp),
                                               ),
-                                            ),
-                                          );
+                                            );
+                                          } else {
+                                            // 🔹 PARCELAMENTO: Vai para ParcelasPage (comportamento normal)
+                                            Navigator.push(
+                                              context,
+                                              MaterialPageRoute(
+                                                builder: (context) => ParcelasPage(
+                                                  emprestimo: emp,
+                                                  onSaved: _buscarEmprestimos,
+                                                ),
+                                              ),
+                                            );
+                                          }
                                         },
                                         cells: [
                                           DataCell(SizedBox(width: 20, child: Center(child: Text("${emp['numero'] ?? ''}")))),
@@ -349,7 +362,7 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
                                     'prestacao': 0.0,
                                     'id_usuario': cliente['id_usuario'] ?? '',
                                     'ativo': 'sim',
-                                    'tipo': 'amortizacao', // Novo campo para diferenciar
+                                    'tipo_mov': 'amortizacao', // Novo campo para diferenciar
                                   });
 
                                   // 🔹 AGORA VAI PARA AMORTIZAÇÃO
