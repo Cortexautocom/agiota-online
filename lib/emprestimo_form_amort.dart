@@ -26,6 +26,15 @@ class _EmprestimoFormAmortState extends State<EmprestimoFormAmort> {
   final valorCtrl = TextEditingController();
   final dataFimCtrl = TextEditingController();
   final taxaCtrl = TextEditingController();
+  final dataInicioCtrl = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    // Preenche a data inicial com a data atual formatada
+    final hoje = DateTime.now();
+    dataInicioCtrl.text = '${hoje.day.toString().padLeft(2, '0')}/${hoje.month.toString().padLeft(2, '0')}/${hoje.year}';
+  }
 
   DateTime dataEmprestimo = DateTime.now();
   DateTime? dataFinal;
@@ -134,20 +143,36 @@ class _EmprestimoFormAmortState extends State<EmprestimoFormAmort> {
       int.parse(parts[0]),
     );
 
-    if (dataFim.isBefore(dataEmprestimo)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Data final não pode ser anterior à data atual!")),
-      );
-      return;
-    }
-
     try {
       final supabase = Supabase.instance.client;
       final uuid = Uuid();
       final emprestimoId = uuid.v4();
       final userId = Supabase.instance.client.auth.currentUser!.id;
 
-      final dataStr = "${dataEmprestimo.year}-${dataEmprestimo.month.toString().padLeft(2, '0')}-${dataEmprestimo.day.toString().padLeft(2, '0')}";
+      // Valida data inicial
+      if (!_validarData(dataInicioCtrl.text)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Data inicial inválida!")),
+        );
+        return;
+      }
+
+      final partsInicio = dataInicioCtrl.text.split('/');
+      final dataInicio = DateTime(
+        int.parse(partsInicio[2]),
+        int.parse(partsInicio[1]),
+        int.parse(partsInicio[0]),
+      );
+
+      // Valida se data final é anterior à data inicial
+      if (dataFim.isBefore(dataInicio)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Data final não pode ser anterior à data inicial!")),
+        );
+        return;
+      }
+
+      final dataStr = "${dataInicio.year}-${dataInicio.month.toString().padLeft(2, '0')}-${dataInicio.day.toString().padLeft(2, '0')}";
       final dataFimStr = "${dataFim.year}-${dataFim.month.toString().padLeft(2, '0')}-${dataFim.day.toString().padLeft(2, '0')}";
 
       await supabase.from('emprestimos').insert({
@@ -163,6 +188,19 @@ class _EmprestimoFormAmortState extends State<EmprestimoFormAmort> {
         'id_usuario': userId,
         'ativo': 'sim',
         'tipo_mov': 'amortizacao',
+      });
+
+      // 🔹 CRIA PRIMEIRA PARCELA COM O VALOR COMO APORTE
+      await supabase.from('parcelas').insert({
+        'id': uuid.v4(),
+        'id_emprestimo': emprestimoId,
+        'data_mov': dataStr, // Usa a data inicial do empréstimo
+        'aporte': double.parse(valor.toStringAsFixed(2)), // Valor como aporte
+        'pg_principal': 0.0,
+        'pg_juros': 0.0,
+        'juros_periodo': 0.0,
+        'tipo_mov': 'amortizacao',
+        'id_usuario': userId,
       });
 
       if (!mounted) return;
@@ -181,7 +219,7 @@ class _EmprestimoFormAmortState extends State<EmprestimoFormAmort> {
         "ativo": "sim",
         "tipo_mov": "amortizacao",
         "cliente": "",
-        "valor_emprestado": valor, // 🔹 NOVO CAMPO PARA PASSAR O VALOR
+        "aporte": valor, // 🔹 NOVO CAMPO PARA PASSAR O VALOR
       };
 
       // 🔹 Navega para a tela de amortização
@@ -194,7 +232,7 @@ class _EmprestimoFormAmortState extends State<EmprestimoFormAmort> {
           ),
         ),
       );
-
+    
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -233,6 +271,25 @@ class _EmprestimoFormAmortState extends State<EmprestimoFormAmort> {
                         final valor = _parseMoeda(value ?? '');
                         if (valor <= 0) {
                           return "Informe um valor válido";
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: dataInicioCtrl, // Usa o mesmo controller
+                      decoration: const InputDecoration(
+                        labelText: "Data inicial",
+                        hintText: "dd/mm/aaaa",
+                      ),
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [_dateMaskFormatter()], // Usa a mesma máscara
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return "Informe a data inicial";
+                        }
+                        if (!_validarData(value)) {
+                          return "Data inválida";
                         }
                         return null;
                       },
@@ -295,5 +352,13 @@ class _EmprestimoFormAmortState extends State<EmprestimoFormAmort> {
         ),
       ),
     );
+  }
+  @override
+  void dispose() {
+    dataInicioCtrl.dispose();
+    valorCtrl.dispose();
+    dataFimCtrl.dispose();
+    taxaCtrl.dispose();
+    super.dispose();
   }
 }

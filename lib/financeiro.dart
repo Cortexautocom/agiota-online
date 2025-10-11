@@ -10,11 +10,15 @@ import 'tipo_emprestimo_dialog.dart';
 import 'amortizacao_tabela.dart';
 import 'package:uuid/uuid.dart';
 
-
 class FinanceiroPage extends StatefulWidget {
   final Map<String, dynamic> cliente;
+  final bool forceRefresh;
 
-  const FinanceiroPage({super.key, required this.cliente});
+  const FinanceiroPage({
+    super.key, 
+    required this.cliente,
+    this.forceRefresh = false,
+  });
 
   @override
   State<FinanceiroPage> createState() => _FinanceiroPageState();
@@ -29,6 +33,15 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
     _buscarEmprestimos();
   }
 
+  @override
+  void didUpdateWidget(FinanceiroPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // 🔹 SE RECEBEU forceRefresh, RECARREGA OS DADOS
+    if (widget.forceRefresh && !oldWidget.forceRefresh) {
+      _buscarEmprestimos();
+    }
+  }
+
   /// 🔹 Recarrega a lista de empréstimos (usado pelos callbacks)
   void _buscarEmprestimos() {
     _emprestimosFuture = Supabase.instance.client
@@ -40,7 +53,33 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
     setState(() {});
   }
 
-  Future<Map<String, String>> _calcularDatas(String idEmprestimo) async {
+  Future<Map<String, String>> _calcularDatas(String idEmprestimo, String tipoMov) async {
+    // 🔹 SE FOR AMORTIZAÇÃO, USA data_fim DO EMPRÉSTIMO COMO ÚLTIMO VENCIMENTO
+    if (tipoMov == 'amortizacao') {
+      try {
+        final emprestimo = await Supabase.instance.client
+            .from('emprestimos')
+            .select('data_fim')
+            .eq('id', idEmprestimo)
+            .single();
+
+        final dataFim = emprestimo['data_fim']?.toString();
+        if (dataFim != null && dataFim.isNotEmpty) {
+          final data = DateTime.parse(dataFim);
+          return {
+            "proxima": "-", // Amortização não tem próxima parcela fixa
+            "ultima": DateFormat("dd/MM/yyyy").format(data),
+            "situacao_linha1": "Amortização",
+            "situacao_linha2": "Conta corrente",
+            "acordo": "nao",
+          };
+        }
+      } catch (e) {
+        print('Erro ao buscar data_fim para amortização: $e');
+      }
+    }
+
+    // 🔹 COMPORTAMENTO ORIGINAL PARA PARCELAMENTO
     final parcelas = await Supabase.instance.client
         .from('parcelas')
         .select()
@@ -102,7 +141,6 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
       "acordo": temAcordo ? "sim" : "nao",
     };
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -216,19 +254,26 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
                                       DataColumn(label: SizedBox(width: 75, child: Center(child: Text("Situação")))),
                                     ],
                                     rows: emprestimos.map((emp) {
+                                      final tipoMov = emp['tipo_mov'] ?? 'parcelamento';
                                       return DataRow(
                                         onSelectChanged: (_) {
                                           emp['cliente'] = cliente['nome'];
+                                          emp['id_cliente'] = cliente['id_cliente'];
                                           
                                           // 🔹 VERIFICA SE É AMORTIZAÇÃO OU PARCELAMENTO
-                                          if (emp['tipo_mov'] == 'amortizacao') {
+                                          if (tipoMov == 'amortizacao') {
                                             // 🔹 AMORTIZAÇÃO: Vai para AmortizacaoTabela
                                             Navigator.push(
                                               context,
                                               MaterialPageRoute(
                                                 builder: (context) => AmortizacaoTabela(emprestimo: emp),
                                               ),
-                                            );
+                                            ).then((shouldRefresh) {
+                                              // 🔹 SE VOLTOU COM 'true', ATUALIZA OS DADOS
+                                              if (shouldRefresh == true) {
+                                                _buscarEmprestimos();
+                                              }
+                                            });
                                           } else {
                                             // 🔹 PARCELAMENTO: Vai para ParcelasPage (comportamento normal)
                                             Navigator.push(
@@ -246,7 +291,7 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
                                           DataCell(SizedBox(width: 20, child: Center(child: Text("${emp['numero'] ?? ''}")))),
                                           DataCell(SizedBox(width: 75, child: Center(child: Text(_formatarData(emp['data_inicio']))))),
                                           DataCell(SizedBox(width: 75, child: FutureBuilder<Map<String, String>>(
-                                            future: _calcularDatas(emp['id']),
+                                            future: _calcularDatas(emp['id'], tipoMov),
                                             builder: (context, snap) =>
                                                 !snap.hasData
                                                     ? const Text("-")
@@ -257,7 +302,7 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
                                           DataCell(SizedBox(width: 80, child: Center(child: Text(fmtMoeda(_asDouble(emp['valor']) + _asDouble(emp['juros'])))))),
                                           DataCell(SizedBox(width: 100, child: Center(child: Text("${emp['parcelas']} x ${fmtMoeda(_asDouble(emp['prestacao']))}")))),
                                           DataCell(SizedBox(width: 95, child: FutureBuilder<Map<String, String>>(
-                                            future: _calcularDatas(emp['id']),
+                                            future: _calcularDatas(emp['id'], tipoMov),
                                             builder: (context, snap) {
                                               if (!snap.hasData) return const Text("-");
                                               final txt = snap.data!['proxima'] ?? "-";
@@ -297,7 +342,7 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
                                             },
                                           ))),
                                           DataCell(SizedBox(width: 75, child: FutureBuilder<Map<String, String>>(
-                                            future: _calcularDatas(emp['id']),
+                                            future: _calcularDatas(emp['id'], tipoMov),
                                             builder: (context, snap) => !snap.hasData
                                                 ? const Text("-")
                                                 : Center(
@@ -369,6 +414,7 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
                                   final emprestimo = {
                                     'id': emprestimoId,
                                     'cliente': cliente['nome'],
+                                    'id_cliente': cliente['id_cliente'],
                                   };
 
                                   Navigator.push(

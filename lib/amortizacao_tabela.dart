@@ -79,6 +79,14 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
           duration: Duration(seconds: 2),
         ),
       );
+      
+      // 🔹 AGUARDA O SNACKBAR E VOLTA PARA O FINANCEIRO ATUALIZADO
+      await Future.delayed(const Duration(seconds: 2));
+      
+      if (mounted) {
+        // 🔹 VOLTA PASSANDO 'true' PARA INDICAR ATUALIZAÇÃO
+        Navigator.pop(context, true);
+      }
     } else if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -188,38 +196,62 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
                   const SizedBox(height: 12),
                   
                   // 🔹 CARD INFORMAÇÕES DO EMPRÉSTIMO
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.green[50],
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.green.shade200),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          "Empréstimo",
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
+                  FutureBuilder(
+                    future: _carregarDadosEmprestimo(),
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.green[50],
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.green.shade200),
                           ),
+                          child: const Center(
+                            child: CircularProgressIndicator(),
+                          ),
+                        );
+                      }
+
+                      final dadosEmprestimo = snapshot.data ?? {};
+                      final numeroEmprestimo = dadosEmprestimo['numero'] ?? 'N/A';
+                      final nomeCliente = dadosEmprestimo['nome_cliente'] ?? 'Cliente não encontrado';
+
+                      return Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.green[50],
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.green.shade200),
                         ),
-                        const SizedBox(height: 6),
-                        Text(
-                          "Nº ${widget.emprestimo['id'] ?? ''}",
-                          style: const TextStyle(fontSize: 12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              "Empréstimo",
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              "Nº $numeroEmprestimo",
+                              style: const TextStyle(fontSize: 12),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              "Cliente: $nomeCliente",
+                              style: const TextStyle(fontSize: 12),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          "Cliente: ${widget.emprestimo['cliente'] ?? ''}",
-                          style: const TextStyle(fontSize: 12),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
-                    ),
+                      );
+                    },
                   ),
                   
                   const SizedBox(height: 16),
@@ -529,4 +561,31 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
       print('Erro ao carregar taxa do banco: $e');
     }
   }
+
+  Future<Map<String, dynamic>> _carregarDadosEmprestimo() async {
+    try {
+      final response = await Supabase.instance.client
+          .from('emprestimos')
+          .select('''
+            numero,
+            clientes (
+              nome
+            )
+          ''')
+          .eq('id', widget.emprestimo['id'])
+          .single();
+
+      return {
+        'numero': response['numero'] ?? 'N/A',
+        'nome_cliente': response['clientes']?['nome'] ?? 'Cliente não encontrado',
+      };
+    } catch (e) {
+      print('Erro ao carregar dados do empréstimo: $e');
+      return {};
+    }
+  }
+
+
+
+
 }

@@ -126,7 +126,7 @@ class AmortizacaoService {
           .select()
           .eq('id_emprestimo', idEmprestimo)
           .eq('tipo_mov', 'amortizacao')
-          .order('data_mov');
+          .order('data_mov', ascending: true);
 
       final parcelas = (response as List).cast<Map<String, dynamic>>();
 
