@@ -18,6 +18,10 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
   final AmortizacaoControllers _controllers = AmortizacaoControllers();
   final NumberFormat _fmt = NumberFormat.simpleCurrency(locale: 'pt_BR');
   final TextStyle _cellStyle = const TextStyle(fontSize: 13, color: Colors.black87);
+  
+  String _numeroEmprestimo = 'Carregando...';
+  String _nomeCliente = 'Carregando...';
+
 
   @override
   void initState() {
@@ -33,25 +37,53 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
     await _controllers.carregarParcelasDoBanco(widget.emprestimo['id']);
     
     // 🔹 TERCEIRO: Se não há parcelas no banco e é um empréstimo novo, cria linha inicial
+    // 🔹 TERCEIRO: Se não há parcelas no banco, busca o valor do empréstimo para criar primeira linha
     if (_controllers.linhas.isEmpty) {
-      final valorEmprestado = (widget.emprestimo['valor'] as num?)?.toDouble() ?? 0.0;
-      
-      if (valorEmprestado > 0) {
-        // 🔹 CRIA PRIMEIRA LINHA COM O VALOR DO EMPRÉSTIMO COMO APORTE
-        _controllers.linhas.add({
-          'data': DateFormat('dd/MM/yyyy').format(DateTime.now()),
-          'saldo_inicial': 0.0,
-          'aporte': valorEmprestado,
-          'pg_capital': 0.0,
-          'pg_juros': 0.0,
-          'juros_mes': 0.0,
-          'saldo_final': valorEmprestado,
-        });
-        _controllers.preencherControllers(); // 🔹 ATUALIZA OS CONTROLLERS
+      try {
+        // 🔹 BUSCA O VALOR DO EMPRÉSTIMO NO BANCO
+        final response = await Supabase.instance.client
+            .from('emprestimos')
+            .select('valor, data_inicio')
+            .eq('id', widget.emprestimo['id'])
+            .single();
+
+        final valorEmprestado = (response['valor'] as num?)?.toDouble() ?? 0.0;
+        final dataInicio = response['data_inicio']?.toString();
+        
+        if (valorEmprestado > 0) {
+          // 🔹 CRIA PRIMEIRA LINHA COM O VALOR DO EMPRÉSTIMO COMO APORTE
+          _controllers.linhas.add({
+            'data': dataInicio != null ? _service.toBrDate(dataInicio) ?? DateFormat('dd/MM/yyyy').format(DateTime.now()) : DateFormat('dd/MM/yyyy').format(DateTime.now()),
+            'saldo_inicial': 0.0,
+            'aporte': valorEmprestado,
+            'pg_capital': 0.0,
+            'pg_juros': 0.0,
+            'juros_mes': 0.0,
+            'saldo_final': valorEmprestado,
+          });
+          _controllers.preencherControllers(); // 🔹 ATUALIZA OS CONTROLLERS
+        }
+      } catch (e) {
+        print('Erro ao buscar valor do empréstimo: $e');
       }
     }
     
-    setState(() {});
+    // 🔹 CARREGA OS DADOS FIXOS DO EMPRÉSTIMO UMA ÚNICA VEZ
+    try {
+      final dadosEmprestimo = await _carregarDadosEmprestimo();
+      setState(() {
+        // 🔹 CORREÇÃO: Converte int para String corretamente
+        final numero = dadosEmprestimo['numero'];
+        _numeroEmprestimo = numero?.toString() ?? 'N/A';
+        _nomeCliente = dadosEmprestimo['nome_cliente'] ?? 'Cliente não encontrado';
+      });
+    } catch (e) {
+      print('Erro ao carregar dados do empréstimo: $e');
+      setState(() {
+        _numeroEmprestimo = 'Erro';
+        _nomeCliente = 'Erro ao carregar';
+      });
+    }
   }
 
   void _adicionarLinha() {
@@ -196,62 +228,34 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
                   const SizedBox(height: 12),
                   
                   // 🔹 CARD INFORMAÇÕES DO EMPRÉSTIMO
-                  FutureBuilder(
-                    future: _carregarDadosEmprestimo(),
-                    builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                        return Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: Colors.green[50],
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.green.shade200),
+                  // 🔹 CARD INFORMAÇÕES DO EMPRÉSTIMO
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.green[50],
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.green.shade200),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          "Empréstimo Nº ${_numeroEmprestimo}",
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
                           ),
-                          child: const Center(
-                            child: CircularProgressIndicator(),
-                          ),
-                        );
-                      }
-
-                      final dadosEmprestimo = snapshot.data ?? {};
-                      final numeroEmprestimo = dadosEmprestimo['numero'] ?? 'N/A';
-                      final nomeCliente = dadosEmprestimo['nome_cliente'] ?? 'Cliente não encontrado';
-
-                      return Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.green[50],
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.green.shade200),
                         ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              "Empréstimo",
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 14,
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              "Nº $numeroEmprestimo",
-                              style: const TextStyle(fontSize: 12),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              "Cliente: $nomeCliente",
-                              style: const TextStyle(fontSize: 12),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
+                        const SizedBox(height: 6),
+                        Text(
+                          "Cliente: ${_nomeCliente}",
+                          style: const TextStyle(fontSize: 12),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                      );
-                    },
+                      ],
+                    ),
                   ),
                   
                   const SizedBox(height: 16),
@@ -576,7 +580,7 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
           .single();
 
       return {
-        'numero': response['numero'] ?? 'N/A',
+        'numero': response['numero'], // 🔹 MANTÉM COMO int, CONVERTEMOS DEPOIS
         'nome_cliente': response['clientes']?['nome'] ?? 'Cliente não encontrado',
       };
     } catch (e) {
