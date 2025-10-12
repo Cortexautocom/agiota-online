@@ -31,51 +31,46 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
   }
 
   Future<void> _carregarDadosIniciais() async {
-    // 🔹 PRIMEIRO: Carrega a taxa do banco
+    // 🔹 1. Carrega taxa do banco
     await _carregarTaxaDoBanco();
-    
-    // 🔹 SEGUNDO: Carrega as parcelas do banco (isso vai criar as linhas automaticamente)
-    await _controllers.carregarParcelasDoBanco(widget.emprestimo['id']);
-    
-    // 🔹 TERCEIRO: Se não há parcelas no banco e é um empréstimo novo, cria linha inicial
-    // 🔹 TERCEIRO: Se não há parcelas no banco, busca o valor do empréstimo para criar primeira linha
-    if (_controllers.linhas.isEmpty) {
-      try {
-        // 🔹 BUSCA O VALOR DO EMPRÉSTIMO NO BANCO
-        final response = await Supabase.instance.client
-            .from('emprestimos')
-            .select('valor, data_inicio')
-            .eq('id', widget.emprestimo['id'])
-            .single();
 
-        final valorEmprestado = (response['valor'] as num?)?.toDouble() ?? 0.0;
-        final dataInicio = response['data_inicio']?.toString();
-        
-        if (valorEmprestado > 0) {
-          // 🔹 CRIA PRIMEIRA LINHA COM O VALOR DO EMPRÉSTIMO COMO APORTE
-          _controllers.linhas.add({
-            'data': dataInicio != null ? _service.toBrDate(dataInicio) ?? DateFormat('dd/MM/yyyy').format(DateTime.now()) : DateFormat('dd/MM/yyyy').format(DateTime.now()),
-            'saldo_inicial': 0.0,
-            'aporte': valorEmprestado,
-            'pg_capital': 0.0,
-            'pg_juros': 0.0,
-            'juros_mes': 0.0,
-            'saldo_final': valorEmprestado,
-          });
-          _controllers.preencherControllers(); // 🔹 ATUALIZA OS CONTROLLERS
-        }
-      } catch (e) {
-        print('Erro ao buscar valor do empréstimo: $e');
+    // 🔹 2. Carrega parcelas geradas no Supabase
+    final parcelas = await Supabase.instance.client
+        .from('parcelas')
+        .select('data_mov, aporte')
+        .eq('id_emprestimo', widget.emprestimo['id'])
+        .order('data_mov', ascending: true);
+
+    // 🔹 3. Se encontrou parcelas, cria linhas na tabela com base nelas
+    if (parcelas.isNotEmpty) {
+      _controllers.linhas.clear();
+      for (var p in parcelas) {
+        final dataBr = _service.toBrDate(p['data_mov']) ??
+            DateFormat('dd/MM/yyyy').format(DateTime.now());
+
+        final aporte = (p['aporte'] as num?)?.toDouble() ?? 0.0;
+
+        _controllers.linhas.add({
+          'data': dataBr,
+          'saldo_inicial': 0.0,
+          'aporte': aporte,
+          'pg_capital': 0.0,
+          'pg_juros': 0.0,
+          'juros_mes': 0.0,
+          'saldo_final': aporte,
+        });
       }
+      _controllers.preencherControllers();
+    } else {
+      // 🔹 4. Se não encontrou parcelas, mantém o comportamento antigo (primeira linha padrão)
+      await _controllers.carregarParcelasDoBanco(widget.emprestimo['id']);
     }
-    
-    // 🔹 CARREGA OS DADOS FIXOS DO EMPRÉSTIMO UMA ÚNICA VEZ
+
+    // 🔹 5. Carrega dados do empréstimo (número e cliente)
     try {
       final dadosEmprestimo = await _carregarDadosEmprestimo();
       setState(() {
-        // 🔹 CORREÇÃO: Converte int para String corretamente
-        final numero = dadosEmprestimo['numero'];
-        _numeroEmprestimo = numero?.toString() ?? 'N/A';
+        _numeroEmprestimo = dadosEmprestimo['numero']?.toString() ?? 'N/A';
         _nomeCliente = dadosEmprestimo['nome_cliente'] ?? 'Cliente não encontrado';
       });
     } catch (e) {
@@ -105,13 +100,27 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
     final sucesso = await _controllers.salvarParcelasNoBanco(widget.emprestimo['id']);
     
     if (sucesso && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Dados salvos com sucesso!"),
-          backgroundColor: Colors.green,
-          duration: Duration(seconds: 2),
+      showDialog(
+        context: context,
+        barrierDismissible: false, // impede fechar clicando fora
+        builder: (context) => const AlertDialog(
+          title: Text(
+            "Sucesso",
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          content: Text(
+            "Dados salvos com sucesso!",
+            textAlign: TextAlign.center,
+          ),
         ),
       );
+
+      // Fecha automaticamente após 2 segundos
+      Future.delayed(const Duration(seconds: 2), () {
+        if (Navigator.canPop(context)) {
+          Navigator.of(context).pop();
+        }
+      });
       
       // 🔹 AGUARDA O SNACKBAR E VOLTA PARA O FINANCEIRO ATUALIZADO
       await Future.delayed(const Duration(seconds: 2));

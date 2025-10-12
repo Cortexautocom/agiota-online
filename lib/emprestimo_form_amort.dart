@@ -194,6 +194,7 @@ class _EmprestimoFormAmortState extends State<EmprestimoFormAmort> {
         'tipo_mov': 'amortizacao',
       });
 
+      // 🔹 Cria primeira parcela (aporte)
       await supabase.from('parcelas').insert({
         'id': uuid.v4(),
         'id_emprestimo': emprestimoId,
@@ -205,6 +206,44 @@ class _EmprestimoFormAmortState extends State<EmprestimoFormAmort> {
         'tipo_mov': 'amortizacao',
         'id_usuario': userId,
       });
+
+      // 🔹 Cria parcelas futuras, se definidas
+      final qtdParcelas = int.tryParse(qtdParcelasCtrl.text) ?? 0;
+      if (qtdParcelas > 0) {
+        final freq = frequencia.value;
+        DateTime dataParcela = dataInicio;
+
+        for (int i = 1; i <= qtdParcelas; i++) {
+          if (freq == 'Semanal') {
+            dataParcela = dataParcela.add(const Duration(days: 7));
+          } else if (freq == 'Mensal') {
+            final mes = dataParcela.month + 1;
+            final ano = dataParcela.year + ((mes - 1) ~/ 12);
+            final mesFinal = ((mes - 1) % 12) + 1;
+            int dia = dataParcela.day;
+
+            // Ajusta se o mês não tiver o mesmo dia (ex: fevereiro)
+            final ultimoDiaDoMes = DateTime(ano, mesFinal + 1, 0).day;
+            if (dia > ultimoDiaDoMes) dia = ultimoDiaDoMes;
+
+            dataParcela = DateTime(ano, mesFinal, dia);
+          }
+
+          final dataMov =
+              "${dataParcela.year}-${dataParcela.month.toString().padLeft(2, '0')}-${dataParcela.day.toString().padLeft(2, '0')}";
+
+          await supabase.from('parcelas').insert({
+            'id': uuid.v4(),
+            'id_emprestimo': emprestimoId,
+            'data_mov': dataMov,
+            'pg_principal': 0.0,
+            'pg_juros': 0.0,
+            'juros_periodo': 0.0,
+            'tipo_mov': 'amortizacao',
+            'id_usuario': userId,
+          });
+        }
+      }
 
       if (!mounted) return;
       final emprestimo = {
@@ -273,83 +312,111 @@ class _EmprestimoFormAmortState extends State<EmprestimoFormAmort> {
                     const SizedBox(height: 16),
 
                     // 🔹 Campo Qtd. parcelas + Indefinido
-                    TextFormField(
-                      controller: qtdParcelasCtrl,
-                      keyboardType: TextInputType.number,
-                      enabled: !indefinido.value,
-                      decoration: InputDecoration(
-                        labelText: 'Qtd. parcelas',
-                        suffixIcon: Row(
-                          mainAxisSize: MainAxisSize.min,
+                    ValueListenableBuilder<bool>(
+                      valueListenable: indefinido,
+                      builder: (context, indef, _) {
+                        return Row(
+                          crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
-                            ValueListenableBuilder<bool>(
-                              valueListenable: indefinido,
-                              builder: (context, value, _) {
-                                return Checkbox(
-                                  value: value,
-                                  onChanged: (novoValor) {
-                                    final marcado = novoValor ?? false;
-                                    indefinido.value = marcado;
-                                    if (marcado) qtdParcelasCtrl.text = '0';
-                                    setState(() {});
-                                  },
-                                );
-                              },
+                            // Campo de quantidade de parcelas
+                            Expanded(
+                              child: TextFormField(
+                                controller: qtdParcelasCtrl,
+                                keyboardType: TextInputType.number,
+                                enabled: !indef,
+                                decoration: InputDecoration(
+                                  labelText: 'Qtd. parcelas',
+                                  filled: indef,
+                                  fillColor: indef ? Colors.grey.shade300 : null,
+                                ),
+                                validator: (v) {
+                                  if (!indef) {
+                                    if (v == null || v.isEmpty) return "Informe a quantidade";
+                                    final n = int.tryParse(v);
+                                    if (n == null || n <= 0) return "Número inválido";
+                                  }
+                                  return null;
+                                },
+                              ),
                             ),
-                            const Text('Indefinido'),
-                            const SizedBox(width: 8),
+                            const SizedBox(width: 12),
+                            // Caixa de seleção "Indefinido"
+                            Row(
+                              children: [
+                                Checkbox(
+                                  value: indef,
+                                  onChanged: (novoValor) {
+                                    if (novoValor != null) {
+                                      indefinido.value = novoValor;
+                                      if (novoValor) {
+                                        qtdParcelasCtrl.text = '0';
+                                        frequencia.value = null;
+                                      }
+                                    }
+                                  },
+                                ),
+                                const Text('Indefinido'),
+                              ],
+                            ),
                           ],
-                        ),
-                      ),
-                      validator: (v) {
-                        if (!indefinido.value) {
-                          if (v == null || v.isEmpty) return "Informe a quantidade";
-                          final n = int.tryParse(v);
-                          if (n == null || n <= 0) return "Número inválido";
-                        }
-                        return null;
+                        );
                       },
                     ),
+
                     const SizedBox(height: 16),
 
                     // 🔹 Campo Frequência de pagamentos
-                    InputDecorator(
-                      decoration: const InputDecoration(
-                        labelText: 'Frequência de pagamentos',
-                        border: UnderlineInputBorder(),
-                      ),
-                      child: ValueListenableBuilder<String?>(
-                        valueListenable: frequencia,
-                        builder: (context, valorAtual, _) {
-                          return Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                            children: [
-                              Row(
-                                children: [
-                                  Checkbox(
-                                    value: valorAtual == 'Semanal',
-                                    onChanged: (checked) {
-                                      frequencia.value = checked == true ? 'Semanal' : null;
-                                    },
-                                  ),
-                                  const Text('Semanal'),
-                                ],
+                    ValueListenableBuilder<bool>(
+                      valueListenable: indefinido,
+                      builder: (context, indef, _) {
+                        final desativado = indef;
+                        return InputDecorator(
+                          decoration: const InputDecoration(
+                            labelText: 'Frequência de pagamentos',
+                            border: UnderlineInputBorder(),
+                          ),
+                          child: AbsorbPointer(
+                            absorbing: desativado, // bloqueia interação se indefinido
+                            child: Opacity(
+                              opacity: desativado ? 0.5 : 1.0, // efeito esmaecido
+                              child: ValueListenableBuilder<String?>(
+                                valueListenable: frequencia,
+                                builder: (context, valorAtual, _) {
+                                  return Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Checkbox(
+                                            value: valorAtual == 'Semanal',
+                                            onChanged: (checked) {
+                                              frequencia.value =
+                                                  checked == true ? 'Semanal' : null;
+                                            },
+                                          ),
+                                          const Text('Semanal'),
+                                        ],
+                                      ),
+                                      Row(
+                                        children: [
+                                          Checkbox(
+                                            value: valorAtual == 'Mensal',
+                                            onChanged: (checked) {
+                                              frequencia.value =
+                                                  checked == true ? 'Mensal' : null;
+                                            },
+                                          ),
+                                          const Text('Mensal'),
+                                        ],
+                                      ),
+                                    ],
+                                  );
+                                },
                               ),
-                              Row(
-                                children: [
-                                  Checkbox(
-                                    value: valorAtual == 'Mensal',
-                                    onChanged: (checked) {
-                                      frequencia.value = checked == true ? 'Mensal' : null;
-                                    },
-                                  ),
-                                  const Text('Mensal'),
-                                ],
-                              ),
-                            ],
-                          );
-                        },
-                      ),
+                            ),
+                          ),
+                        );
+                      },
                     ),
                     const SizedBox(height: 16),
 
