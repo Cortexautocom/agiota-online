@@ -239,49 +239,81 @@ class AmortizacaoControllers {
   void recalcularTodosJuros() {
     if (_linhas.isEmpty) return;
 
-    // 🔹 Primeiro, zera os juros e recalcula os saldos iniciais
+    double? ultimoJurosValido; // guarda o último valor de juros real calculado
+
+    // 🔹 Zera todos os juros antes de recalcular
     for (var i = 0; i < _linhas.length; i++) {
       _linhas[i]['juros_mes'] = 0.0;
       _controllers[i]['juros_mes']!.text = fmtMoeda(0.0);
     }
 
-    // 🔹 Agora, percorre as linhas sequencialmente
+    // 🔹 Percorre as linhas a partir da 2ª (índice 1)
     for (int i = 1; i < _linhas.length; i++) {
       final dataAtual = _controllers[i]['data']!.text;
       final dataAnterior = _controllers[i - 1]['data']!.text;
 
-      if (dataAtual.length == 10 && dataAnterior.length == 10) {
+      // Ignora se não há datas válidas
+      if (dataAtual.length != 10 || dataAnterior.length != 10) continue;
+
+      // 🔹 Segunda linha (index 1) -> sempre calcula normalmente
+      if (i == 1) {
         final diferencaDias = _service.calcularDiferencaDias(dataAnterior, dataAtual);
-
         if (diferencaDias > 0 && _taxaJuros > 0) {
-          // ⚙️ Usa o saldo FINAL já atualizado da linha anterior
           final saldoAnterior = _linhas[i - 1]['saldo_final'] ?? 0.0;
-
-          // 📈 Calcula juros proporcionais aos dias
           final jurosCalculado = saldoAnterior * (_taxaJuros / 100 / 30) * diferencaDias;
 
-          // 🧮 Atualiza os valores na linha
-          _controllers[i]['juros_mes']!.text = fmtMoeda(jurosCalculado);
           _linhas[i]['juros_mes'] = jurosCalculado;
+          _controllers[i]['juros_mes']!.text = fmtMoeda(jurosCalculado);
+          ultimoJurosValido = jurosCalculado;
+        }
+        continue;
+      }
 
-          // 🧩 Atualiza o saldo final da linha atual antes de seguir
-          _linhas[i]['saldo_final'] = (_linhas[i]['saldo_inicial'] ?? 0.0)
-              + (_linhas[i]['aporte'] ?? 0.0)
-              - (_linhas[i]['pg_capital'] ?? 0.0)
-              - (_linhas[i]['pg_juros'] ?? 0.0)
-              + jurosCalculado;
+      // 🔹 A partir da 3ª linha -> verifica se houve movimentação na linha anterior
+      final linhaAnterior = _linhas[i - 1];
+      final bool houveMovimentacao =
+          (linhaAnterior['aporte'] ?? 0) != 0 ||
+          (linhaAnterior['pg_capital'] ?? 0) != 0 ||
+          (linhaAnterior['pg_juros'] ?? 0) != 0;
+
+      if (houveMovimentacao) {
+        // 📈 Calcula juros normalmente
+        final diferencaDias = _service.calcularDiferencaDias(dataAnterior, dataAtual);
+        if (diferencaDias > 0 && _taxaJuros > 0) {
+          final saldoAnterior = _linhas[i - 1]['saldo_final'] ?? 0.0;
+          final jurosCalculado = saldoAnterior * (_taxaJuros / 100 / 30) * diferencaDias;
+
+          _linhas[i]['juros_mes'] = jurosCalculado;
+          _controllers[i]['juros_mes']!.text = fmtMoeda(jurosCalculado);
+          ultimoJurosValido = jurosCalculado;
+        }
+      } else {
+        // 📋 Sem movimentação anterior → copia o último juros válido
+        if (ultimoJurosValido != null) {
+          _linhas[i]['juros_mes'] = ultimoJurosValido;
+          _controllers[i]['juros_mes']!.text = fmtMoeda(ultimoJurosValido);
         }
       }
 
       // 🔄 Propaga o saldo final atualizado para a próxima linha
+      final saldoInicial = _linhas[i]['saldo_inicial'] ?? 0.0;
+      final aporte = _linhas[i]['aporte'] ?? 0.0;
+      final pgCapital = _linhas[i]['pg_capital'] ?? 0.0;
+      final pgJuros = _linhas[i]['pg_juros'] ?? 0.0;
+      final jurosMes = _linhas[i]['juros_mes'] ?? 0.0;
+
+      _linhas[i]['saldo_final'] =
+          saldoInicial + aporte - pgCapital - pgJuros + jurosMes;
+
       if (i < _linhas.length - 1) {
         _linhas[i + 1]['saldo_inicial'] = _linhas[i]['saldo_final'];
       }
     }
 
-    // 🔹 Atualiza os campos visuais da tabela
+    // 🔹 Atualiza saldos na UI
     recalcularSaldos();
   }
+
 
 
   void dispose() {
