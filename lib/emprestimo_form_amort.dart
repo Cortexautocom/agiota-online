@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
-import 'package:flutter/services.dart'; // Adicionar para TextInputFormatter
+import 'package:flutter/services.dart';
 import 'amortizacao_tabela.dart';
 
 class EmprestimoFormAmort extends StatefulWidget {
@@ -27,19 +27,19 @@ class _EmprestimoFormAmortState extends State<EmprestimoFormAmort> {
   final dataFimCtrl = TextEditingController();
   final taxaCtrl = TextEditingController();
   final dataInicioCtrl = TextEditingController();
+  final qtdParcelasCtrl = TextEditingController();
+
+  final ValueNotifier<bool> indefinido = ValueNotifier<bool>(false);
+  final ValueNotifier<String?> frequencia = ValueNotifier<String?>(null);
 
   @override
   void initState() {
     super.initState();
-    // Preenche a data inicial com a data atual formatada
     final hoje = DateTime.now();
-    dataInicioCtrl.text = '${hoje.day.toString().padLeft(2, '0')}/${hoje.month.toString().padLeft(2, '0')}/${hoje.year}';
+    dataInicioCtrl.text =
+        '${hoje.day.toString().padLeft(2, '0')}/${hoje.month.toString().padLeft(2, '0')}/${hoje.year}';
   }
 
-  DateTime dataEmprestimo = DateTime.now();
-  DateTime? dataFinal;
-
-  // 🔹 Máscara para campos de moeda
   TextInputFormatter _moedaFormatter() {
     return TextInputFormatter.withFunction((oldValue, newValue) {
       var text = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
@@ -77,21 +77,12 @@ class _EmprestimoFormAmortState extends State<EmprestimoFormAmort> {
     return double.tryParse(cleaned) ?? 0.0;
   }
 
-  // 🔹 Máscara para data (dd/mm/aaaa)
   TextInputFormatter _dateMaskFormatter() {
     return TextInputFormatter.withFunction((oldValue, newValue) {
       var text = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
-      
-      if (text.length >= 3) {
-        text = '${text.substring(0, 2)}/${text.substring(2)}';
-      }
-      if (text.length >= 6) {
-        text = '${text.substring(0, 5)}/${text.substring(5)}';
-      }
-      if (text.length > 10) {
-        text = text.substring(0, 10);
-      }
-      
+      if (text.length >= 3) text = '${text.substring(0, 2)}/${text.substring(2)}';
+      if (text.length >= 6) text = '${text.substring(0, 5)}/${text.substring(5)}';
+      if (text.length > 10) text = text.substring(0, 10);
       return TextEditingValue(
         text: text,
         selection: TextSelection.collapsed(offset: text.length),
@@ -99,21 +90,17 @@ class _EmprestimoFormAmortState extends State<EmprestimoFormAmort> {
     });
   }
 
-  // 🔹 Validar data
   bool _validarData(String data) {
     if (data.isEmpty) return false;
     final parts = data.split('/');
     if (parts.length != 3) return false;
-    
     try {
       final dia = int.parse(parts[0]);
       final mes = int.parse(parts[1]);
       final ano = int.parse(parts[2]);
-      
       if (dia < 1 || dia > 31) return false;
       if (mes < 1 || mes > 12) return false;
       if (ano < 1900 || ano > 2100) return false;
-      
       final date = DateTime(ano, mes, dia);
       return date.day == dia && date.month == mes && date.year == ano;
     } catch (e) {
@@ -122,13 +109,29 @@ class _EmprestimoFormAmortState extends State<EmprestimoFormAmort> {
   }
 
   Future<void> _criarEmprestimo() async {
-    if (!_formKey.currentState!.validate()) {
+    if (!_formKey.currentState!.validate()) return;
+
+    // 🔹 Verifica se a frequência foi escolhida
+    if (frequencia.value == null) {
+      showDialog(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text('Atenção'),
+          content: const Text('Defina a frequência de pagamentos'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
       return;
     }
 
     final valor = _parseMoeda(valorCtrl.text);
     final taxa = double.tryParse(taxaCtrl.text.replaceAll(',', '.')) ?? 0.0;
-    
+
     if (!_validarData(dataFimCtrl.text)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Data final inválida!")),
@@ -149,7 +152,6 @@ class _EmprestimoFormAmortState extends State<EmprestimoFormAmort> {
       final emprestimoId = uuid.v4();
       final userId = Supabase.instance.client.auth.currentUser!.id;
 
-      // Valida data inicial
       if (!_validarData(dataInicioCtrl.text)) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("Data inicial inválida!")),
@@ -164,7 +166,6 @@ class _EmprestimoFormAmortState extends State<EmprestimoFormAmort> {
         int.parse(partsInicio[0]),
       );
 
-      // Valida se data final é anterior à data inicial
       if (dataFim.isBefore(dataInicio)) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("Data final não pode ser anterior à data inicial!")),
@@ -172,8 +173,10 @@ class _EmprestimoFormAmortState extends State<EmprestimoFormAmort> {
         return;
       }
 
-      final dataStr = "${dataInicio.year}-${dataInicio.month.toString().padLeft(2, '0')}-${dataInicio.day.toString().padLeft(2, '0')}";
-      final dataFimStr = "${dataFim.year}-${dataFim.month.toString().padLeft(2, '0')}-${dataFim.day.toString().padLeft(2, '0')}";
+      final dataStr =
+          "${dataInicio.year}-${dataInicio.month.toString().padLeft(2, '0')}-${dataInicio.day.toString().padLeft(2, '0')}";
+      final dataFimStr =
+          "${dataFim.year}-${dataFim.month.toString().padLeft(2, '0')}-${dataFim.day.toString().padLeft(2, '0')}";
 
       await supabase.from('emprestimos').insert({
         'id': emprestimoId,
@@ -181,21 +184,21 @@ class _EmprestimoFormAmortState extends State<EmprestimoFormAmort> {
         'valor': double.parse(valor.toStringAsFixed(2)),
         'data_inicio': dataStr,
         'data_fim': dataFimStr,
-        'parcelas': 0, // Amortização não tem número fixo de parcelas
-        'juros': 0.0, // Será calculado nas parcelas
-        'prestacao': 0.0, // Não aplicável para amortização
+        'parcelas': int.tryParse(qtdParcelasCtrl.text) ?? 0,
+        'juros': 0.0,
+        'prestacao': 0.0,
         'taxa': double.parse(taxa.toStringAsFixed(2)),
+        'frequencia': frequencia.value,
         'id_usuario': userId,
         'ativo': 'sim',
         'tipo_mov': 'amortizacao',
       });
 
-      // 🔹 CRIA PRIMEIRA PARCELA COM O VALOR COMO APORTE
       await supabase.from('parcelas').insert({
         'id': uuid.v4(),
         'id_emprestimo': emprestimoId,
-        'data_mov': dataStr, // Usa a data inicial do empréstimo
-        'aporte': double.parse(valor.toStringAsFixed(2)), // Valor como aporte
+        'data_mov': dataStr,
+        'aporte': double.parse(valor.toStringAsFixed(2)),
         'pg_principal': 0.0,
         'pg_juros': 0.0,
         'juros_periodo': 0.0,
@@ -204,35 +207,29 @@ class _EmprestimoFormAmortState extends State<EmprestimoFormAmort> {
       });
 
       if (!mounted) return;
-
       final emprestimo = {
         "id": emprestimoId,
         "id_cliente": widget.idCliente,
         "valor": valor,
         "data_inicio": dataStr,
         "data_fim": dataFimStr,
-        "parcelas": 0,
+        "parcelas": int.tryParse(qtdParcelasCtrl.text) ?? 0,
         "juros": 0.0,
         "prestacao": 0.0,
         "taxa": taxa,
+        "frequencia": frequencia.value,
         "id_usuario": userId,
         "ativo": "sim",
         "tipo_mov": "amortizacao",
         "cliente": "",
-        "aporte": valor, // 🔹 NOVO CAMPO PARA PASSAR O VALOR
+        "aporte": valor,
       };
 
-      // 🔹 Navega para a tela de amortização
-      Navigator.pop(context); // Fecha o form
+      Navigator.pop(context);
       Navigator.push(
         context,
-        MaterialPageRoute(
-          builder: (_) => AmortizacaoTabela(
-            emprestimo: emprestimo,
-          ),
-        ),
+        MaterialPageRoute(builder: (_) => AmortizacaoTabela(emprestimo: emprestimo)),
       );
-    
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -269,28 +266,104 @@ class _EmprestimoFormAmortState extends State<EmprestimoFormAmort> {
                       inputFormatters: [_moedaFormatter()],
                       validator: (value) {
                         final valor = _parseMoeda(value ?? '');
-                        if (valor <= 0) {
-                          return "Informe um valor válido";
+                        if (valor <= 0) return "Informe um valor válido";
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+
+                    // 🔹 Campo Qtd. parcelas + Indefinido
+                    TextFormField(
+                      controller: qtdParcelasCtrl,
+                      keyboardType: TextInputType.number,
+                      enabled: !indefinido.value,
+                      decoration: InputDecoration(
+                        labelText: 'Qtd. parcelas',
+                        suffixIcon: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            ValueListenableBuilder<bool>(
+                              valueListenable: indefinido,
+                              builder: (context, value, _) {
+                                return Checkbox(
+                                  value: value,
+                                  onChanged: (novoValor) {
+                                    final marcado = novoValor ?? false;
+                                    indefinido.value = marcado;
+                                    if (marcado) qtdParcelasCtrl.text = '0';
+                                    setState(() {});
+                                  },
+                                );
+                              },
+                            ),
+                            const Text('Indefinido'),
+                            const SizedBox(width: 8),
+                          ],
+                        ),
+                      ),
+                      validator: (v) {
+                        if (!indefinido.value) {
+                          if (v == null || v.isEmpty) return "Informe a quantidade";
+                          final n = int.tryParse(v);
+                          if (n == null || n <= 0) return "Número inválido";
                         }
                         return null;
                       },
                     ),
                     const SizedBox(height: 16),
+
+                    // 🔹 Campo Frequência de pagamentos
+                    InputDecorator(
+                      decoration: const InputDecoration(
+                        labelText: 'Frequência de pagamentos',
+                        border: UnderlineInputBorder(),
+                      ),
+                      child: ValueListenableBuilder<String?>(
+                        valueListenable: frequencia,
+                        builder: (context, valorAtual, _) {
+                          return Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                            children: [
+                              Row(
+                                children: [
+                                  Checkbox(
+                                    value: valorAtual == 'Semanal',
+                                    onChanged: (checked) {
+                                      frequencia.value = checked == true ? 'Semanal' : null;
+                                    },
+                                  ),
+                                  const Text('Semanal'),
+                                ],
+                              ),
+                              Row(
+                                children: [
+                                  Checkbox(
+                                    value: valorAtual == 'Mensal',
+                                    onChanged: (checked) {
+                                      frequencia.value = checked == true ? 'Mensal' : null;
+                                    },
+                                  ),
+                                  const Text('Mensal'),
+                                ],
+                              ),
+                            ],
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
                     TextFormField(
-                      controller: dataInicioCtrl, // Usa o mesmo controller
+                      controller: dataInicioCtrl,
                       decoration: const InputDecoration(
                         labelText: "Data inicial",
                         hintText: "dd/mm/aaaa",
                       ),
                       keyboardType: TextInputType.number,
-                      inputFormatters: [_dateMaskFormatter()], // Usa a mesma máscara
+                      inputFormatters: [_dateMaskFormatter()],
                       validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return "Informe a data inicial";
-                        }
-                        if (!_validarData(value)) {
-                          return "Data inválida";
-                        }
+                        if (value == null || value.isEmpty) return "Informe a data inicial";
+                        if (!_validarData(value)) return "Data inválida";
                         return null;
                       },
                     ),
@@ -304,12 +377,8 @@ class _EmprestimoFormAmortState extends State<EmprestimoFormAmort> {
                       keyboardType: TextInputType.number,
                       inputFormatters: [_dateMaskFormatter()],
                       validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return "Informe a data final";
-                        }
-                        if (!_validarData(value)) {
-                          return "Data inválida";
-                        }
+                        if (value == null || value.isEmpty) return "Informe a data final";
+                        if (!_validarData(value)) return "Data inválida";
                         return null;
                       },
                     ),
@@ -322,13 +391,9 @@ class _EmprestimoFormAmortState extends State<EmprestimoFormAmort> {
                       ),
                       keyboardType: TextInputType.number,
                       validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return "Informe a taxa de juros";
-                        }
+                        if (value == null || value.isEmpty) return "Informe a taxa de juros";
                         final taxa = double.tryParse(value.replaceAll(',', '.'));
-                        if (taxa == null || taxa < 0) {
-                          return "Taxa inválida";
-                        }
+                        if (taxa == null || taxa < 0) return "Taxa inválida";
                         return null;
                       },
                     ),
@@ -353,12 +418,16 @@ class _EmprestimoFormAmortState extends State<EmprestimoFormAmort> {
       ),
     );
   }
+
   @override
   void dispose() {
     dataInicioCtrl.dispose();
     valorCtrl.dispose();
     dataFimCtrl.dispose();
     taxaCtrl.dispose();
+    qtdParcelasCtrl.dispose();
+    indefinido.dispose();
+    frequencia.dispose();
     super.dispose();
   }
 }
