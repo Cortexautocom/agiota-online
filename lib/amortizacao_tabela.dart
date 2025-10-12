@@ -63,11 +63,21 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
         });
       }
 
-      _controllers.preencherControllers();
+            _controllers.preencherControllers();
       _controllers.recalcularSaldos();
+
+      // 🔹 NOVO: calcula automaticamente todos os juros ao abrir a tabela
+      if (_controllers.linhas.isNotEmpty) {
+        _controllers.recalcularTodosJuros();
+      }
     } else {
       // 🔹 Se não encontrou parcelas, carrega normalmente via controller
       await _controllers.carregarParcelasDoBanco(widget.emprestimo['id']);
+
+      // 🔹 E também calcula os juros na primeira abertura
+      if (_controllers.linhas.isNotEmpty) {
+        _controllers.recalcularTodosJuros();
+      }
     }
 
     // 🔹 4. Carrega dados do empréstimo (número e cliente)
@@ -77,6 +87,7 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
         _numeroEmprestimo = dadosEmprestimo['numero']?.toString() ?? 'N/A';
         _nomeCliente = dadosEmprestimo['nome_cliente'] ?? 'Cliente não encontrado';
       });
+
     } catch (e) {
       print('Erro ao carregar dados do empréstimo: $e');
       setState(() {
@@ -419,7 +430,7 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
             if (text.isNotEmpty) {
               _controllers.linhas[index]['data'] = text;
               _controllers.recalcularSaldos();              
-              _controllers.calcularJurosAutomatico(index);
+              //_controllers.calcularJurosAutomatico(index);
               _controllers.recalcularTodosJuros();
               setState(() {});
             }
@@ -470,12 +481,12 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
               contentPadding: EdgeInsets.symmetric(vertical: 8, horizontal: 4),
               hintText: '0,00',
             ),
-            onChanged: (text) {
+            /*onChanged: (text) {
               final valor = _controllers.parseMoeda(text);
               _controllers.linhas[index]['juros_mes'] = valor;
               _controllers.recalcularSaldos();
               setState(() {});
-            },
+            },*/
             onTap: () {
               if (controller.text.isNotEmpty) {
                 controller.selection = TextSelection(
@@ -523,8 +534,9 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
               contentPadding: EdgeInsets.symmetric(vertical: 8, horizontal: 4),
               hintText: '0,00',
             ),
-            onChanged: (text) {
-              final valor = _controllers.parseMoeda(text);
+            onEditingComplete: () { // Pressionou Enter
+              final valor = _controllers.parseMoeda(controller.text);
+              controller.text = _controllers.fmtMoeda(valor);
               _controllers.linhas[index][campo] = valor;
               _controllers.recalcularSaldos();
               _controllers.recalcularTodosJuros();

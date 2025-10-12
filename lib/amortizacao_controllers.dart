@@ -237,24 +237,52 @@ class AmortizacaoControllers {
   }
 
   void recalcularTodosJuros() {
+    if (_linhas.isEmpty) return;
+
+    // 🔹 Primeiro, zera os juros e recalcula os saldos iniciais
+    for (var i = 0; i < _linhas.length; i++) {
+      _linhas[i]['juros_mes'] = 0.0;
+      _controllers[i]['juros_mes']!.text = fmtMoeda(0.0);
+    }
+
+    // 🔹 Agora, percorre as linhas sequencialmente
     for (int i = 1; i < _linhas.length; i++) {
       final dataAtual = _controllers[i]['data']!.text;
       final dataAnterior = _controllers[i - 1]['data']!.text;
 
       if (dataAtual.length == 10 && dataAnterior.length == 10) {
-        final diferencaDias =
-            _service.calcularDiferencaDias(dataAnterior, dataAtual);
+        final diferencaDias = _service.calcularDiferencaDias(dataAnterior, dataAtual);
+
         if (diferencaDias > 0 && _taxaJuros > 0) {
+          // ⚙️ Usa o saldo FINAL já atualizado da linha anterior
           final saldoAnterior = _linhas[i - 1]['saldo_final'] ?? 0.0;
-          final jurosCalculado =
-              saldoAnterior * (_taxaJuros / 100 / 30) * diferencaDias;
+
+          // 📈 Calcula juros proporcionais aos dias
+          final jurosCalculado = saldoAnterior * (_taxaJuros / 100 / 30) * diferencaDias;
+
+          // 🧮 Atualiza os valores na linha
           _controllers[i]['juros_mes']!.text = fmtMoeda(jurosCalculado);
           _linhas[i]['juros_mes'] = jurosCalculado;
+
+          // 🧩 Atualiza o saldo final da linha atual antes de seguir
+          _linhas[i]['saldo_final'] = (_linhas[i]['saldo_inicial'] ?? 0.0)
+              + (_linhas[i]['aporte'] ?? 0.0)
+              - (_linhas[i]['pg_capital'] ?? 0.0)
+              - (_linhas[i]['pg_juros'] ?? 0.0)
+              + jurosCalculado;
         }
       }
+
+      // 🔄 Propaga o saldo final atualizado para a próxima linha
+      if (i < _linhas.length - 1) {
+        _linhas[i + 1]['saldo_inicial'] = _linhas[i]['saldo_final'];
+      }
     }
+
+    // 🔹 Atualiza os campos visuais da tabela
     recalcularSaldos();
   }
+
 
   void dispose() {
     for (final controllerMap in _controllers) {
