@@ -34,39 +34,43 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
     // 🔹 1. Carrega taxa do banco
     await _carregarTaxaDoBanco();
 
-    // 🔹 2. Carrega parcelas geradas no Supabase
-    final parcelas = await Supabase.instance.client
+    final supabase = Supabase.instance.client;
+
+    // 🔹 2. Busca parcelas no banco (com o campo ID incluído!)
+    final parcelas = await supabase
         .from('parcelas')
-        .select('data_mov, aporte')
+        .select('id, data_mov, aporte, pg_principal, pg_juros, juros_periodo')
         .eq('id_emprestimo', widget.emprestimo['id'])
         .order('data_mov', ascending: true);
 
-    // 🔹 3. Se encontrou parcelas, cria linhas na tabela com base nelas
+    // 🔹 3. Se encontrou parcelas, monta as linhas com ID
     if (parcelas.isNotEmpty) {
       _controllers.linhas.clear();
-      for (var p in parcelas) {
+
+      for (final p in parcelas) {
         final dataBr = _service.toBrDate(p['data_mov']) ??
             DateFormat('dd/MM/yyyy').format(DateTime.now());
 
-        final aporte = (p['aporte'] as num?)?.toDouble() ?? 0.0;
-
         _controllers.linhas.add({
+          'id': p['id'], // ✅ agora tem ID!
           'data': dataBr,
           'saldo_inicial': 0.0,
-          'aporte': aporte,
-          'pg_capital': 0.0,
-          'pg_juros': 0.0,
-          'juros_mes': 0.0,
-          'saldo_final': aporte,
+          'aporte': (p['aporte'] as num?)?.toDouble() ?? 0.0,
+          'pg_capital': (p['pg_principal'] as num?)?.toDouble() ?? 0.0,
+          'pg_juros': (p['pg_juros'] as num?)?.toDouble() ?? 0.0,
+          'juros_mes': (p['juros_periodo'] as num?)?.toDouble() ?? 0.0,
+          'saldo_final': 0.0,
         });
       }
+
       _controllers.preencherControllers();
+      _controllers.recalcularSaldos();
     } else {
-      // 🔹 4. Se não encontrou parcelas, mantém o comportamento antigo (primeira linha padrão)
+      // 🔹 Se não encontrou parcelas, carrega normalmente via controller
       await _controllers.carregarParcelasDoBanco(widget.emprestimo['id']);
     }
 
-    // 🔹 5. Carrega dados do empréstimo (número e cliente)
+    // 🔹 4. Carrega dados do empréstimo (número e cliente)
     try {
       final dadosEmprestimo = await _carregarDadosEmprestimo();
       setState(() {
@@ -81,6 +85,7 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
       });
     }
   }
+
 
   void _adicionarLinha() {
     if (_controllers.haDataVazia()) {
