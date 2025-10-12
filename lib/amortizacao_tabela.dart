@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'amortizacao_service.dart';
 import 'amortizacao_controllers.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'financeiro.dart';
 
 class AmortizacaoTabela extends StatefulWidget {
   final Map<String, dynamic> emprestimo;
@@ -114,10 +115,19 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
       
       // 🔹 AGUARDA O SNACKBAR E VOLTA PARA O FINANCEIRO ATUALIZADO
       await Future.delayed(const Duration(seconds: 2));
-      
+
       if (mounted) {
-        // 🔹 VOLTA PASSANDO 'true' PARA INDICAR ATUALIZAÇÃO
-        Navigator.pop(context, true);
+        // 🔹 VOLTA PARA O FINANCEIRO FORÇANDO ATUALIZAÇÃO
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(
+            builder: (context) => FinanceiroPage(
+              cliente: widget.emprestimo,
+              forceRefresh: true,
+            ),
+          ),
+          (route) => false,
+        );
       }
     } else if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -154,11 +164,11 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
         backgroundColor: Colors.green,
         centerTitle: true,
         actions: [
-          IconButton(
+          /*IconButton(
             icon: const Icon(Icons.save, color: Colors.white),
             onPressed: _salvarNoBanco,
             tooltip: 'Salvar no banco',
-          ),
+          ),*/
         ],
       ),
       body: Container(
