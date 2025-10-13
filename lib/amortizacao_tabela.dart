@@ -208,62 +208,7 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // 🔹 CARD TAXA DE JUROS
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.blue[50],
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.blue.shade200),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          "Taxa de Juros",
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        TextField(
-                          controller: _controllers.taxaJurosCtrl,
-                          textAlign: TextAlign.center,
-                          keyboardType: TextInputType.number,
-                          inputFormatters: [_service.percentMaskFormatter()],
-                          decoration: const InputDecoration(
-                            hintText: '0,00',
-                            border: OutlineInputBorder(),
-                            isDense: true,
-                            contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-                            suffixText: '% a.m.',
-                          ),
-                          onChanged: (text) {
-                            setState(() {
-                              _controllers.taxaJuros = _service.parsePercent(text);
-                              _controllers.recalcularTodosJuros();
-                            });
-                          },
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          "Taxa: ${_controllers.taxaJuros.toStringAsFixed(2)}%",
-                          style: const TextStyle(
-                            fontSize: 12,
-                            fontStyle: FontStyle.italic,
-                            color: Color.fromARGB(255, 28, 121, 214),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  
-                  const SizedBox(height: 12),
-                  
-                  // 🔹 CARD INFORMAÇÕES DO EMPRÉSTIMO
-                  // 🔹 CARD INFORMAÇÕES DO EMPRÉSTIMO
+                  // 🔹 CARD INFORMAÇÕES DO EMPRÉSTIMO (único card à esquerda agora)
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(12),
@@ -289,12 +234,47 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                         ),
+                        const SizedBox(height: 8),
+                        Divider(height: 10, color: Colors.green),
+                        const SizedBox(height: 8),
+                        Text(
+                          "Taxa de Juros: ${_controllers.taxaJuros.toStringAsFixed(2)}% a.m.",
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.black87,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          "Aporte total: ${_controllers.fmtMoeda(totalAporte)}",
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.black87,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          "Capital pago neste empréstimo: ${(totalPgCapital > 0) ? _controllers.fmtMoeda(totalPgCapital) : "R\$ 0,00"}",
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.black87,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          "Capital restando pagar: ${_controllers.fmtMoeda(totalAporte - totalPgCapital)}",
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Color.fromARGB(255, 180, 50, 30),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                       ],
                     ),
                   ),
-                  
+
                   const SizedBox(height: 16),
-                  
+
                   // 🔹 BOTÃO ADICIONAR LINHA
                   SizedBox(
                     width: double.infinity,
@@ -327,7 +307,7 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
                 ],
               ),
             ),
-            
+
             // 🔹 LADO DIREITO - TABELA (OCUPA O RESTANTE)
             Expanded(
               child: Container(
@@ -338,54 +318,89 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
                     scrollDirection: Axis.vertical,
                     child: DataTable(
                       columnSpacing: 16,
-                      headingRowColor: MaterialStateProperty.all(Colors.grey[300]),
+                      headingRowColor:
+                          MaterialStateProperty.all(Colors.grey[300]),
                       dataRowMinHeight: 38,
                       dataRowMaxHeight: 42,
                       headingTextStyle: const TextStyle(
-                        color: Colors.black, 
+                        color: Colors.black,
                         fontWeight: FontWeight.bold,
                         fontSize: 13,
                       ),
-                      dataTextStyle: const TextStyle(color: Colors.black87, fontSize: 13),
+                      dataTextStyle:
+                          const TextStyle(color: Colors.black87, fontSize: 13),
                       dividerThickness: 0.5,
                       horizontalMargin: 0,
                       columns: const [
-                        DataColumn(label: SizedBox(width: 95, child: Center(child: Text("Data")))),
-                        DataColumn(label: SizedBox(width: 130, child: Center(child: Text("Saldo Inicial")))),
-                        DataColumn(label: SizedBox(width: 105, child: Center(child: Text("Aporte")))),
-                        DataColumn(label: SizedBox(width: 115, child: Center(child: Text("Pag. Capital")))),
-                        DataColumn(label: SizedBox(width: 105, child: Center(child: Text("Pag. Juros")))),
-                        DataColumn(label: SizedBox(width: 95, child: Center(child: Text("Juros (período)")))),
-                        DataColumn(label: SizedBox(width: 130, child: Center(child: Text("Saldo Final")))),
+                        DataColumn(
+                            label: SizedBox(
+                                width: 95,
+                                child: Center(child: Text("Data")))),
+                        DataColumn(
+                            label: SizedBox(
+                                width: 130,
+                                child: Center(child: Text("Saldo Inicial")))),
+                        DataColumn(
+                            label: SizedBox(
+                                width: 105,
+                                child: Center(child: Text("Aporte")))),
+                        DataColumn(
+                            label: SizedBox(
+                                width: 115,
+                                child: Center(child: Text("Pag. Capital")))),
+                        DataColumn(
+                            label: SizedBox(
+                                width: 105,
+                                child: Center(child: Text("Pag. Juros")))),
+                        DataColumn(
+                            label: SizedBox(
+                                width: 95,
+                                child: Center(child: Text("Juros (período)")))),
+                        DataColumn(
+                            label: SizedBox(
+                                width: 130,
+                                child: Center(child: Text("Saldo Final")))),
                       ],
                       rows: [
-                        ..._controllers.linhas
-                            .asMap()
-                            .entries
-                            .map(
+                        ..._controllers.linhas.asMap().entries.map(
                               (entry) => DataRow(
                                 cells: [
                                   _buildDateCell(entry.key),
-                                  _buildReadOnlyCell(_fmt.format(entry.value['saldo_inicial'] ?? 0.0)),
-                                  _buildEditableCell(entry.key, 'aporte', cor: Colors.red),
+                                  _buildReadOnlyCell(
+                                      _fmt.format(entry.value['saldo_inicial'] ?? 0.0)),
+                                  _buildEditableCell(entry.key, 'aporte',
+                                      cor: Colors.red),
                                   _buildEditableCell(entry.key, 'pg_capital'),
-                                  _buildEditableCell(entry.key, 'pg_juros', cor: const Color.fromARGB(255, 0, 21, 212)),
+                                  _buildEditableCell(entry.key, 'pg_juros',
+                                      cor: const Color.fromARGB(255, 0, 21, 212)),
                                   _buildJurosMesCell(entry.key),
-                                  _buildReadOnlyCell(_fmt.format(entry.value['saldo_final'] ?? 0.0)),
+                                  _buildReadOnlyCell(
+                                      _fmt.format(entry.value['saldo_final'] ?? 0.0)),
                                 ],
                               ),
-                            )
-                            .toList(),
-                        DataRow( // 🔹 LINHA DE TOTAIS
+                            ),
+                        DataRow(
                           color: MaterialStateProperty.all(Colors.grey[200]),
                           cells: [
-                            DataCell(Center(child: Text("TOTAIS", style: TextStyle(fontWeight: FontWeight.bold)))),
+                            DataCell(Center(
+                                child: Text("TOTAIS",
+                                    style: TextStyle(fontWeight: FontWeight.bold)))),
                             DataCell(Center(child: Text(""))),
-                            DataCell(Center(child: Text(_controllers.fmtMoeda(totalAporte), style: TextStyle(fontWeight: FontWeight.bold)))),
-                            DataCell(Center(child: Text(_controllers.fmtMoeda(totalPgCapital), style: TextStyle(fontWeight: FontWeight.bold)))),
-                            DataCell(Center(child: Text(_controllers.fmtMoeda(totalPgJuros), style: TextStyle(fontWeight: FontWeight.bold)))),
-                            DataCell(Center(child: Text(_controllers.fmtMoeda(totalJurosPeriodo), style: TextStyle(fontWeight: FontWeight.bold)))),
-                            DataCell(Center(child: Text(_controllers.fmtMoeda(saldoFinal), style: TextStyle(fontWeight: FontWeight.bold)))),
+                            DataCell(Center(
+                                child: Text(_controllers.fmtMoeda(totalAporte),
+                                    style: TextStyle(fontWeight: FontWeight.bold)))),
+                            DataCell(Center(
+                                child: Text(_controllers.fmtMoeda(totalPgCapital),
+                                    style: TextStyle(fontWeight: FontWeight.bold)))),
+                            DataCell(Center(
+                                child: Text(_controllers.fmtMoeda(totalPgJuros),
+                                    style: TextStyle(fontWeight: FontWeight.bold)))),
+                            DataCell(Center(
+                                child: Text(_controllers.fmtMoeda(totalJurosPeriodo),
+                                    style: TextStyle(fontWeight: FontWeight.bold)))),
+                            DataCell(Center(
+                                child: Text(_controllers.fmtMoeda(saldoFinal),
+                                    style: TextStyle(fontWeight: FontWeight.bold)))),
                           ],
                         ),
                       ],
