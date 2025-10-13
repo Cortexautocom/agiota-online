@@ -38,10 +38,10 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
 
     // 🔹 2. Busca parcelas no banco (com o campo ID incluído!)
     final parcelas = await supabase
-        .from('parcelas')
-        .select('id, data_mov, aporte, pg_principal, pg_juros, juros_periodo, juros_atraso')
-        .eq('id_emprestimo', widget.emprestimo['id'])
-        .order('data_mov', ascending: true);
+      .from('parcelas')
+      .select('id, data_mov, aporte, pg_principal, pg_juros, juros_periodo, juros_atraso, pg') // 🆕 adiciona pg
+      .eq('id_emprestimo', widget.emprestimo['id'])
+      .order('data_mov', ascending: true);
 
     // 🔹 3. Se encontrou parcelas, monta as linhas com ID
     if (parcelas.isNotEmpty) {
@@ -59,8 +59,9 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
           'pg_capital': (p['pg_principal'] as num?)?.toDouble() ?? 0.0,
           'pg_juros': (p['pg_juros'] as num?)?.toDouble() ?? 0.0,
           'juros_mes': (p['juros_periodo'] as num?)?.toDouble() ?? 0.0,
-          'juros_atraso': (p['juros_atraso'] as num?)?.toDouble() ?? 0.0, // 🆕 NOVA COLUNA
-          'saldo_final': 0.0,
+          'juros_atraso': (p['juros_atraso'] as num?)?.toDouble() ?? 0.0,
+          'pg': (p['pg'] as int?) ?? 0,
+          'saldo_final': 0.0,          
         });
       }
 
@@ -187,12 +188,14 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
     double saldoFinal = _controllers.linhas.isNotEmpty 
         ? (_controllers.linhas.last['saldo_final'] ?? 0.0) 
         : 0.0;
+    double totalJurosAtraso = 0;
 
     for (var i = 0; i < _controllers.linhas.length; i++) {
       totalAporte += _controllers.parseMoeda(_controllers.controllers[i]['aporte']!.text);
       totalPgCapital += _controllers.parseMoeda(_controllers.controllers[i]['pg_capital']!.text);
       totalPgJuros += _controllers.parseMoeda(_controllers.controllers[i]['pg_juros']!.text);
       totalJurosPeriodo += _controllers.parseMoeda(_controllers.controllers[i]['juros_mes']!.text);
+      totalJurosAtraso += _controllers.parseMoeda(_controllers.controllers[i]['juros_atraso']!.text);
     }
 
     return Scaffold(
@@ -376,26 +379,74 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
                             label: SizedBox(
                                 width: 130,
                                 child: Center(child: Text("Saldo Final")))),
+                        DataColumn(
+                            label: SizedBox(
+                              width: 90,
+                              child: Center(child: Text("Pg.")),
+                            ),
+                          ),
                       ],
                       rows: [
                         ..._controllers.linhas.asMap().entries.map(
-                              (entry) => DataRow(
-                                cells: [
-                                  _buildDateCell(entry.key),
-                                  _buildReadOnlyCell(
-                                      _fmt.format(entry.value['saldo_inicial'] ?? 0.0)),
-                                  _buildEditableCell(entry.key, 'aporte',
-                                      cor: Colors.red),
-                                  _buildEditableCell(entry.key, 'pg_capital'),
-                                  _buildEditableCell(entry.key, 'pg_juros',
-                                      cor: const Color.fromARGB(255, 0, 21, 212)),
-                                  _buildJurosMesCell(entry.key),
-                                  _buildEditableCell(entry.key, 'juros_atraso', cor: Colors.orange),
-                                  _buildReadOnlyCell(
-                                      _fmt.format(entry.value['saldo_final'] ?? 0.0)),
-                                ],
-                              ),
-                            ),
+                          (entry) {
+                            final linha = entry.value;
+                            final dataTexto = linha['data'];
+                            final pgCapital = linha['pg_capital'] ?? 0.0;
+                            final pgJuros = linha['pg_juros'] ?? 0.0;
+                            //final desconsiderar = linha['desconsiderar_atraso'] ?? false;
+
+                            Color? rowColor;
+
+                            try {
+                              final dataFormatada = DateFormat('dd/MM/yyyy').parse(dataTexto);
+                              final hoje = DateTime.now();
+                              final isFirstRow = entry.key == 0;
+
+                              final estaAtrasado = !isFirstRow &&
+                                  hoje.isAfter(dataFormatada) &&
+                                  pgCapital == 0.0 &&
+                                  pgJuros == 0.0;
+
+                              final marcadoComoPago = (linha['pg'] ?? 0) == 1; // 🆕 usa o novo campo
+
+                              if (estaAtrasado && !marcadoComoPago) {
+                                rowColor = Colors.red[100]; // 🔴 leve vermelho (atrasado)
+                              } else if (marcadoComoPago) {
+                                rowColor = Colors.green[100]; // 🟢 verde leve (desconsiderado/pago)
+                              } else {
+                                rowColor = null;
+                              }
+                            } catch (e) {
+                              rowColor = null;
+                            }
+
+                            return DataRow(
+                              color: MaterialStateProperty.all(rowColor),
+                              cells: [
+                                _buildDateCell(entry.key),
+                                _buildReadOnlyCell(
+                                    _fmt.format(linha['saldo_inicial'] ?? 0.0)),
+                                _buildEditableCell(entry.key, 'aporte', cor: Colors.red),
+                                _buildEditableCell(entry.key, 'pg_capital', cor: Colors.black),
+                                _buildEditableCell(entry.key, 'pg_juros', cor: Colors.green),
+                                _buildJurosMesCell(entry.key), // azul já aplicado
+                                _buildEditableCell(entry.key, 'juros_atraso', cor: Colors.green),
+                                _buildReadOnlyCell(
+                                    _fmt.format(linha['saldo_final'] ?? 0.0)),
+                                DataCell(
+                                  Checkbox(
+                                    value: (linha['pg'] ?? 0) == 1, // usa o campo 'pg' como referência
+                                    onChanged: (val) {
+                                      setState(() {
+                                        linha['pg'] = (val ?? false) ? 1 : 0; // atualiza apenas na memória
+                                      });
+                                    },
+                                  ),
+                                ),
+                              ],
+                            );
+                          },
+                        ),
                         DataRow(
                           color: MaterialStateProperty.all(Colors.grey[200]),
                           cells: [
@@ -416,11 +467,12 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
                                 child: Text(_controllers.fmtMoeda(totalJurosPeriodo),
                                     style: TextStyle(fontWeight: FontWeight.bold)))),
                             DataCell(Center(
-                                child: Text("R\$ 0,00",
+                                child: Text(_controllers.fmtMoeda(totalJurosAtraso), // 🆕 total de juros atraso
                                     style: TextStyle(fontWeight: FontWeight.bold)))),
                             DataCell(Center(
                                 child: Text(_controllers.fmtMoeda(saldoFinal),
                                     style: TextStyle(fontWeight: FontWeight.bold)))),
+                            DataCell(Center(child: Text(""))),
                           ],
                         ),
                       ],
@@ -536,7 +588,7 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
     );
   }
 
-  // 🔹 CÉLULA EDITÁVEL COM A MESMA LÓGICA DO PARCELASTABLE
+  
   DataCell _buildEditableCell(int index, String campo, {Color? cor}) {
     final controller = _controllers.controllers[index][campo]!;
 
@@ -551,7 +603,14 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
           onFocusChange: (hasFocus) {
             if (!hasFocus) {
               final valor = _controllers.parseMoeda(controller.text);
-              controller.text = _controllers.fmtMoeda(valor);
+
+              // 🆕 Se for Aporte ou Juros (atraso) e o valor for 0 → deixa vazio
+              if ((campo == 'aporte' || campo == 'juros_atraso') && valor == 0.0) {
+                controller.text = '';
+              } else {
+                controller.text = _controllers.fmtMoeda(valor);
+              }
+
               _controllers.linhas[index][campo] = valor;
               _controllers.recalcularSaldos();
               _controllers.recalcularTodosJuros();
@@ -571,7 +630,11 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
             ),
             onEditingComplete: () { // Pressionou Enter
               final valor = _controllers.parseMoeda(controller.text);
-              controller.text = _controllers.fmtMoeda(valor);
+              if ((campo == 'aporte' || campo == 'juros_atraso') && valor == 0.0) {
+                controller.text = '';
+              } else {
+                controller.text = _controllers.fmtMoeda(valor);
+              }
               _controllers.linhas[index][campo] = valor;
               _controllers.recalcularSaldos();
               _controllers.recalcularTodosJuros();

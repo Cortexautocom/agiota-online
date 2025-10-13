@@ -35,6 +35,7 @@ class AmortizacaoControllers {
       'juros_mes': 0.0,
       'juros_atraso': 0.0, // 🆕 nova coluna
       'saldo_final': 0.0,
+      'pg': 0,
     });
     preencherControllers();
   }
@@ -44,14 +45,30 @@ class AmortizacaoControllers {
     for (final linha in _linhas) {
       _controllers.add({
         'data': TextEditingController(text: linha['data'].toString()),
-        'aporte': TextEditingController(text: fmtMoeda(linha['aporte'])),
-        'pg_capital': TextEditingController(text: fmtMoeda(linha['pg_capital'])),
-        'pg_juros': TextEditingController(text: fmtMoeda(linha['pg_juros'])),
-        'juros_mes': TextEditingController(text: fmtMoeda(linha['juros_mes'])),
-        'juros_atraso': TextEditingController(text: fmtMoeda(linha['juros_atraso'])), // 🆕
+        
+        'aporte': TextEditingController(
+          text: (linha['aporte'] ?? 0.0) == 0.0 ? '' : fmtMoeda(linha['aporte']),
+        ),
+
+        'pg_capital': TextEditingController(
+          text: fmtMoeda(linha['pg_capital']),
+        ),
+        'pg_juros': TextEditingController(
+          text: fmtMoeda(linha['pg_juros']),
+        ),
+        'juros_mes': TextEditingController(
+          text: fmtMoeda(linha['juros_mes']),
+        ),
+
+        'juros_atraso': TextEditingController(
+          text: (linha['juros_atraso'] ?? 0.0) == 0.0
+              ? ''
+              : fmtMoeda(linha['juros_atraso']),
+        ),
       });
     }
   }
+
 
   // 🔹 FORMATAÇÃO
   String fmtMoeda(double valor) => _service.fmtMoeda(valor);
@@ -64,7 +81,7 @@ class AmortizacaoControllers {
     try {
       final parcelas = await supabase
           .from('parcelas')
-          .select('id, data_mov, aporte, pg_principal, pg_juros, juros_periodo, juros_atraso') // 🆕
+          .select('id, data_mov, aporte, pg_principal, pg_juros, juros_periodo, juros_atraso, pg')
           .eq('id_emprestimo', idEmprestimo)
           .order('data_mov', ascending: true);
 
@@ -79,7 +96,8 @@ class AmortizacaoControllers {
           'pg_capital': (p['pg_principal'] as num?)?.toDouble() ?? 0.0,
           'pg_juros': (p['pg_juros'] as num?)?.toDouble() ?? 0.0,
           'juros_mes': (p['juros_periodo'] as num?)?.toDouble() ?? 0.0,
-          'juros_atraso': (p['juros_atraso'] as num?)?.toDouble() ?? 0.0, // 🆕
+          'juros_atraso': (p['juros_atraso'] as num?)?.toDouble() ?? 0.0,
+          'pg': (p['pg'] as int?) ?? 0,
           'saldo_final': 0.0,
         });
       }
@@ -127,7 +145,8 @@ class AmortizacaoControllers {
           'pg_principal': linha['pg_capital'],
           'pg_juros': linha['pg_juros'],
           'juros_periodo': linha['juros_mes'],
-          'juros_atraso': linha['juros_atraso'], // 🆕
+          'juros_atraso': linha['juros_atraso'],
+          'pg': linha['pg'],
           'tipo_mov': 'amortizacao',
           'id_usuario': userId,
         };
@@ -151,8 +170,7 @@ class AmortizacaoControllers {
       return null;
     }
   }
-
-  // 🔹 ADICIONAR NOVA LINHA
+  
   void adicionarLinha() {
     final double ultimoSaldoFinal =
         _linhas.isNotEmpty ? (_linhas.last['saldo_final'] ?? 0.0) : 0.0;
@@ -167,6 +185,7 @@ class AmortizacaoControllers {
       'juros_mes': 0.0,
       'juros_atraso': 0.0, // 🆕
       'saldo_final': ultimoSaldoFinal,
+      'pg': 0,
     });
 
     _controllers.add({
@@ -174,8 +193,8 @@ class AmortizacaoControllers {
       'aporte': TextEditingController(),
       'pg_capital': TextEditingController(),
       'pg_juros': TextEditingController(),
-      'juros_mes': TextEditingController(),
-      'juros_atraso': TextEditingController(), // 🆕
+      'juros_mes': TextEditingController(), 
+      'juros_atraso': TextEditingController(),
     });
 
     recalcularSaldos();
