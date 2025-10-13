@@ -33,6 +33,7 @@ class AmortizacaoControllers {
       'pg_capital': 0.0,
       'pg_juros': 0.0,
       'juros_mes': 0.0,
+      'juros_atraso': 0.0, // 🆕 nova coluna
       'saldo_final': 0.0,
     });
     preencherControllers();
@@ -47,6 +48,7 @@ class AmortizacaoControllers {
         'pg_capital': TextEditingController(text: fmtMoeda(linha['pg_capital'])),
         'pg_juros': TextEditingController(text: fmtMoeda(linha['pg_juros'])),
         'juros_mes': TextEditingController(text: fmtMoeda(linha['juros_mes'])),
+        'juros_atraso': TextEditingController(text: fmtMoeda(linha['juros_atraso'])), // 🆕
       });
     }
   }
@@ -62,7 +64,7 @@ class AmortizacaoControllers {
     try {
       final parcelas = await supabase
           .from('parcelas')
-          .select('id, data_mov, aporte, pg_principal, pg_juros, juros_periodo')
+          .select('id, data_mov, aporte, pg_principal, pg_juros, juros_periodo, juros_atraso') // 🆕
           .eq('id_emprestimo', idEmprestimo)
           .order('data_mov', ascending: true);
 
@@ -70,13 +72,14 @@ class AmortizacaoControllers {
 
       for (final p in parcelas) {
         _linhas.add({
-          'id': p['id'], // mantém o ID original
+          'id': p['id'],
           'data': _service.toBrDate(p['data_mov']) ?? '',
           'saldo_inicial': 0.0,
           'aporte': (p['aporte'] as num?)?.toDouble() ?? 0.0,
           'pg_capital': (p['pg_principal'] as num?)?.toDouble() ?? 0.0,
           'pg_juros': (p['pg_juros'] as num?)?.toDouble() ?? 0.0,
           'juros_mes': (p['juros_periodo'] as num?)?.toDouble() ?? 0.0,
+          'juros_atraso': (p['juros_atraso'] as num?)?.toDouble() ?? 0.0, // 🆕
           'saldo_final': 0.0,
         });
       }
@@ -90,13 +93,13 @@ class AmortizacaoControllers {
 
   // 🔹 SALVAR PARCELAS NO BANCO (UPDATE linha a linha)
   Future<bool> salvarParcelasNoBanco(String idEmprestimo) async {
-    // 🔹 Atualiza dados das linhas com valores dos controllers antes de salvar
     for (int i = 0; i < _linhas.length; i++) {
       final controller = _controllers[i];
       _linhas[i]['aporte'] = parseMoeda(controller['aporte']!.text);
       _linhas[i]['pg_capital'] = parseMoeda(controller['pg_capital']!.text);
       _linhas[i]['pg_juros'] = parseMoeda(controller['pg_juros']!.text);
       _linhas[i]['juros_mes'] = parseMoeda(controller['juros_mes']!.text);
+      _linhas[i]['juros_atraso'] = parseMoeda(controller['juros_atraso']!.text); // 🆕
       _linhas[i]['data'] = controller['data']!.text;
     }
 
@@ -124,14 +127,12 @@ class AmortizacaoControllers {
           'pg_principal': linha['pg_capital'],
           'pg_juros': linha['pg_juros'],
           'juros_periodo': linha['juros_mes'],
+          'juros_atraso': linha['juros_atraso'], // 🆕
           'tipo_mov': 'amortizacao',
           'id_usuario': userId,
         };
 
-        await supabase
-            .from('parcelas')
-            .update(updateData)
-            .eq('id', idParcela);
+        await supabase.from('parcelas').update(updateData).eq('id', idParcela);
       }
 
       print('✅ Parcelas atualizadas com sucesso.');
@@ -143,7 +144,6 @@ class AmortizacaoControllers {
     }
   }
 
-
   String? _getUserId() {
     try {
       return Supabase.instance.client.auth.currentUser?.id;
@@ -154,9 +154,8 @@ class AmortizacaoControllers {
 
   // 🔹 ADICIONAR NOVA LINHA
   void adicionarLinha() {
-    final double ultimoSaldoFinal = _linhas.isNotEmpty
-        ? (_linhas.last['saldo_final'] ?? 0.0)
-        : 0.0;
+    final double ultimoSaldoFinal =
+        _linhas.isNotEmpty ? (_linhas.last['saldo_final'] ?? 0.0) : 0.0;
 
     _linhas.add({
       'id': null,
@@ -166,6 +165,7 @@ class AmortizacaoControllers {
       'pg_capital': 0.0,
       'pg_juros': 0.0,
       'juros_mes': 0.0,
+      'juros_atraso': 0.0, // 🆕
       'saldo_final': ultimoSaldoFinal,
     });
 
@@ -175,6 +175,7 @@ class AmortizacaoControllers {
       'pg_capital': TextEditingController(),
       'pg_juros': TextEditingController(),
       'juros_mes': TextEditingController(),
+      'juros_atraso': TextEditingController(), // 🆕
     });
 
     recalcularSaldos();
@@ -196,6 +197,7 @@ class AmortizacaoControllers {
       linha['pg_capital'] = parseMoeda(controller['pg_capital']!.text);
       linha['pg_juros'] = parseMoeda(controller['pg_juros']!.text);
       linha['juros_mes'] = parseMoeda(controller['juros_mes']!.text);
+      linha['juros_atraso'] = parseMoeda(controller['juros_atraso']!.text); // 🆕
       linha['data'] = controller['data']!.text;
 
       final saldoInicial = linha['saldo_inicial'] ?? 0.0;
@@ -203,9 +205,10 @@ class AmortizacaoControllers {
       final pgCapital = linha['pg_capital'] ?? 0.0;
       final pgJuros = linha['pg_juros'] ?? 0.0;
       final jurosMes = linha['juros_mes'] ?? 0.0;
+      final jurosAtraso = linha['juros_atraso'] ?? 0.0; // 🆕 novo campo
 
       linha['saldo_final'] =
-          saldoInicial + aporte - pgCapital - pgJuros + jurosMes;
+          saldoInicial + aporte - pgCapital - pgJuros + jurosMes + jurosAtraso;
 
       if (i < _linhas.length - 1) {
         _linhas[i + 1]['saldo_inicial'] = linha['saldo_final'];
@@ -238,29 +241,26 @@ class AmortizacaoControllers {
 
   void recalcularTodosJuros() {
     if (_linhas.isEmpty) return;
+    double? ultimoJurosValido;
 
-    double? ultimoJurosValido; // guarda o último valor de juros real calculado
-
-    // 🔹 Zera todos os juros antes de recalcular
     for (var i = 0; i < _linhas.length; i++) {
       _linhas[i]['juros_mes'] = 0.0;
       _controllers[i]['juros_mes']!.text = fmtMoeda(0.0);
     }
 
-    // 🔹 Percorre as linhas a partir da 2ª (índice 1)
     for (int i = 1; i < _linhas.length; i++) {
       final dataAtual = _controllers[i]['data']!.text;
       final dataAnterior = _controllers[i - 1]['data']!.text;
 
-      // Ignora se não há datas válidas
       if (dataAtual.length != 10 || dataAnterior.length != 10) continue;
 
-      // 🔹 Segunda linha (index 1) -> sempre calcula normalmente
       if (i == 1) {
-        final diferencaDias = _service.calcularDiferencaDias(dataAnterior, dataAtual);
+        final diferencaDias =
+            _service.calcularDiferencaDias(dataAnterior, dataAtual);
         if (diferencaDias > 0 && _taxaJuros > 0) {
           final saldoAnterior = _linhas[i - 1]['saldo_final'] ?? 0.0;
-          final jurosCalculado = saldoAnterior * (_taxaJuros / 100 / 30) * diferencaDias;
+          final jurosCalculado =
+              saldoAnterior * (_taxaJuros / 100 / 30) * diferencaDias;
 
           _linhas[i]['juros_mes'] = jurosCalculado;
           _controllers[i]['juros_mes']!.text = fmtMoeda(jurosCalculado);
@@ -269,7 +269,6 @@ class AmortizacaoControllers {
         continue;
       }
 
-      // 🔹 A partir da 3ª linha -> verifica se houve movimentação na linha anterior
       final linhaAnterior = _linhas[i - 1];
       final bool houveMovimentacao =
           (linhaAnterior['aporte'] ?? 0) != 0 ||
@@ -277,44 +276,41 @@ class AmortizacaoControllers {
           (linhaAnterior['pg_juros'] ?? 0) != 0;
 
       if (houveMovimentacao) {
-        // 📈 Calcula juros normalmente
-        final diferencaDias = _service.calcularDiferencaDias(dataAnterior, dataAtual);
+        final diferencaDias =
+            _service.calcularDiferencaDias(dataAnterior, dataAtual);
         if (diferencaDias > 0 && _taxaJuros > 0) {
           final saldoAnterior = _linhas[i - 1]['saldo_final'] ?? 0.0;
-          final jurosCalculado = saldoAnterior * (_taxaJuros / 100 / 30) * diferencaDias;
+          final jurosCalculado =
+              saldoAnterior * (_taxaJuros / 100 / 30) * diferencaDias;
 
           _linhas[i]['juros_mes'] = jurosCalculado;
           _controllers[i]['juros_mes']!.text = fmtMoeda(jurosCalculado);
           ultimoJurosValido = jurosCalculado;
         }
       } else {
-        // 📋 Sem movimentação anterior → copia o último juros válido
         if (ultimoJurosValido != null) {
           _linhas[i]['juros_mes'] = ultimoJurosValido;
           _controllers[i]['juros_mes']!.text = fmtMoeda(ultimoJurosValido);
         }
       }
 
-      // 🔄 Propaga o saldo final atualizado para a próxima linha
       final saldoInicial = _linhas[i]['saldo_inicial'] ?? 0.0;
       final aporte = _linhas[i]['aporte'] ?? 0.0;
       final pgCapital = _linhas[i]['pg_capital'] ?? 0.0;
       final pgJuros = _linhas[i]['pg_juros'] ?? 0.0;
       final jurosMes = _linhas[i]['juros_mes'] ?? 0.0;
+      final jurosAtraso = _linhas[i]['juros_atraso'] ?? 0.0;
 
       _linhas[i]['saldo_final'] =
-          saldoInicial + aporte - pgCapital - pgJuros + jurosMes;
+          saldoInicial + aporte - pgCapital - pgJuros + jurosMes + jurosAtraso;
 
       if (i < _linhas.length - 1) {
         _linhas[i + 1]['saldo_inicial'] = _linhas[i]['saldo_final'];
       }
     }
 
-    // 🔹 Atualiza saldos na UI
     recalcularSaldos();
   }
-
-
 
   void dispose() {
     for (final controllerMap in _controllers) {
@@ -323,6 +319,7 @@ class AmortizacaoControllers {
       controllerMap['pg_capital']?.dispose();
       controllerMap['pg_juros']?.dispose();
       controllerMap['juros_mes']?.dispose();
+      controllerMap['juros_atraso']?.dispose(); // 🆕
     }
     taxaJurosCtrl.dispose();
   }
@@ -347,12 +344,14 @@ class AmortizacaoControllers {
     double totalPgCapital = 0;
     double totalPgJuros = 0;
     double totalJurosPeriodo = 0;
+    double totalJurosAtraso = 0;
 
     for (var i = 0; i < _linhas.length; i++) {
       totalAporte += parseMoeda(_controllers[i]['aporte']!.text);
       totalPgCapital += parseMoeda(_controllers[i]['pg_capital']!.text);
       totalPgJuros += parseMoeda(_controllers[i]['pg_juros']!.text);
       totalJurosPeriodo += parseMoeda(_controllers[i]['juros_mes']!.text);
+      totalJurosAtraso += parseMoeda(_controllers[i]['juros_atraso']!.text);
     }
 
     return {
@@ -360,6 +359,7 @@ class AmortizacaoControllers {
       'pg_capital': totalPgCapital,
       'pg_juros': totalPgJuros,
       'juros_periodo': totalJurosPeriodo,
+      'juros_atraso': totalJurosAtraso,
       'saldo_final':
           _linhas.isNotEmpty ? (_linhas.last['saldo_final'] ?? 0.0) : 0.0,
     };

@@ -39,7 +39,7 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
     // 🔹 2. Busca parcelas no banco (com o campo ID incluído!)
     final parcelas = await supabase
         .from('parcelas')
-        .select('id, data_mov, aporte, pg_principal, pg_juros, juros_periodo')
+        .select('id, data_mov, aporte, pg_principal, pg_juros, juros_periodo, juros_atraso')
         .eq('id_emprestimo', widget.emprestimo['id'])
         .order('data_mov', ascending: true);
 
@@ -52,13 +52,14 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
             DateFormat('dd/MM/yyyy').format(DateTime.now());
 
         _controllers.linhas.add({
-          'id': p['id'], // ✅ agora tem ID!
+          'id': p['id'],
           'data': dataBr,
           'saldo_inicial': 0.0,
           'aporte': (p['aporte'] as num?)?.toDouble() ?? 0.0,
           'pg_capital': (p['pg_principal'] as num?)?.toDouble() ?? 0.0,
           'pg_juros': (p['pg_juros'] as num?)?.toDouble() ?? 0.0,
           'juros_mes': (p['juros_periodo'] as num?)?.toDouble() ?? 0.0,
+          'juros_atraso': (p['juros_atraso'] as num?)?.toDouble() ?? 0.0, // 🆕 NOVA COLUNA
           'saldo_final': 0.0,
         });
       }
@@ -100,11 +101,22 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
 
   void _adicionarLinha() {
     if (_controllers.haDataVazia()) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Preencha todas as datas antes de criar nova linha."),
-          duration: Duration(seconds: 3),
-        ),
+      showDialog(
+        context: context,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            //title: const Text("Atenção"), // Título opcional
+            content: const Text("Preencha todas as datas antes de criar nova linha."),
+            actions: <Widget>[
+              TextButton(
+                child: const Text("OK"),
+                onPressed: () {
+                  Navigator.of(context).pop(); // Fecha a janela
+                },
+              ),
+            ],
+          );
+        },
       );
       return;
     }
@@ -139,7 +151,7 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
       });
       
       // 🔹 AGUARDA O SNACKBAR E VOLTA PARA O FINANCEIRO ATUALIZADO
-      await Future.delayed(const Duration(seconds: 2));
+      await Future.delayed(const Duration(seconds: 1));
 
       if (mounted) {
         // 🔹 VOLTA PARA O FINANCEIRO FORÇANDO ATUALIZAÇÃO
@@ -358,6 +370,10 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
                                 child: Center(child: Text("Juros (período)")))),
                         DataColumn(
                             label: SizedBox(
+                              width: 105,
+                              child: Center(child: Text("Juros (atraso)")))),
+                        DataColumn(
+                            label: SizedBox(
                                 width: 130,
                                 child: Center(child: Text("Saldo Final")))),
                       ],
@@ -374,6 +390,7 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
                                   _buildEditableCell(entry.key, 'pg_juros',
                                       cor: const Color.fromARGB(255, 0, 21, 212)),
                                   _buildJurosMesCell(entry.key),
+                                  _buildEditableCell(entry.key, 'juros_atraso', cor: Colors.orange),
                                   _buildReadOnlyCell(
                                       _fmt.format(entry.value['saldo_final'] ?? 0.0)),
                                 ],
@@ -397,6 +414,9 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
                                     style: TextStyle(fontWeight: FontWeight.bold)))),
                             DataCell(Center(
                                 child: Text(_controllers.fmtMoeda(totalJurosPeriodo),
+                                    style: TextStyle(fontWeight: FontWeight.bold)))),
+                            DataCell(Center(
+                                child: Text("R\$ 0,00",
                                     style: TextStyle(fontWeight: FontWeight.bold)))),
                             DataCell(Center(
                                 child: Text(_controllers.fmtMoeda(saldoFinal),
@@ -639,8 +659,4 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
       return {};
     }
   }
-
-
-
-
 }
