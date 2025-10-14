@@ -127,8 +127,12 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
 
   Future<void> _salvarNoBanco() async {
     final sucesso = await _controllers.salvarParcelasNoBanco(widget.emprestimo['id']);
-    
-    if (sucesso && mounted) {
+
+    // 🧩 Verifica antes de qualquer ação se a tela ainda está montada
+    if (!mounted) return;
+
+    if (sucesso) {
+      if (!mounted) return;
       showDialog(
         context: context,
         barrierDismissible: false, // impede fechar clicando fora
@@ -146,16 +150,15 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
 
       // Fecha automaticamente após 2 segundos
       Future.delayed(const Duration(seconds: 2), () {
-        if (Navigator.canPop(context)) {
+        if (mounted && Navigator.canPop(context)) { // 🛡️ verifica se a tela ainda existe
           Navigator.of(context).pop();
         }
       });
-      
-      // 🔹 AGUARDA O SNACKBAR E VOLTA PARA O FINANCEIRO ATUALIZADO
+
+      // Aguarda o snackbar e volta para o financeiro atualizado
       await Future.delayed(const Duration(seconds: 1));
 
       if (mounted) {
-        // 🔹 VOLTA PARA O FINANCEIRO FORÇANDO ATUALIZAÇÃO
         Navigator.pushAndRemoveUntil(
           context,
           MaterialPageRoute(
@@ -167,7 +170,8 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
           (route) => false,
         );
       }
-    } else if (mounted) {
+    } else {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text("Erro ao salvar dados."),
@@ -177,6 +181,7 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
       );
     }
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -188,6 +193,7 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
     double saldoFinal = _controllers.linhas.isNotEmpty 
         ? (_controllers.linhas.last['saldo_final'] ?? 0.0) 
         : 0.0;
+    double jurosEmAtraso = _calcularJurosEmAtraso();
     double totalJurosAtraso = 0;
 
     for (var i = 0; i < _controllers.linhas.length; i++) {
@@ -282,6 +288,24 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
                             fontSize: 12,
                             color: Color.fromARGB(255, 180, 50, 30),
                             fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          "Juros acumulados para o próximo vencimento:",
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.black87,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          _controllers.fmtMoeda(jurosEmAtraso),
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: Colors.redAccent,
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
                       ],
@@ -722,4 +746,46 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
       return {};
     }
   }
+
+  
+  double _calcularJurosEmAtraso() {
+    double total = 0.0;
+    int linhasSomadas = 0; // 🆕 contador de linhas somadas
+    final hoje = DateTime.now();
+    final formatador = DateFormat('dd/MM/yyyy');
+
+    for (final linha in _controllers.linhas) {
+      final pg = linha['pg'] ?? 0;
+
+      // Ignora linhas marcadas como pagas
+      if (pg == 1) continue;
+
+      final dataTexto = linha['data'];
+      if (dataTexto == null || dataTexto.toString().length != 10) continue;
+
+      try {
+        final dataLinha = formatador.parse(dataTexto);
+
+        // Soma juros das linhas válidas
+        total += (linha['juros_mes'] ?? 0.0) + (linha['juros_atraso'] ?? 0.0);
+        linhasSomadas++;
+
+        // Se a data for maior que hoje → soma esta e para
+        if (dataLinha.isAfter(hoje)) {
+          break;
+        }
+
+      } catch (e) {
+        // ignora datas inválidas
+      }
+    }
+
+    // 🧩 NOVO: só considera se houve mais de uma linha somada
+    if (linhasSomadas <= 1) return 0.0;
+
+    return total;
+  }
+
+
+
 }
