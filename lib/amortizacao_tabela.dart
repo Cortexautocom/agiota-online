@@ -301,10 +301,14 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          _controllers.fmtMoeda(jurosEmAtraso),
-                          style: const TextStyle(
+                          (jurosEmAtraso > 0)
+                              ? _controllers.fmtMoeda(jurosEmAtraso)
+                              : "R\$ 0,00",
+                          style: TextStyle(
                             fontSize: 13,
-                            color: Colors.redAccent,
+                            color: (jurosEmAtraso > 0)
+                                ? Colors.redAccent
+                                : Colors.black,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -313,8 +317,7 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
                   ),
 
                   const SizedBox(height: 16),
-
-                  // 🔹 BOTÃO ADICIONAR LINHA
+                  
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
@@ -405,8 +408,13 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
                                 child: Center(child: Text("Saldo Final")))),
                         DataColumn(
                             label: SizedBox(
-                              width: 90,
-                              child: Center(child: Text("Pg.")),
+                              width: 50, // 🔹 largura mínima para o texto e a checkbox
+                              child: Center(
+                                child: Text(
+                                  "Pg.",
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
                             ),
                           ),
                       ],
