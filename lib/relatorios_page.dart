@@ -270,13 +270,7 @@ class _RelatoriosPageState extends State<RelatoriosPage> {
           dataInicioCtrl: dataInicioCtrl,
           dataFimCtrl: dataFimCtrl,
           refreshNotifier: _refreshRelatorios, // 🔹 Passe o notificador
-        );
-      case 'Empréstimos ativos':
-        return const Center(child: Text("📄 Relatório de Empréstimos Ativos"));
-      case 'Empréstimos quitados':
-        return const Center(child: Text("📄 Relatório de Empréstimos Quitados"));
-      case 'Clientes x Dívida':
-        return const Center(child: Text("📄 Relatório Clientes x Dívida"));
+        );      
       default:
         return const Center(child: Text("Selecione um tipo de relatório."));
     }
@@ -348,16 +342,7 @@ class _RelatoriosPageState extends State<RelatoriosPage> {
                         child: Text("Parcelas em atraso")),
                     DropdownMenuItem(
                         value: "Parcelas com acordo vigente",
-                        child: Text("Parcelas com acordo vigente")),
-                    DropdownMenuItem(
-                        value: "Empréstimos ativos",
-                        child: Text("Empréstimos ativos")),
-                    DropdownMenuItem(
-                        value: "Empréstimos quitados",
-                        child: Text("Empréstimos quitados")),
-                    DropdownMenuItem(
-                        value: "Clientes x Dívida",
-                        child: Text("Clientes x Dívida")),
+                        child: Text("Parcelas com acordo vigente")),                    
                   ],
                   onChanged: _onRelatorioAlterado,
                 ),
