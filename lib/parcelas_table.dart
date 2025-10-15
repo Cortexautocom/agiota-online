@@ -250,7 +250,7 @@ class ParcelasTableState extends State<ParcelasTable> {
             DataColumn(label: SizedBox(width: 100, child: Text("Valor Pago"))),
             DataColumn(label: SizedBox(width: 100, child: Text("    Saldo"))),
             DataColumn(label: SizedBox(width: 110, child: Text("  Data Pag."))),
-            DataColumn(label: SizedBox(width: 90, child: Text("Ações"))),
+            DataColumn(label: SizedBox(width: 90, child: Text("Acordo"))),
           ],
           rows: [
             ...List.generate(widget.parcelas.length, (i) {

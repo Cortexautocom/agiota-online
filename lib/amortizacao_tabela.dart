@@ -136,11 +136,7 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
       showDialog(
         context: context,
         barrierDismissible: false, // impede fechar clicando fora
-        builder: (context) => const AlertDialog(
-          title: Text(
-            "Sucesso",
-            style: TextStyle(fontWeight: FontWeight.bold),
-          ),
+        builder: (context) => const AlertDialog(          
           content: Text(
             "Dados salvos com sucesso!",
             textAlign: TextAlign.center,
@@ -163,7 +159,11 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
           context,
           MaterialPageRoute(
             builder: (context) => FinanceiroPage(
-              cliente: widget.emprestimo,
+              cliente: {
+                'id_cliente': widget.emprestimo['id_cliente'],
+                'nome': widget.emprestimo['cliente'] ?? 'Cliente',
+                'id_usuario': widget.emprestimo['id_usuario'] ?? '',
+              }, // ← CORREÇÃO AQUI
               forceRefresh: true,
             ),
           ),
@@ -180,6 +180,14 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
         ),
       );
     }
+  }
+
+  // 🔹 Função auxiliar para excluir uma linha com segurança
+  void _removerLinha(int index) {
+    setState(() {
+      _controllers.linhas.removeAt(index);
+      _controllers.controllers.removeAt(index);
+    });
   }
 
 
@@ -212,17 +220,71 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
           icon: const Icon(Icons.arrow_back, color: Colors.white),
           tooltip: 'Voltar para o financeiro',
           onPressed: () {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(
-                builder: (context) => FinanceiroPage(
-                  cliente: widget.emprestimo,
-                  forceRefresh: true, // 🔹 garante atualização dos dados
-                ),
-              ),
+            // 🔹 Exibe diálogo de confirmação antes de sair
+            showDialog(
+              context: context,
+              builder: (BuildContext context) {
+                return AlertDialog(
+                  title: const Text(
+                    "Cuidado!",
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.redAccent,
+                    ),
+                  ),
+                  content: const Text(
+                    "Deseja sair sem salvar?",
+                    textAlign: TextAlign.center,
+                  ),
+                  actionsAlignment: MainAxisAlignment.center,
+                  actions: [
+                    // 🔸 Botão vermelho - sair sem salvar
+                    TextButton.icon(
+                      style: TextButton.styleFrom(
+                        backgroundColor: Colors.redAccent,
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                      ),
+                      onPressed: () {
+                        Navigator.of(context).pop(); // fecha o diálogo
+                        Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => FinanceiroPage(
+                              cliente: widget.emprestimo,
+                              forceRefresh: true,
+                            ),
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.warning_amber_rounded, color: Colors.white, size: 18),
+                      label: const Text(
+                        "Sim, sair sem salvar.",
+                        style: TextStyle(color: Colors.white),
+                      ),
+                    ),
+
+                    // 🔸 Botão cinza - cancelar
+                    TextButton(
+                      style: TextButton.styleFrom(
+                        backgroundColor: Colors.grey[200],
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                      ),
+                      onPressed: () {
+                        Navigator.of(context).pop(); // Fecha o diálogo e permanece na página
+                      },
+                      child: const Text(
+                        "Cancelar",
+                        style: TextStyle(color: Colors.black87),
+                      ),
+                    ),
+                  ],
+                );
+              },
             );
           },
         ),
+
         title: Text(
           "Empréstimo Nº $_numeroEmprestimo - $_nomeCliente - Amortização",
           style: const TextStyle(
@@ -424,10 +486,10 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
                                 child: Center(child: Text("Saldo Final")))),
                         DataColumn(
                             label: SizedBox(
-                              width: 50, // 🔹 largura mínima para o texto e a checkbox
+                              width: 50,
                               child: Center(
                                 child: Text(
-                                  "Pg.",
+                                  "",
                                   textAlign: TextAlign.center,
                                 ),
                               ),
@@ -482,13 +544,67 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
                                 _buildReadOnlyCell(
                                     _fmt.format(linha['saldo_final'] ?? 0.0)),
                                 DataCell(
-                                  Checkbox(
-                                    value: (linha['pg'] ?? 0) == 1, // usa o campo 'pg' como referência
-                                    onChanged: (val) {
-                                      setState(() {
-                                        linha['pg'] = (val ?? false) ? 1 : 0; // atualiza apenas na memória
-                                      });
+                                  PopupMenuButton<String>(
+                                    icon: const Icon(Icons.more_vert, size: 20),
+                                    onSelected: (value) async {
+                                      if (value == 'paga') {
+                                        // 🔹 Marcar como paga
+                                        setState(() {
+                                          linha['pg'] = 1;
+                                        });
+                                        await _controllers.salvarParcelasNoBanco(widget.emprestimo['id']);
+                                      } else if (value == 'pendente') {
+                                        // 🔹 Marcar como pendente
+                                        setState(() {
+                                          linha['pg'] = 0;
+                                        });
+                                        await _controllers.salvarParcelasNoBanco(widget.emprestimo['id']);
+                                      } else if (value == 'excluir') {
+                                          // 🔹 Exclui a linha
+                                          _removerLinha(entry.key);
+
+                                          // 🔹 Mostra diálogo de confirmação
+                                          showDialog(
+                                            context: context,
+                                            builder: (BuildContext context) {
+                                              return AlertDialog(
+                                                title: const Text(
+                                                  "",
+                                                  textAlign: TextAlign.center,
+                                                  style: TextStyle(fontWeight: FontWeight.bold),
+                                                ),
+                                                content: const Text(
+                                                  "Parcela excluída.",
+                                                  textAlign: TextAlign.center,
+                                                ),
+                                                actionsAlignment: MainAxisAlignment.center,
+                                                actions: [
+                                                  TextButton(
+                                                    child: const Text("OK"),
+                                                    onPressed: () {
+                                                      Navigator.of(context).pop(); // Fecha o diálogo
+                                                    },
+                                                  ),
+                                                ],
+                                              );
+                                            },
+                                          );
+                                        }
                                     },
+                                    itemBuilder: (context) => [
+                                      const PopupMenuItem(
+                                        value: 'paga',
+                                        child: Text('Marcar como paga'),
+                                      ),
+                                      const PopupMenuItem(
+                                        value: 'pendente',
+                                        child: Text('Marcar como pendente'),
+                                      ),
+                                      const PopupMenuItem(
+                                        value: 'excluir',
+                                        child: Text('Excluir linha'),
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ],
@@ -561,15 +677,30 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
             contentPadding: EdgeInsets.symmetric(vertical: 8, horizontal: 4),
             hintText: 'dd/mm/aaaa',
           ),
-          onChanged: (text) {
+          onChanged: (_) {}, // <- mantém mas vazio para não travar enquanto digita
+
+          onEditingComplete: () {
+            String text = controller.text.trim();
+
             if (text.isNotEmpty) {
+              // 🔹 Se o usuário digitou apenas dia e mês (ex: "14/06")
+              if (text.length == 5) {
+                final anoAtual = DateTime.now().year.toString();
+                text = "$text/$anoAtual";
+                controller.text = text;
+                controller.selection = TextSelection.fromPosition(
+                  TextPosition(offset: text.length),
+                );
+              }
+
+              // 🔹 Atualiza e recalcula somente ao sair do campo
               _controllers.linhas[index]['data'] = text;
-              _controllers.recalcularSaldos();              
-              //_controllers.calcularJurosAutomatico(index);
+              _controllers.recalcularSaldos();
               _controllers.recalcularTodosJuros();
               setState(() {});
             }
           },
+
           onTap: () {
             if (controller.text.isNotEmpty) {
               controller.selection = TextSelection(

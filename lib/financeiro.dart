@@ -268,9 +268,20 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
                                               MaterialPageRoute(
                                                 builder: (context) => AmortizacaoTabela(emprestimo: emp),
                                               ),
-                                            ).then((shouldRefresh) {
-                                              // 🔹 SE VOLTOU COM 'true', ATUALIZA OS DADOS
-                                              if (shouldRefresh == true) {
+                                            ).then((resultado) {
+                                              // 🔹 Caso a tela de Amortização retorne um mapa (com nome do cliente e flag de atualização)
+                                              if (resultado is Map && resultado['atualizar'] == true) {
+                                                _buscarEmprestimos();
+
+                                                // 🔹 Atualiza o nome do cliente no título do Financeiro
+                                                if (resultado['cliente'] != null) {
+                                                  setState(() {
+                                                    widget.cliente['nome'] = resultado['cliente'];
+                                                  });
+                                                }
+                                              }
+                                              // 🔹 Caso a tela antiga só retorne "true" (compatibilidade)
+                                              else if (resultado == true) {
                                                 _buscarEmprestimos();
                                               }
                                             });

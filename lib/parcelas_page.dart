@@ -31,7 +31,30 @@ class ParcelasPageState extends State<ParcelasPage> {
     _parcelasFuture = service.buscarParcelas(
       widget.emprestimo['id'] ?? widget.emprestimo['id_emprestimo'],
     );
+    //_carregarNomeCliente();
   }
+
+  /*Future<void> _carregarNomeCliente() async {
+    try {
+      final idCliente = widget.emprestimo['id_cliente'];
+      if (idCliente == null) return;
+
+      final response = await Supabase.instance.client
+          .from('clientes')
+          .select('nome')
+          .eq('id', idCliente)
+          .maybeSingle();
+
+      if (response != null && mounted) {
+        setState(() {
+          widget.emprestimo['cliente'] = response['nome'];
+        });
+      }
+    } catch (e) {
+      print('Erro ao carregar nome do cliente: $e');
+    }
+  }
+  */
 
   /// 🔹 Torna público para ser acessado pela ParcelasTable
   Future<void> atualizarParcelas() async {
@@ -44,14 +67,80 @@ class ParcelasPageState extends State<ParcelasPage> {
 
   @override
   Widget build(BuildContext context) {
-    final cliente = widget.emprestimo["cliente"] ?? "";
+    //final cliente = widget.emprestimo["cliente"] ?? "";
     final numero = widget.emprestimo["numero"] ?? "";
     final dataInicio = formatarData(widget.emprestimo["data_inicio"]);
 
     return Scaffold(
       appBar: AppBar(
-        title: Text("Parcelas - $cliente"),
-      ),            
+        backgroundColor: Colors.blue,
+        centerTitle: true,
+        title: Text(
+          "Empréstimo Nº ${widget.emprestimo["numero"] ?? ""} - ${widget.emprestimo["cliente"] ?? "Cliente"} - Parcelamento",
+          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+        ),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          tooltip: 'Voltar para o financeiro',
+          onPressed: () {
+            showDialog(
+              context: context,
+              builder: (BuildContext context) {
+                return AlertDialog(
+                  title: const Text(
+                    "Cuidado!",
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.redAccent,
+                    ),
+                  ),
+                  content: const Text(
+                    "Deseja sair sem salvar?",
+                    textAlign: TextAlign.center,
+                  ),
+                  actionsAlignment: MainAxisAlignment.center,
+                  actions: [
+                    // 🔸 Botão vermelho - sair sem salvar
+                    TextButton.icon(
+                      style: TextButton.styleFrom(
+                        backgroundColor: Colors.redAccent,
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                      ),
+                      onPressed: () {
+                        Navigator.of(context).pop(); // fecha o diálogo
+                        Navigator.pop(context, {'atualizar': true, 'cliente': widget.emprestimo['cliente']});
+                      },
+                      icon: const Icon(Icons.warning_amber_rounded, color: Colors.white, size: 18),
+                      label: const Text(
+                        "Sim, sair sem salvar.",
+                        style: TextStyle(color: Colors.white),
+                      ),
+                    ),
+
+                    // 🔸 Botão cinza - cancelar
+                    TextButton(
+                      style: TextButton.styleFrom(
+                        backgroundColor: Colors.grey[200],
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                      ),
+                      onPressed: () {
+                        Navigator.of(context).pop(); // fecha o diálogo e permanece
+                      },
+                      child: const Text(
+                        "Cancelar",
+                        style: TextStyle(color: Colors.black87),
+                      ),
+                    ),
+                  ],
+                );
+              },
+            );
+          },
+        ),
+      ),
+
+            
       body: Container(
         color: const Color(0xFFFAF9F6),
         padding: const EdgeInsets.all(12),
