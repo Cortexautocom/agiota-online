@@ -380,8 +380,8 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
                     width: double.infinity,
                     child: ElevatedButton.icon(
                       onPressed: _adicionarLinha,
-                      icon: const Icon(Icons.add, size: 18),
-                      label: const Text('Nova Linha'),
+                      icon: const Icon(Icons.add_circle_outline, size: 18),
+                      label: const Text('Adicionar parcela'),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color.fromARGB(255, 132, 224, 135),
                         padding: const EdgeInsets.symmetric(vertical: 12),

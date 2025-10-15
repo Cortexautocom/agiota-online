@@ -125,178 +125,186 @@ class ParcelasPageState extends State<ParcelasPage> {
               width: 260,
               padding: const EdgeInsets.all(16),
               child: Column(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween, // 🔹 fixa o botão no rodapé
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // 🔹 CARD DE DADOS
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.blue[50],
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.blue.shade200),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text("Empréstimo Nº $numero",
-                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                        const SizedBox(height: 6),
-                        Text("Cliente: $cliente",
-                            style: const TextStyle(fontSize: 12),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis),
-                        const SizedBox(height: 8),
-                        Divider(height: 10, color: Colors.blue),
-                        const SizedBox(height: 8),
-                        Text("Data do Empréstimo: $dataInicio",
-                            style: const TextStyle(fontSize: 12, color: Colors.black87)),
-                        const SizedBox(height: 6),
-                        Text("Capital: ${service.fmtMoeda2(valor)}",
-                            style: const TextStyle(fontSize: 12, color: Colors.black87)),
-                        const SizedBox(height: 6),
-                        Text("Juros: ${service.fmtMoeda2(juros)}",
-                            style: const TextStyle(fontSize: 12, color: Colors.black87)),
-                        const SizedBox(height: 6),
-                        Text("Montante: ${service.fmtMoeda2(montante)}",
-                            style: const TextStyle(fontSize: 12, color: Colors.black87)),
-                        const SizedBox(height: 6),
-                        Text("Parcela: ${service.fmtMoeda2(parcela)}",
-                            style: const TextStyle(fontSize: 12, color: Colors.black87)),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 20),
-
-                  // 🔹 BOTÃO ADICIONAR PARCELA (NOVO)
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: _adicionarNovaParcela,
-                      icon: const Icon(Icons.add, size: 18),
-                      label: const Text('Adicionar Parcela'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
+                  // 🔹 CONTEÚDO SUPERIOR
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // 🔹 CARD DE DADOS
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.blue[50],
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.blue.shade200),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text("Empréstimo Nº $numero",
+                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                            const SizedBox(height: 6),
+                            Text("Cliente: $cliente",
+                                style: const TextStyle(fontSize: 12),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis),
+                            const SizedBox(height: 8),
+                            Divider(height: 10, color: Colors.blue),
+                            const SizedBox(height: 8),
+                            Text("Data do Empréstimo: $dataInicio",
+                                style: const TextStyle(fontSize: 12, color: Colors.black87)),
+                            const SizedBox(height: 6),
+                            Text("Capital: ${service.fmtMoeda2(valor)}",
+                                style: const TextStyle(fontSize: 12, color: Colors.black87)),
+                            const SizedBox(height: 6),
+                            Text("Juros: ${service.fmtMoeda2(juros)}",
+                                style: const TextStyle(fontSize: 12, color: Colors.black87)),
+                            const SizedBox(height: 6),
+                            Text("Montante: ${service.fmtMoeda2(montante)}",
+                                style: const TextStyle(fontSize: 12, color: Colors.black87)),
+                            const SizedBox(height: 6),
+                            Text("Parcela: ${service.fmtMoeda2(parcela)}",
+                                style: const TextStyle(fontSize: 12, color: Colors.black87)),
+                          ],
+                        ),
                       ),
-                    ),
+
+                      const SizedBox(height: 20),
+
+                      // 🔹 BOTÃO ADICIONAR PARCELA
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: _adicionarNovaParcela,
+                          icon: const Icon(Icons.add_circle_outline, size: 18),
+                          label: const Text('Adicionar Parcela'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color.fromARGB(255, 132, 224, 135),
+                            foregroundColor: const Color.fromARGB(255, 124, 77, 255),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(height: 8),
+
+                      // 🔹 BOTÃO SALVAR
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: () async {
+                            final ok = await _tableKey.currentState?.salvarParcelas();
+                            if (ok == true && mounted) {
+                              await showDialog(
+                                context: context,
+                                builder: (ctx) => AlertDialog(
+                                  content: const Text(
+                                    "Parcelas salvas com sucesso", 
+                                    textAlign: TextAlign.center
+                                  ),
+                                  actionsAlignment: MainAxisAlignment.center,
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () => Navigator.pop(ctx),
+                                      child: const Text("OK"),
+                                    ),
+                                  ],
+                                ),
+                              );
+                              widget.onSaved();
+                              Navigator.pop(context, true);
+                            }
+                          },
+                          icon: const Icon(Icons.save, size: 18),
+                          label: const Text("Salvar"),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color.fromARGB(255, 127, 194, 248),
+                            foregroundColor: const Color.fromARGB(255, 105, 94, 255),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
 
-                  const SizedBox(height: 8),
-
-                  // 🔹 BOTÃO SALVAR
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: () async {
-                        final ok = await _tableKey.currentState?.salvarParcelas();
-                        if (ok == true && mounted) {
-                          await showDialog(
+                  // 🔹 BOTÃO ARQUIVAR FIXADO NO RODAPÉ
+                  Align(
+                    alignment: Alignment.bottomCenter,
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: () async {
+                          final confirmar = await showDialog<bool>(
                             context: context,
                             builder: (ctx) => AlertDialog(
+                              title: const Text("Arquivar Empréstimo"),
                               content: const Text(
-                                "Parcelas salvas com sucesso", 
-                                textAlign: TextAlign.center
+                                "Tem certeza que deseja arquivar este empréstimo?\n\n"
+                                "O empréstimo será movido para a aba de arquivados.",
                               ),
-                              actionsAlignment: MainAxisAlignment.center,
                               actions: [
                                 TextButton(
-                                  onPressed: () => Navigator.pop(ctx),
-                                  child: const Text("OK"),
+                                  onPressed: () => Navigator.pop(ctx, false),
+                                  child: const Text("Cancelar"),
+                                ),
+                                ElevatedButton(
+                                  onPressed: () => Navigator.pop(ctx, true),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.orange,
+                                    foregroundColor: Colors.white,
+                                  ),
+                                  child: const Text("Arquivar"),
                                 ),
                               ],
                             ),
                           );
-                          widget.onSaved();
-                          Navigator.pop(context, true);
-                        }
-                      },
-                      icon: const Icon(Icons.save, size: 18),
-                      label: const Text("Salvar"),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color.fromARGB(255, 127, 194, 248),
-                        foregroundColor: const Color.fromARGB(255, 105, 94, 255),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                      ),
-                    ),
-                  ),
 
-                  const SizedBox(height: 8),
+                          if (confirmar == true) {
+                            try {
+                              await Supabase.instance.client
+                                  .from('emprestimos')
+                                  .update({'ativo': 'nao'})
+                                  .eq('id', widget.emprestimo['id']);
 
-                  // 🔹 BOTÃO ARQUIVAR
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: () async {
-                        final confirmar = await showDialog<bool>(
-                          context: context,
-                          builder: (ctx) => AlertDialog(
-                            title: const Text("Arquivar Empréstimo"),
-                            content: const Text(
-                              "Tem certeza que deseja arquivar este empréstimo?\n\n"
-                              "O empréstimo será movido para a aba de arquivados.",
-                            ),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.pop(ctx, false),
-                                child: const Text("Cancelar"),
-                              ),
-                              ElevatedButton(
-                                onPressed: () => Navigator.pop(ctx, true),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.orange,
-                                  foregroundColor: Colors.white,
+                              if (!mounted) return;
+
+                              await showDialog(
+                                context: context,
+                                builder: (ctx) => const AlertDialog(
+                                  content: Text("Empréstimo arquivado com sucesso!",
+                                      textAlign: TextAlign.center),
                                 ),
-                                child: const Text("Arquivar"),
-                              ),
-                            ],
-                          ),
-                        );
+                              );
 
-                        if (confirmar == true) {
-                          try {
-                            await Supabase.instance.client
-                                .from('emprestimos')
-                                .update({'ativo': 'nao'})
-                                .eq('id', widget.emprestimo['id']);
-
-                            if (!mounted) return;
-
-                            await showDialog(
-                              context: context,
-                              builder: (ctx) => const AlertDialog(
-                                content: Text("Empréstimo arquivado com sucesso!",
-                                    textAlign: TextAlign.center),
-                              ),
-                            );
-
-                            Navigator.pop(context, true);
-                          } catch (e) {
-                            if (!mounted) return;
-                            await showDialog(
-                              context: context,
-                              builder: (ctx) => AlertDialog(
-                                content: Text("Erro ao arquivar: $e",
-                                    textAlign: TextAlign.center),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () => Navigator.pop(ctx),
-                                    child: const Text("OK"),
-                                  ),
-                                ],
-                              ),
-                            );
+                              Navigator.pop(context, true);
+                            } catch (e) {
+                              if (!mounted) return;
+                              await showDialog(
+                                context: context,
+                                builder: (ctx) => AlertDialog(
+                                  content: Text("Erro ao arquivar: $e",
+                                      textAlign: TextAlign.center),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () => Navigator.pop(ctx),
+                                      child: const Text("OK"),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }
                           }
-                        }
-                      },
-                      icon: const Icon(Icons.archive, size: 18),
-                      label: const Text("Arquivar Empréstimo"),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.orange,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        },
+                        icon: const Icon(Icons.archive, size: 18),
+                        label: const Text("Arquivar Empréstimo"),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.orange,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
                       ),
                     ),
                   ),
@@ -305,7 +313,6 @@ class ParcelasPageState extends State<ParcelasPage> {
             ),
 
             // 🔹 LADO DIREITO - TABELA DE PARCELAS
-            // 🔹 TABELA DE PARCELAS
             Expanded(
               child: Container(
                 padding: const EdgeInsets.all(16),
@@ -324,11 +331,10 @@ class ParcelasPageState extends State<ParcelasPage> {
 
                     final parcelasList = snapshot.data ?? [];
 
-                    // ✅ MOSTRA A TABELA MESMO QUANDO VAZIA - AGORA O BOTÃO FUNCIONA!
                     return ParcelasTable(
                       key: _tableKey,
                       emprestimo: widget.emprestimo,
-                      parcelas: parcelasList, // Pode ser lista vazia []
+                      parcelas: parcelasList,
                     );
                   },
                 ),
