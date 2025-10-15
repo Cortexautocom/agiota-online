@@ -49,6 +49,37 @@ class ParcelasTableState extends State<ParcelasTable> {
     }
   }
 
+  // 🔹 MÉTODO PARA ADICIONAR NOVA PARCELA
+  void adicionarNovaParcela() {
+    final novaParcela = {
+      'id': '', // Será gerado pelo banco
+      'numero': widget.parcelas.length + 1,
+      'vencimento': '',
+      'valor': 0.0,
+      'juros': 0.0,
+      'desconto': 0.0,
+      'pg_principal': 0.0,
+      'pg_juros': 0.0,
+      'data_pagamento': '',
+      'valor_pago': 0.0,
+      'residual': 0.0,
+      'data_prevista': null,
+    };
+
+    setState(() {
+      widget.parcelas.add(novaParcela);
+      _controllers.add({
+        'vencimento': TextEditingController(),
+        'valor': TextEditingController(text: '0,00'),
+        'juros': TextEditingController(text: '0,00'),
+        'desconto': TextEditingController(text: '0,00'),
+        'pg_principal': TextEditingController(text: '0,00'),
+        'pg_juros': TextEditingController(text: '0,00'),
+        'data_pagamento': TextEditingController(),
+      });
+    });
+  }
+
   String? _toIsoDate(String text) {
     if (text.isEmpty) return null;
     final parts = text.split('/');
@@ -58,8 +89,40 @@ class ParcelasTableState extends State<ParcelasTable> {
     final ano = parts[2];
     return "$ano-$mes-$dia";
   }
+    
+  /// 🔹 MÉTODO NOVO: Remover parcela
+  void _removerParcela(int index) {
+    if (widget.parcelas.length <= 1) {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          content: const Text(
+            "Não é possível remover a única parcela restante.",
+            textAlign: TextAlign.center,
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text("OK"),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
 
-  /// 🔹 Coleta os valores editados e salva no Supabase
+    setState(() {
+      widget.parcelas.removeAt(index);
+      _controllers.removeAt(index);
+      
+      // 🔹 Reorganiza os números das parcelas
+      for (int i = 0; i < widget.parcelas.length; i++) {
+        widget.parcelas[i]['numero'] = i + 1;
+      }
+    });
+  }
+
+  /// 🔹 Coleta os valores editados e salva no Supabase (ATUALIZADO)
   Future<bool> salvarParcelas() async {
     try {
       final parcelasAtualizadas = <Map<String, dynamic>>[];
@@ -79,6 +142,7 @@ class ParcelasTableState extends State<ParcelasTable> {
 
         final valorTotalOriginal = valor + juros - desconto;
 
+        // 🔹 VALIDAÇÕES (mantidas do código original)
         if (residual == 0 && dataPag.isEmpty) {
           if (!mounted) return false;
           await showDialog(
@@ -162,10 +226,9 @@ class ParcelasTableState extends State<ParcelasTable> {
           return false;
         }
 
-        parcelasAtualizadas.add({
-          'id': p['id'],
-          'id_emprestimo':
-              widget.emprestimo['id'] ?? widget.emprestimo['id_emprestimo'],
+        // 🔹 DADOS BASE PARA TODAS AS PARCELAS
+        final dadosParcela = {
+          'id_emprestimo': widget.emprestimo['id'] ?? widget.emprestimo['id_emprestimo'],
           'numero': p['numero'],
           'vencimento': _toIsoDate(c['vencimento']!.text),
           'valor': valor,
@@ -175,10 +238,22 @@ class ParcelasTableState extends State<ParcelasTable> {
           'pg_juros': pgJuros,
           'valor_pago': valorPago,
           'residual': residual,
-          'data_pagamento': _toIsoDate(c['data_pagamento']!.text.trim()),
+          'data_pagamento': _toIsoDate(dataPag),
           'id_usuario': widget.emprestimo['id_usuario'],
-        });
+          'data_prevista': p['data_prevista'], // Mantém acordo se existir
+        };
 
+        // 🔹 DIFERENCIAR ENTRE ATUALIZAÇÃO E CRIAÇÃO
+        if (p['id'] != null && p['id'] != '') {
+          // 🔹 PARCELA EXISTENTE - inclui o ID
+          parcelasAtualizadas.add({
+            'id': p['id'],
+            ...dadosParcela
+          });
+        } else {
+          // 🔹 NOVA PARCELA - sem ID (será gerado pelo banco)
+          parcelasAtualizadas.add(dadosParcela);
+        }
       }
 
       await service.salvarParcelasNoSupabase(
@@ -218,373 +293,425 @@ class ParcelasTableState extends State<ParcelasTable> {
     double totalPgPrincipal = 0;
     double totalPgJuros = 0;
 
-    for (var i = 0; i < widget.parcelas.length; i++) {
-      totalValor += service.parseMoeda(_controllers[i]['valor']!.text);
-      totalJuros += service.parseMoeda(_controllers[i]['juros']!.text);
-      totalDesconto += service.parseMoeda(_controllers[i]['desconto']!.text);
-      totalPgPrincipal += service.parseMoeda(_controllers[i]['pg_principal']!.text);
-      totalPgJuros += service.parseMoeda(_controllers[i]['pg_juros']!.text);
+    // ✅ CORREÇÃO: Só calcula totais se houver parcelas
+    if (widget.parcelas.isNotEmpty && _controllers.isNotEmpty) {
+      for (var i = 0; i < widget.parcelas.length; i++) {
+        totalValor += service.parseMoeda(_controllers[i]['valor']!.text);
+        totalJuros += service.parseMoeda(_controllers[i]['juros']!.text);
+        totalDesconto += service.parseMoeda(_controllers[i]['desconto']!.text);
+        totalPgPrincipal += service.parseMoeda(_controllers[i]['pg_principal']!.text);
+        totalPgJuros += service.parseMoeda(_controllers[i]['pg_juros']!.text);
+      }
     }
 
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: SingleChildScrollView(
-        scrollDirection: Axis.vertical,
-        child: DataTable(
-          columnSpacing: 20,
-          headingRowColor: MaterialStateProperty.all(Colors.grey[300]),
-          dataRowMinHeight: 38, // 🔹 Altura mínima das linhas
-          dataRowMaxHeight: 42,          
-          headingTextStyle: const TextStyle(
-              color: Colors.black, fontWeight: FontWeight.bold),
-          dataTextStyle: const TextStyle(color: Colors.black87, fontSize: 13),
-          columns: const [
-            DataColumn(label: SizedBox(width: 50, child: Text("Nº"))),
-            DataColumn(label: SizedBox(width: 100, child: Text("Vencimento"))),
-            DataColumn(label: SizedBox(width: 90, child: Text("     Valor"))),
-            DataColumn(label: SizedBox(width: 80, child: Text("Juros"))),
-            DataColumn(label: SizedBox(width: 90, child: Text("Desconto"))),
-            DataColumn(label: SizedBox(width: 60, child: Text(" Calc."))),
-            DataColumn(label: SizedBox(width: 110, child: Text("Pg. Principal"))),
-            DataColumn(label: SizedBox(width: 100, child: Text("Pg. Juros"))),
-            DataColumn(label: SizedBox(width: 100, child: Text("Valor Pago"))),
-            DataColumn(label: SizedBox(width: 100, child: Text("    Saldo"))),
-            DataColumn(label: SizedBox(width: 110, child: Text("  Data Pag."))),
-            DataColumn(label: SizedBox(width: 90, child: Text("Acordo"))),
-          ],
-          rows: [
-            ...List.generate(widget.parcelas.length, (i) {
-              final p = widget.parcelas[i];
-              final c = _controllers[i];
+    return Column(
+      children: [                
+        // 🔹 TABELA ATUAL (com novas funcionalidades)
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: SingleChildScrollView(
+            scrollDirection: Axis.vertical,
+            child: DataTable(
+              columnSpacing: 20,
+              headingRowColor: MaterialStateProperty.all(Colors.grey[300]),
+              dataRowMinHeight: 38, // 🔹 Altura mínima das linhas
+              dataRowMaxHeight: 42,          
+              headingTextStyle: const TextStyle(
+                  color: Colors.black, fontWeight: FontWeight.bold),
+              dataTextStyle: const TextStyle(color: Colors.black87, fontSize: 13),
+              columns: const [
+                DataColumn(label: SizedBox(width: 50, child: Text("Nº"))),
+                DataColumn(label: SizedBox(width: 100, child: Text("Vencimento"))),
+                DataColumn(label: SizedBox(width: 90, child: Text("     Valor"))),
+                DataColumn(label: SizedBox(width: 80, child: Text("Juros"))),
+                DataColumn(label: SizedBox(width: 90, child: Text("Desconto"))),
+                DataColumn(label: SizedBox(width: 60, child: Text(" Calc."))),
+                DataColumn(label: SizedBox(width: 110, child: Text("Pg. Principal"))),
+                DataColumn(label: SizedBox(width: 100, child: Text("Pg. Juros"))),
+                DataColumn(label: SizedBox(width: 100, child: Text("Valor Pago"))),
+                DataColumn(label: SizedBox(width: 100, child: Text("    Saldo"))),
+                DataColumn(label: SizedBox(width: 110, child: Text("  Data Pag."))),
+                DataColumn(label: SizedBox(width: 80, child: Text("Acordo"))),
+                DataColumn(label: SizedBox(width: 60, child: Text("Ações"))), // 🔹 COLUNA NOVA
+              ],              
+              rows: widget.parcelas.isNotEmpty ? [
+                ...List.generate(widget.parcelas.length, (i) {
+                  final p = widget.parcelas[i];
+                  final c = _controllers[i];
 
-              final vencimentoTxt = p['vencimento']?.toString() ?? "";
-              DateTime? vencimento;
-              try {
-                vencimento = DateTime.parse(vencimentoTxt); // lê direto yyyy-MM-dd
-              } catch (_) {
-                vencimento = null;
-              }
+                  final vencimentoTxt = p['vencimento']?.toString() ?? "";
+                  DateTime? vencimento;
+                  try {
+                    vencimento = DateTime.parse(vencimentoTxt); // lê direto yyyy-MM-dd
+                  } catch (_) {
+                    vencimento = null;
+                  }
 
-              final hoje = DateTime.now();
-              final temAcordo = p['data_prevista'] != null &&
-                  p['data_prevista'].toString().isNotEmpty;
+                  final hoje = DateTime.now();
+                  final temAcordo = p['data_prevista'] != null &&
+                      p['data_prevista'].toString().isNotEmpty;
 
-              // 🔹 calcula residual atual
-              final residualAtual = service.parseMoeda(c['valor']!.text) +
-                  service.parseMoeda(c['juros']!.text) -
-                  service.parseMoeda(c['desconto']!.text) -
-                  (service.parseMoeda(c['pg_principal']!.text) +
-                      service.parseMoeda(c['pg_juros']!.text));
+                  // 🔹 calcula residual atual
+                  final residualAtual = service.parseMoeda(c['valor']!.text) +
+                      service.parseMoeda(c['juros']!.text) -
+                      service.parseMoeda(c['desconto']!.text) -
+                      (service.parseMoeda(c['pg_principal']!.text) +
+                          service.parseMoeda(c['pg_juros']!.text));
 
-              final estaEmAtraso = vencimento != null &&
-                  vencimento.isBefore(DateTime(hoje.year, hoje.month, hoje.day));
+                  final estaEmAtraso = vencimento != null &&
+                      vencimento.isBefore(DateTime(hoje.year, hoje.month, hoje.day));
 
-              // 🔹 NOVA REGRA: Se residual == 0 → formatação verde (prioridade máxima)
-              final bool parcelaPaga = residualAtual.abs() < 0.01;
+                  // 🔹 NOVA REGRA: Se residual == 0 → formatação verde (prioridade máxima)
+                  final bool parcelaPaga = residualAtual.abs() < 0.01;
 
-              // 🔹 Define cores com prioridade: Paga > Acordo > Atraso > Normal
-              final rowColor = parcelaPaga
-                  ? Colors.green.withOpacity(0.2)
-                  : (temAcordo && residualAtual != 0)
-                      ? Colors.orange.withOpacity(0.2)
-                      : estaEmAtraso
-                          ? Colors.red.withOpacity(0.2)
-                          : null;
+                  // 🔹 Define cores com prioridade: Paga > Acordo > Atraso > Normal
+                  final rowColor = parcelaPaga
+                      ? Colors.green.withOpacity(0.2)
+                      : (temAcordo && residualAtual != 0)
+                          ? Colors.orange.withOpacity(0.2)
+                          : estaEmAtraso
+                              ? Colors.red.withOpacity(0.2)
+                              : null;
 
-              final textColor = parcelaPaga
-                  ? Colors.green[800]
-                  : (temAcordo && residualAtual != 0)
-                      ? Colors.brown
-                      : estaEmAtraso
-                          ? Colors.red
-                          : Colors.black87;
+                  final textColor = parcelaPaga
+                      ? Colors.green[800]
+                      : (temAcordo && residualAtual != 0)
+                          ? Colors.brown
+                          : estaEmAtraso
+                              ? Colors.red
+                              : Colors.black87;
 
-              final fontWeight = parcelaPaga
-                  ? FontWeight.bold
-                  : estaEmAtraso
+                  final fontWeight = parcelaPaga
                       ? FontWeight.bold
-                      : FontWeight.normal;
+                      : estaEmAtraso
+                          ? FontWeight.bold
+                          : FontWeight.normal;
 
-              return DataRow(
-                color: rowColor != null ? MaterialStateProperty.all(rowColor) : null,
-                cells: [
-                  DataCell(Text("${p['numero'] ?? ''}",
-                      style: TextStyle(fontSize: 13, color: textColor, fontWeight: fontWeight))),
-                  DataCell(TextField(
-                    controller: c['vencimento'],
-                    inputFormatters: [service.dateMaskFormatter()],
-                    style: TextStyle(fontSize: 13, color: textColor, fontWeight: fontWeight),
-                    decoration: const InputDecoration(
-                        border: InputBorder.none, hintText: "dd/mm/aaaa"),
-                  )),
-                  DataCell(Focus(
-                    onFocusChange: (hasFocus) {
-                      if (!hasFocus) {
-                        c['valor']!.text =
-                            service.fmtMoeda(service.parseMoeda(c['valor']!.text));
-                        setState(() {});
-                      }
-                    },
-                    child: TextField(
-                      controller: c['valor'],
-                      keyboardType: TextInputType.number,
-                      style: TextStyle(fontSize: 13, color: textColor, fontWeight: fontWeight),
-                      decoration: const InputDecoration(border: InputBorder.none),
-                    ),
-                  )),
-                  DataCell(Focus(
-                    onFocusChange: (hasFocus) {
-                      if (!hasFocus) {
-                        c['juros']!.text =
-                            service.fmtMoeda(service.parseMoeda(c['juros']!.text));
-                        setState(() {});
-                      }
-                    },
-                    child: TextField(
-                      controller: c['juros'],
-                      keyboardType: TextInputType.number,
-                      style: TextStyle(fontSize: 13, color: textColor, fontWeight: fontWeight),
-                      decoration: const InputDecoration(border: InputBorder.none),
-                    ),
-                  )),
-                  DataCell(Focus(
-                    onFocusChange: (hasFocus) {
-                      if (!hasFocus) {
-                        c['desconto']!.text =
-                            service.fmtMoeda(service.parseMoeda(c['desconto']!.text));
-                        setState(() {});
-                      }
-                    },
-                    child: TextField(
-                      controller: c['desconto'],
-                      keyboardType: TextInputType.number,
-                      style: TextStyle(fontSize: 13, color: textColor, fontWeight: fontWeight),
-                      decoration: const InputDecoration(border: InputBorder.none),
-                    ),
-                  )),
-                  DataCell(IconButton(
-                    icon: const Icon(Icons.calculate,
-                        size: 20, color: Colors.blue),
-                    onPressed: () {
-                      final capital =
-                          num.tryParse("${widget.emprestimo["valor"]}") ?? 0;
-                      final jurosSupabase =
-                          num.tryParse("${widget.emprestimo["juros"]}") ?? 0;
-                      final qtdParcelas =
-                          num.tryParse("${widget.emprestimo["parcelas"]}") ?? 1;
-                      final jurosDigitado =
-                          service.parseMoeda(c['juros']!.text);
-                      final desconto = service.parseMoeda(c['desconto']!.text);
+                  return DataRow(
+                    color: rowColor != null ? MaterialStateProperty.all(rowColor) : null,
+                    cells: [
+                      DataCell(Text("${p['numero'] ?? ''}",
+                          style: TextStyle(fontSize: 13, color: textColor, fontWeight: fontWeight))),
+                      DataCell(TextField(
+                        controller: c['vencimento'],
+                        inputFormatters: [service.dateMaskFormatter()],
+                        style: TextStyle(fontSize: 13, color: textColor, fontWeight: fontWeight),
+                        decoration: const InputDecoration(
+                            border: InputBorder.none, hintText: "dd/mm/aaaa"),
+                      )),
+                      DataCell(Focus(
+                        onFocusChange: (hasFocus) {
+                          if (!hasFocus) {
+                            c['valor']!.text =
+                                service.fmtMoeda(service.parseMoeda(c['valor']!.text));
+                            setState(() {});
+                          }
+                        },
+                        child: TextField(
+                          controller: c['valor'],
+                          keyboardType: TextInputType.number,
+                          style: TextStyle(fontSize: 13, color: textColor, fontWeight: fontWeight),
+                          decoration: const InputDecoration(border: InputBorder.none),
+                        ),
+                      )),
+                      DataCell(Focus(
+                        onFocusChange: (hasFocus) {
+                          if (!hasFocus) {
+                            c['juros']!.text =
+                                service.fmtMoeda(service.parseMoeda(c['juros']!.text));
+                            setState(() {});
+                          }
+                        },
+                        child: TextField(
+                          controller: c['juros'],
+                          keyboardType: TextInputType.number,
+                          style: TextStyle(fontSize: 13, color: textColor, fontWeight: fontWeight),
+                          decoration: const InputDecoration(border: InputBorder.none),
+                        ),
+                      )),
+                      DataCell(Focus(
+                        onFocusChange: (hasFocus) {
+                          if (!hasFocus) {
+                            c['desconto']!.text =
+                                service.fmtMoeda(service.parseMoeda(c['desconto']!.text));
+                            setState(() {});
+                          }
+                        },
+                        child: TextField(
+                          controller: c['desconto'],
+                          keyboardType: TextInputType.number,
+                          style: TextStyle(fontSize: 13, color: textColor, fontWeight: fontWeight),
+                          decoration: const InputDecoration(border: InputBorder.none),
+                        ),
+                      )),
+                      DataCell(IconButton(
+                        icon: const Icon(Icons.calculate,
+                            size: 20, color: Colors.blue),
+                        onPressed: () {
+                          final capital =
+                              num.tryParse("${widget.emprestimo["valor"]}") ?? 0;
+                          final jurosSupabase =
+                              num.tryParse("${widget.emprestimo["juros"]}") ?? 0;
+                          final qtdParcelas =
+                              num.tryParse("${widget.emprestimo["parcelas"]}") ?? 1;
+                          final jurosDigitado =
+                              service.parseMoeda(c['juros']!.text);
+                          final desconto = service.parseMoeda(c['desconto']!.text);
 
-                      final pgPrincipal = capital / qtdParcelas;
-                      final pgJuros =
-                          jurosSupabase / qtdParcelas + jurosDigitado - desconto;
+                          final pgPrincipal = capital / qtdParcelas;
+                          final pgJuros =
+                              jurosSupabase / qtdParcelas + jurosDigitado - desconto;
 
-                      c['pg_principal']!.text = service.fmtMoeda(pgPrincipal);
-                      c['pg_juros']!.text = service.fmtMoeda(pgJuros);
+                          c['pg_principal']!.text = service.fmtMoeda(pgPrincipal);
+                          c['pg_juros']!.text = service.fmtMoeda(pgJuros);
 
-                      setState(() {});
-                    },
-                  )),
-                  DataCell(Focus(
-                    onFocusChange: (hasFocus) {
-                      if (!hasFocus) {
-                        c['pg_principal']!.text = service.fmtMoeda(
-                            service.parseMoeda(c['pg_principal']!.text));
-                        setState(() {});
-                      }
-                    },
-                    child: TextField(
-                      controller: c['pg_principal'],
-                      keyboardType: TextInputType.number,
-                      style: TextStyle(fontSize: 13, color: textColor, fontWeight: fontWeight),
-                      decoration: const InputDecoration(border: InputBorder.none),
-                    ),
-                  )),
-                  DataCell(Focus(
-                    onFocusChange: (hasFocus) {
-                      if (!hasFocus) {
-                        c['pg_juros']!.text =
-                            service.fmtMoeda(service.parseMoeda(c['pg_juros']!.text));
-                        setState(() {});
-                      }
-                    },
-                    child: TextField(
-                      controller: c['pg_juros'],
-                      keyboardType: TextInputType.number,
-                      style: TextStyle(fontSize: 13, color: textColor, fontWeight: fontWeight),
-                      decoration: const InputDecoration(border: InputBorder.none),
-                    ),
-                  )),
-                  DataCell(Text(
-                    service.fmtMoeda(
-                      service.parseMoeda(c['pg_principal']!.text) +
-                          service.parseMoeda(c['pg_juros']!.text),
-                    ),
-                    style: TextStyle(fontSize: 13, color: textColor, fontWeight: fontWeight),
-                  )),
-                  DataCell(Text(
-                    service.fmtMoeda(residualAtual),
-                    style: TextStyle(fontSize: 13, color: textColor, fontWeight: fontWeight),
-                  )),
-                  DataCell(TextField(
-                    controller: c['data_pagamento'],
-                    inputFormatters: [service.dateMaskFormatter()],
-                    style: TextStyle(fontSize: 13, color: textColor, fontWeight: fontWeight),
-                    decoration: InputDecoration(
-                      border: InputBorder.none,
-                      hintText: "dd/mm/aaaa",
-                      hintStyle: TextStyle(
-                        fontSize: 13,
-                        color: textColor,
-                        fontWeight: fontWeight,
+                          setState(() {});
+                        },
+                      )),
+                      DataCell(Focus(
+                        onFocusChange: (hasFocus) {
+                          if (!hasFocus) {
+                            c['pg_principal']!.text = service.fmtMoeda(
+                                service.parseMoeda(c['pg_principal']!.text));
+                            setState(() {});
+                          }
+                        },
+                        child: TextField(
+                          controller: c['pg_principal'],
+                          keyboardType: TextInputType.number,
+                          style: TextStyle(fontSize: 13, color: textColor, fontWeight: fontWeight),
+                          decoration: const InputDecoration(border: InputBorder.none),
+                        ),
+                      )),
+                      DataCell(Focus(
+                        onFocusChange: (hasFocus) {
+                          if (!hasFocus) {
+                            c['pg_juros']!.text =
+                                service.fmtMoeda(service.parseMoeda(c['pg_juros']!.text));
+                            setState(() {});
+                          }
+                        },
+                        child: TextField(
+                          controller: c['pg_juros'],
+                          keyboardType: TextInputType.number,
+                          style: TextStyle(fontSize: 13, color: textColor, fontWeight: fontWeight),
+                          decoration: const InputDecoration(border: InputBorder.none),
+                        ),
+                      )),
+                      DataCell(Text(
+                        service.fmtMoeda(
+                          service.parseMoeda(c['pg_principal']!.text) +
+                              service.parseMoeda(c['pg_juros']!.text),
+                        ),
+                        style: TextStyle(fontSize: 13, color: textColor, fontWeight: fontWeight),
+                      )),
+                      DataCell(Text(
+                        service.fmtMoeda(residualAtual),
+                        style: TextStyle(fontSize: 13, color: textColor, fontWeight: fontWeight),
+                      )),
+                      DataCell(TextField(
+                        controller: c['data_pagamento'],
+                        inputFormatters: [service.dateMaskFormatter()],
+                        style: TextStyle(fontSize: 13, color: textColor, fontWeight: fontWeight),
+                        decoration: InputDecoration(
+                          border: InputBorder.none,
+                          hintText: "dd/mm/aaaa",
+                          hintStyle: TextStyle(
+                            fontSize: 13,
+                            color: textColor,
+                            fontWeight: fontWeight,
+                          ),
+                        ),
+                      )),
+                      DataCell(
+                        Builder(
+                          builder: (context) {
+                            final vencimentoTxt = p['vencimento']?.toString() ?? "";
+                            DateTime? vencimento;
+                            try {
+                              // Agora o banco retorna "2025-10-03" (yyyy-MM-dd)
+                              vencimento = DateTime.parse(vencimentoTxt);
+                            } catch (_) {
+                              vencimento = null;
+                            }
+
+                            final hoje = DateTime.now();
+                            final limite = hoje.add(const Duration(days: 7));
+
+                            final temAcordo = p['data_prevista'] != null &&
+                                p['data_prevista'].toString().isNotEmpty;
+
+                            final podeFazerAcordo = vencimento != null &&
+                                vencimento.isBefore(limite.add(const Duration(days: 1)));
+
+                            // 🔹 Mantém o ícone visível mesmo quando a parcela está paga
+                            // Apenas muda o comportamento do clique
+                            if (temAcordo) {
+                              return IconButton(
+                                icon: const Icon(
+                                  Icons.warning_amber_rounded,
+                                  color: Colors.orange,
+                                  size: 22,
+                                ),
+                                tooltip: residualAtual == 0
+                                    ? "Acordo concluído (parcela paga)"
+                                    : "Acordo ativo",
+                                onPressed: () async {
+                                  // 🔹 BUSCA DADOS ATUALIZADOS DO SUPABASE ANTES DE ABRIR O DIÁLOGO
+                                  final parcelaAtualizada = await Supabase.instance.client
+                                      .from("parcelas")
+                                      .select()
+                                      .eq("id", p['id'])
+                                      .single();
+                                  
+                                  final resultado = await abrirAcordoDialog(context, parcelaAtualizada, widget.emprestimo);
+                                  if (resultado == true && mounted) {
+                                    // 🔹 Atualiza a tela de ParcelasPage (força recarga completa)
+                                    final state =
+                                        context.findAncestorStateOfType<ParcelasPageState>();
+                                    if (state != null && state.mounted) {
+                                      await state.atualizarParcelas();
+                                    }
+                                    // 🔹 Atualiza também o estado local da tabela
+                                    setState(() {});
+                                  }
+                                },
+                              );
+                            } else if (!podeFazerAcordo) {
+                              return IconButton(
+                                icon: const Icon(
+                                  Icons.handshake,
+                                  color: Colors.grey,
+                                  size: 22,
+                                ),
+                                tooltip: residualAtual == 0
+                                    ? "Parcela paga"
+                                    : "Só é possível criar acordo até 7 dias antes do vencimento",
+                                onPressed: residualAtual == 0
+                                    ? null
+                                    : () async {
+                                        await showDialog(
+                                          context: context,
+                                          builder: (ctx) => const AlertDialog(
+                                            content: Text(
+                                              "Só é possível criar acordo para parcelas que estão vencendo nos próximos 7 dias.",
+                                              textAlign: TextAlign.center,
+                                            ),
+                                          ),
+                                        );
+                                      },
+                              );
+                            } else {
+                              return IconButton(
+                                icon: Icon(
+                                  Icons.handshake,
+                                  color: residualAtual == 0 ? Colors.green : Colors.blue,
+                                  size: 22,
+                                ),
+                                tooltip: residualAtual == 0
+                                    ? "Parcela paga - Clique para ver histórico"
+                                    : "Acordo",
+                                onPressed: () async {
+                                  // 🔹 BUSCA DADOS ATUALIZADOS DO SUPABASE ANTES DE ABRIR O DIÁLOGO
+                                  final parcelaAtualizada = await Supabase.instance.client
+                                      .from("parcelas")
+                                      .select()
+                                      .eq("id", p['id'])
+                                      .single();
+                                  
+                                  final resultado = await abrirAcordoDialog(context, parcelaAtualizada, widget.emprestimo);
+                                  if (resultado == true && mounted) {
+                                    // 🔹 Atualiza a tela de ParcelasPage (força recarga completa)
+                                    final state =
+                                        context.findAncestorStateOfType<ParcelasPageState>();
+                                    if (state != null && state.mounted) {
+                                      await state.atualizarParcelas();
+                                    }
+                                    // 🔹 Atualiza também o estado local da tabela
+                                    setState(() {});
+                                  }
+                                },
+                              );
+                            }
+                          },
+                        ),
                       ),
-                    ),
-                  )),
-                  DataCell(
-                    Builder(
-                      builder: (context) {
-                        final vencimentoTxt = p['vencimento']?.toString() ?? "";
-                        DateTime? vencimento;
-                        try {
-                          // Agora o banco retorna "2025-10-03" (yyyy-MM-dd)
-                          vencimento = DateTime.parse(vencimentoTxt);
-                        } catch (_) {
-                          vencimento = null;
-                        }
-
-                        final hoje = DateTime.now();
-                        final limite = hoje.add(const Duration(days: 7));
-
-                        final temAcordo = p['data_prevista'] != null &&
-                            p['data_prevista'].toString().isNotEmpty;
-
-                        final podeFazerAcordo = vencimento != null &&
-                            vencimento.isBefore(limite.add(const Duration(days: 1)));
-
-                        // 🔹 Mantém o ícone visível mesmo quando a parcela está paga
-                        // Apenas muda o comportamento do clique
-                        if (temAcordo) {
-                          return IconButton(
-                            icon: const Icon(
-                              Icons.warning_amber_rounded,
-                              color: Colors.orange,
-                              size: 22,
-                            ),
-                            tooltip: residualAtual == 0
-                                ? "Acordo concluído (parcela paga)"
-                                : "Acordo ativo",
-                            onPressed: () async {
-                              // 🔹 BUSCA DADOS ATUALIZADOS DO SUPABASE ANTES DE ABRIR O DIÁLOGO
-                              final parcelaAtualizada = await Supabase.instance.client
-                                  .from("parcelas")
-                                  .select()
-                                  .eq("id", p['id'])
-                                  .single();
-                              
-                              final resultado = await abrirAcordoDialog(context, parcelaAtualizada, widget.emprestimo);
-                              if (resultado == true && mounted) {
-                                // 🔹 Atualiza a tela de ParcelasPage (força recarga completa)
-                                final state =
-                                    context.findAncestorStateOfType<ParcelasPageState>();
-                                if (state != null && state.mounted) {
-                                  await state.atualizarParcelas();
-                                }
-                                // 🔹 Atualiza também o estado local da tabela
-                                setState(() {});
-                              }
-                            },
-                          );
-                        } else if (!podeFazerAcordo) {
-                          return IconButton(
-                            icon: const Icon(
-                              Icons.handshake,
-                              color: Colors.grey,
-                              size: 22,
-                            ),
-                            tooltip: residualAtual == 0
-                                ? "Parcela paga"
-                                : "Só é possível criar acordo até 7 dias antes do vencimento",
-                            onPressed: residualAtual == 0
-                                ? null
-                                : () async {
-                                    await showDialog(
-                                      context: context,
-                                      builder: (ctx) => const AlertDialog(
-                                        content: Text(
-                                          "Só é possível criar acordo para parcelas que estão vencendo nos próximos 7 dias.",
-                                          textAlign: TextAlign.center,
-                                        ),
-                                      ),
-                                    );
-                                  },
-                          );
-                        } else {
-                          return IconButton(
-                            icon: Icon(
-                              Icons.handshake,
-                              color: residualAtual == 0 ? Colors.green : Colors.blue,
-                              size: 22,
-                            ),
-                            tooltip: residualAtual == 0
-                                ? "Parcela paga - Clique para ver histórico"
-                                : "Acordo",
-                            onPressed: () async {
-                              // 🔹 BUSCA DADOS ATUALIZADOS DO SUPABASE ANTES DE ABRIR O DIÁLOGO
-                              final parcelaAtualizada = await Supabase.instance.client
-                                  .from("parcelas")
-                                  .select()
-                                  .eq("id", p['id'])
-                                  .single();
-                              
-                              final resultado = await abrirAcordoDialog(context, parcelaAtualizada, widget.emprestimo);
-                              if (resultado == true && mounted) {
-                                // 🔹 Atualiza a tela de ParcelasPage (força recarga completa)
-                                final state =
-                                    context.findAncestorStateOfType<ParcelasPageState>();
-                                if (state != null && state.mounted) {
-                                  await state.atualizarParcelas();
-                                }
-                                // 🔹 Atualiza também o estado local da tabela
-                                setState(() {});
-                              }
-                            },
-                          );
-                        }
-                      },
-                    ),
+                      // 🔹 CÉLULA NOVA: Ações (remover parcela)
+                      DataCell(
+                        IconButton(
+                          icon: const Icon(
+                            Icons.delete,
+                            size: 20,
+                            color: Colors.red,
+                          ),
+                          tooltip: 'Remover parcela',
+                          onPressed: () => _removerParcela(i),
+                        ),
+                      ),
+                    ],
+                  );
+                }),
+                // 🔹 LINHA DE TOTAIS - SÓ MOSTRA SE HOUVER PARCELAS
+                if (widget.parcelas.isNotEmpty) 
+                  DataRow(
+                    color: MaterialStateProperty.all(Colors.grey[200]),
+                    cells: [
+                      const DataCell(Text("")),
+                      const DataCell(Text("TOTAL",
+                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold))),
+                      DataCell(Text(service.fmtMoeda(totalValor),
+                          style: const TextStyle(
+                              fontSize: 14, fontWeight: FontWeight.bold))),
+                      DataCell(Text(service.fmtMoeda(totalJuros),
+                          style: const TextStyle(
+                              fontSize: 14, fontWeight: FontWeight.bold))),
+                      DataCell(Text(service.fmtMoeda(totalDesconto),
+                          style: const TextStyle(
+                              fontSize: 14, fontWeight: FontWeight.bold))),
+                      const DataCell(Text("")),
+                      DataCell(Text(service.fmtMoeda(totalPgPrincipal),
+                          style: const TextStyle(
+                              fontSize: 14, fontWeight: FontWeight.bold))),
+                      DataCell(Text(service.fmtMoeda(totalPgJuros),
+                          style: const TextStyle(
+                              fontSize: 14, fontWeight: FontWeight.bold))),
+                      const DataCell(Text("")),
+                      const DataCell(Text("")),
+                      const DataCell(Text("")),
+                      const DataCell(Text("")),
+                      const DataCell(Text("")), // 🔹 Célula vazia para a coluna Ações
+                    ],
                   ),
-                ],
-              );
-            }),
-            DataRow(cells: [
-              const DataCell(Text("")),
-              const DataCell(Text("TOTAL",
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold))),
-              DataCell(Text(service.fmtMoeda(totalValor),
-                  style: const TextStyle(
-                      fontSize: 14, fontWeight: FontWeight.bold))),
-              DataCell(Text(service.fmtMoeda(totalJuros),
-                  style: const TextStyle(
-                      fontSize: 14, fontWeight: FontWeight.bold))),
-              DataCell(Text(service.fmtMoeda(totalDesconto),
-                  style: const TextStyle(
-                      fontSize: 14, fontWeight: FontWeight.bold))),
-              const DataCell(Text("")),
-              DataCell(Text(service.fmtMoeda(totalPgPrincipal),
-                  style: const TextStyle(
-                      fontSize: 14, fontWeight: FontWeight.bold))),
-              DataCell(Text(service.fmtMoeda(totalPgJuros),
-                  style: const TextStyle(
-                      fontSize: 14, fontWeight: FontWeight.bold))),
-              const DataCell(Text("")),
-              const DataCell(Text("")),
-              const DataCell(Text("")),
-              const DataCell(Text("")),
-            ]),
-          ],
+              ] : [ // ← CORREÇÃO: espaço antes dos dois pontos
+                // 🔹 MENSAGEM QUANDO NÃO HÁ PARCELAS
+                DataRow(
+                  cells: [
+                    DataCell(SizedBox(
+                      width: MediaQuery.of(context).size.width - 100,
+                      child: const Center(
+                        child: Text(
+                          "Nenhuma parcela cadastrada. Clique em 'Adicionar Parcela' para começar.",
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey,
+                            fontStyle: FontStyle.italic,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    )),
+                    // Células vazias para as outras colunas
+                    DataCell(Container()), DataCell(Container()), DataCell(Container()),
+                    DataCell(Container()), DataCell(Container()), DataCell(Container()),
+                    DataCell(Container()), DataCell(Container()), DataCell(Container()),
+                    DataCell(Container()), DataCell(Container()), DataCell(Container()),
+                  ],
+                ),
+              ],
+            ),
+          ),
         ),
-      ),
+      ],
     );
   }
 }

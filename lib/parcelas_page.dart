@@ -21,8 +21,6 @@ class ParcelasPage extends StatefulWidget {
 class ParcelasPageState extends State<ParcelasPage> {
   late Future<List<Map<String, dynamic>>> _parcelasFuture;
   final ParcelasService service = ParcelasService();
-
-  // chave para acessar métodos do ParcelasTable
   final GlobalKey<ParcelasTableState> _tableKey = GlobalKey();
 
   @override
@@ -31,32 +29,8 @@ class ParcelasPageState extends State<ParcelasPage> {
     _parcelasFuture = service.buscarParcelas(
       widget.emprestimo['id'] ?? widget.emprestimo['id_emprestimo'],
     );
-    //_carregarNomeCliente();
   }
 
-  /*Future<void> _carregarNomeCliente() async {
-    try {
-      final idCliente = widget.emprestimo['id_cliente'];
-      if (idCliente == null) return;
-
-      final response = await Supabase.instance.client
-          .from('clientes')
-          .select('nome')
-          .eq('id', idCliente)
-          .maybeSingle();
-
-      if (response != null && mounted) {
-        setState(() {
-          widget.emprestimo['cliente'] = response['nome'];
-        });
-      }
-    } catch (e) {
-      print('Erro ao carregar nome do cliente: $e');
-    }
-  }
-  */
-
-  /// 🔹 Torna público para ser acessado pela ParcelasTable
   Future<void> atualizarParcelas() async {
     setState(() {
       _parcelasFuture = service.buscarParcelas(
@@ -65,20 +39,28 @@ class ParcelasPageState extends State<ParcelasPage> {
     });
   }
 
+  // 🔹 MÉTODO CORRETO: Adicionar nova parcela
+  void _adicionarNovaParcela() {
+    final tabelaState = _tableKey.currentState;
+    if (tabelaState != null) {
+      tabelaState.adicionarNovaParcela();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    //final cliente = widget.emprestimo["cliente"] ?? "";
     final numero = widget.emprestimo["numero"] ?? "";
+    final cliente = widget.emprestimo["cliente"] ?? "Cliente";
     final dataInicio = formatarData(widget.emprestimo["data_inicio"]);
+    final valor = widget.emprestimo['valor'] ?? 0.0;
+    final juros = widget.emprestimo['juros'] ?? 0.0;
+    final montante = valor + juros;
+    final parcela = widget.emprestimo['prestacao'] ?? 0.0;
 
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Colors.blue,
         centerTitle: true,
-        title: Text(
-          "Empréstimo Nº ${widget.emprestimo["numero"] ?? ""} - ${widget.emprestimo["cliente"] ?? "Cliente"} - Parcelamento",
-          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
-        ),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white),
           tooltip: 'Voltar para o financeiro',
@@ -101,36 +83,25 @@ class ParcelasPageState extends State<ParcelasPage> {
                   ),
                   actionsAlignment: MainAxisAlignment.center,
                   actions: [
-                    // 🔸 Botão vermelho - sair sem salvar
                     TextButton.icon(
                       style: TextButton.styleFrom(
                         backgroundColor: Colors.redAccent,
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                       ),
                       onPressed: () {
-                        Navigator.of(context).pop(); // fecha o diálogo
-                        Navigator.pop(context, {'atualizar': true, 'cliente': widget.emprestimo['cliente']});
+                        Navigator.of(context).pop();
+                        Navigator.pop(context, {'atualizar': true, 'cliente': cliente});
                       },
                       icon: const Icon(Icons.warning_amber_rounded, color: Colors.white, size: 18),
-                      label: const Text(
-                        "Sim, sair sem salvar.",
-                        style: TextStyle(color: Colors.white),
-                      ),
+                      label: const Text("Sim, sair sem salvar.", style: TextStyle(color: Colors.white)),
                     ),
-
-                    // 🔸 Botão cinza - cancelar
                     TextButton(
                       style: TextButton.styleFrom(
                         backgroundColor: Colors.grey[200],
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                       ),
-                      onPressed: () {
-                        Navigator.of(context).pop(); // fecha o diálogo e permanece
-                      },
-                      child: const Text(
-                        "Cancelar",
-                        style: TextStyle(color: Colors.black87),
-                      ),
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: const Text("Cancelar", style: TextStyle(color: Colors.black87)),
                     ),
                   ],
                 );
@@ -138,69 +109,126 @@ class ParcelasPageState extends State<ParcelasPage> {
             );
           },
         ),
+        title: Text(
+          "Empréstimo Nº $numero - $cliente - Parcelamento",
+          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+          overflow: TextOverflow.ellipsis,
+        ),
       ),
-
-            
       body: Container(
-        color: const Color(0xFFFAF9F6),
-        padding: const EdgeInsets.all(12),
-        child: FutureBuilder<List<Map<String, dynamic>>>(
-          future: _parcelasFuture,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            if (snapshot.hasError) {
-              return Center(
-                child: Text(
-                  "Erro: ${snapshot.error}",
-                  style: const TextStyle(color: Colors.red),
-                ),
-              );
-            }
-
-            final parcelasList = snapshot.data ?? [];
-
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // 🔹 Resumo do empréstimo
-                Text(
-                  "Nº $numero   |   Data do empréstimo: $dataInicio\n"
-                  "Capital: ${service.fmtMoeda2(widget.emprestimo['valor'])}   |   "
-                  "Juros: ${service.fmtMoeda2(widget.emprestimo['juros'])}   |   "
-                  "Montante: ${service.fmtMoeda2(widget.emprestimo['valor'] + widget.emprestimo['juros'])}   |   "
-                  "Parcela: ${service.fmtMoeda2(widget.emprestimo['prestacao'])}",
-                  style: const TextStyle(color: Colors.black87, fontSize: 14),
-                ),
-                const SizedBox(height: 12),
-
-                // 🔹 Tabela de parcelas
-                if (parcelasList.isEmpty)
-                  const Expanded(
-                    child: Center(
-                      child: Text(
-                        "Nenhuma parcela encontrada.",
-                        style: TextStyle(color: Colors.black87),
-                      ),
+        color: Colors.grey[100],
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // 🔹 LADO ESQUERDO - CARD INFORMAÇÕES
+            Container(
+              width: 260,
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // 🔹 CARD DE DADOS
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.blue[50],
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.blue.shade200),
                     ),
-                  )
-                else
-                  Expanded(
-                    child: ParcelasTable(
-                      key: _tableKey,
-                      emprestimo: widget.emprestimo,
-                      parcelas: parcelasList,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text("Empréstimo Nº $numero",
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                        const SizedBox(height: 6),
+                        Text("Cliente: $cliente",
+                            style: const TextStyle(fontSize: 12),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis),
+                        const SizedBox(height: 8),
+                        Divider(height: 10, color: Colors.blue),
+                        const SizedBox(height: 8),
+                        Text("Data do Empréstimo: $dataInicio",
+                            style: const TextStyle(fontSize: 12, color: Colors.black87)),
+                        const SizedBox(height: 6),
+                        Text("Capital: ${service.fmtMoeda2(valor)}",
+                            style: const TextStyle(fontSize: 12, color: Colors.black87)),
+                        const SizedBox(height: 6),
+                        Text("Juros: ${service.fmtMoeda2(juros)}",
+                            style: const TextStyle(fontSize: 12, color: Colors.black87)),
+                        const SizedBox(height: 6),
+                        Text("Montante: ${service.fmtMoeda2(montante)}",
+                            style: const TextStyle(fontSize: 12, color: Colors.black87)),
+                        const SizedBox(height: 6),
+                        Text("Parcela: ${service.fmtMoeda2(parcela)}",
+                            style: const TextStyle(fontSize: 12, color: Colors.black87)),
+                      ],
                     ),
                   ),
 
-                const SizedBox(height: 12),
+                  const SizedBox(height: 20),
 
-                // 🔹 Botões inferiores
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    ElevatedButton.icon(
+                  // 🔹 BOTÃO ADICIONAR PARCELA (NOVO)
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: _adicionarNovaParcela,
+                      icon: const Icon(Icons.add, size: 18),
+                      label: const Text('Adicionar Parcela'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 8),
+
+                  // 🔹 BOTÃO SALVAR
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () async {
+                        final ok = await _tableKey.currentState?.salvarParcelas();
+                        if (ok == true && mounted) {
+                          await showDialog(
+                            context: context,
+                            builder: (ctx) => AlertDialog(
+                              content: const Text(
+                                "Parcelas salvas com sucesso", 
+                                textAlign: TextAlign.center
+                              ),
+                              actionsAlignment: MainAxisAlignment.center,
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.pop(ctx),
+                                  child: const Text("OK"),
+                                ),
+                              ],
+                            ),
+                          );
+                          widget.onSaved();
+                          Navigator.pop(context, true);
+                        }
+                      },
+                      icon: const Icon(Icons.save, size: 18),
+                      label: const Text("Salvar"),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color.fromARGB(255, 127, 194, 248),
+                        foregroundColor: const Color.fromARGB(255, 105, 94, 255),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 8),
+
+                  // 🔹 BOTÃO ARQUIVAR
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
                       onPressed: () async {
                         final confirmar = await showDialog<bool>(
                           context: context,
@@ -238,31 +266,20 @@ class ParcelasPageState extends State<ParcelasPage> {
 
                             await showDialog(
                               context: context,
-                              builder: (ctx) => AlertDialog(
-                                content: const Text(
-                                  "Empréstimo arquivado com sucesso!",
-                                  textAlign: TextAlign.center,
-                                ),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () {
-                                      Navigator.pop(ctx);
-                                      Navigator.pop(context, true);
-                                    },
-                                    child: const Text("OK"),
-                                  ),
-                                ],
+                              builder: (ctx) => const AlertDialog(
+                                content: Text("Empréstimo arquivado com sucesso!",
+                                    textAlign: TextAlign.center),
                               ),
                             );
+
+                            Navigator.pop(context, true);
                           } catch (e) {
                             if (!mounted) return;
                             await showDialog(
                               context: context,
                               builder: (ctx) => AlertDialog(
-                                content: Text(
-                                  "Erro ao arquivar: $e",
-                                  textAlign: TextAlign.center,
-                                ),
+                                content: Text("Erro ao arquivar: $e",
+                                    textAlign: TextAlign.center),
                                 actions: [
                                   TextButton(
                                     onPressed: () => Navigator.pop(ctx),
@@ -274,57 +291,50 @@ class ParcelasPageState extends State<ParcelasPage> {
                           }
                         }
                       },
-                      icon: const Icon(Icons.archive),
+                      icon: const Icon(Icons.archive, size: 18),
                       label: const Text("Arquivar Empréstimo"),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.orange,
                         foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    ElevatedButton.icon(
-                      onPressed: () async {
-                        final ok = await _tableKey.currentState?.salvarParcelas();
+                  ),
+                ],
+              ),
+            ),
 
-                        if (ok == null) return;
-                        if (ok == false && mounted) return;
+            // 🔹 LADO DIREITO - TABELA DE PARCELAS
+            // 🔹 TABELA DE PARCELAS
+            Expanded(
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                child: FutureBuilder<List<Map<String, dynamic>>>(
+                  future: _parcelasFuture,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    if (snapshot.hasError) {
+                      return Center(
+                        child: Text("Erro: ${snapshot.error}",
+                            style: const TextStyle(color: Colors.red)),
+                      );
+                    }
 
-                        if (ok == true && mounted) {
-                          await showDialog(
-                            context: context,
-                            builder: (ctx) => AlertDialog(
-                              content: const Text(
-                                "Parcelas salvas com sucesso",
-                                textAlign: TextAlign.center,
-                              ),
-                              actions: [
-                                TextButton(
-                                  onPressed: () => Navigator.pop(ctx),
-                                  child: const Text("OK"),
-                                ),
-                              ],
-                            ),
-                          );
+                    final parcelasList = snapshot.data ?? [];
 
-                          // ✅ Atualiza o Financeiro imediatamente
-                          widget.onSaved();
-
-                          // ✅ Volta à tela anterior (Financeiro)
-                          Navigator.pop(context, true);
-                        }
-                      },
-                      icon: const Icon(Icons.save),
-                      label: const Text("Salvar Parcelas"),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green,
-                        foregroundColor: Colors.white,
-                      ),
-                    ),
-                  ],
+                    // ✅ MOSTRA A TABELA MESMO QUANDO VAZIA - AGORA O BOTÃO FUNCIONA!
+                    return ParcelasTable(
+                      key: _tableKey,
+                      emprestimo: widget.emprestimo,
+                      parcelas: parcelasList, // Pode ser lista vazia []
+                    );
+                  },
                 ),
-              ],
-            );
-          },
+              ),
+            ),
+          ],
         ),
       ),
     );
