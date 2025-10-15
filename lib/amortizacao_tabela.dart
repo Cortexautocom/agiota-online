@@ -3,7 +3,7 @@ import 'package:intl/intl.dart';
 import 'amortizacao_service.dart';
 import 'amortizacao_controllers.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'financeiro.dart';
+//import 'financeiro.dart';
 
 class AmortizacaoTabela extends StatefulWidget {
   final Map<String, dynamic> emprestimo;
@@ -128,14 +128,12 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
   Future<void> _salvarNoBanco() async {
     final sucesso = await _controllers.salvarParcelasNoBanco(widget.emprestimo['id']);
 
-    // 🧩 Verifica antes de qualquer ação se a tela ainda está montada
     if (!mounted) return;
 
     if (sucesso) {
-      if (!mounted) return;
       showDialog(
         context: context,
-        barrierDismissible: false, // impede fechar clicando fora
+        barrierDismissible: false,
         builder: (context) => const AlertDialog(          
           content: Text(
             "Dados salvos com sucesso!",
@@ -144,31 +142,21 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
         ),
       );
 
-      // Fecha automaticamente após 2 segundos
       Future.delayed(const Duration(seconds: 2), () {
-        if (mounted && Navigator.canPop(context)) { // 🛡️ verifica se a tela ainda existe
-          Navigator.of(context).pop();
+        if (mounted && Navigator.canPop(context)) {
+          Navigator.of(context).pop(); // Fecha o diálogo
         }
       });
 
-      // Aguarda o snackbar e volta para o financeiro atualizado
+      // 🔹 CORREÇÃO: Use Navigator.pop com resultado em vez de pushAndRemoveUntil
       await Future.delayed(const Duration(seconds: 1));
-
+      
       if (mounted) {
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(
-            builder: (context) => FinanceiroPage(
-              cliente: {
-                'id_cliente': widget.emprestimo['id_cliente'],
-                'nome': widget.emprestimo['cliente'] ?? 'Cliente',
-                'id_usuario': widget.emprestimo['id_usuario'] ?? '',
-              }, // ← CORREÇÃO AQUI
-              forceRefresh: true,
-            ),
-          ),
-          (route) => false,
-        );
+        // Retorna para a tela anterior (FinanceiroPage) com dados atualizados
+        Navigator.pop(context, {
+          'atualizar': true,
+          'cliente': _nomeCliente, // Use o nome carregado localmente
+        });
       }
     } else {
       if (!mounted) return;
@@ -220,7 +208,6 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
           icon: const Icon(Icons.arrow_back, color: Colors.white),
           tooltip: 'Voltar para o financeiro',
           onPressed: () {
-            // 🔹 Exibe diálogo de confirmação antes de sair
             showDialog(
               context: context,
               builder: (BuildContext context) {
@@ -239,7 +226,6 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
                   ),
                   actionsAlignment: MainAxisAlignment.center,
                   actions: [
-                    // 🔸 Botão vermelho - sair sem salvar
                     TextButton.icon(
                       style: TextButton.styleFrom(
                         backgroundColor: Colors.redAccent,
@@ -247,15 +233,11 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
                       ),
                       onPressed: () {
                         Navigator.of(context).pop(); // fecha o diálogo
-                        Navigator.pushReplacement(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => FinanceiroPage(
-                              cliente: widget.emprestimo,
-                              forceRefresh: true,
-                            ),
-                          ),
-                        );
+                        // 🔹 CORREÇÃO: Use pop com resultado
+                        Navigator.pop(context, {
+                          'atualizar': true,
+                          'cliente': _nomeCliente,
+                        });
                       },
                       icon: const Icon(Icons.warning_amber_rounded, color: Colors.white, size: 18),
                       label: const Text(
@@ -263,15 +245,13 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
                         style: TextStyle(color: Colors.white),
                       ),
                     ),
-
-                    // 🔸 Botão cinza - cancelar
                     TextButton(
                       style: TextButton.styleFrom(
                         backgroundColor: Colors.grey[200],
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                       ),
                       onPressed: () {
-                        Navigator.of(context).pop(); // Fecha o diálogo e permanece na página
+                        Navigator.of(context).pop(); // Fecha o diálogo
                       },
                       child: const Text(
                         "Cancelar",

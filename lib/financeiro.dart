@@ -150,7 +150,7 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
       length: 3,
       child: Scaffold(
         appBar: AppBar(
-          title: Text("Financeiro - ${cliente['nome']}"),
+          title: Text("Financeiro - ${cliente['nome'] ?? 'Cliente'}"),
           bottom: PreferredSize(
             preferredSize: const Size.fromHeight(48),
             child: Container(
@@ -259,6 +259,7 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
                                         onSelectChanged: (_) {
                                           emp['cliente'] = cliente['nome'];
                                           emp['id_cliente'] = cliente['id_cliente'];
+                                          emp['id_usuario'] = cliente['id_usuario'] ?? '';
                                           
                                           // 🔹 VERIFICA SE É AMORTIZAÇÃO OU PARCELAMENTO
                                           if (tipoMov == 'amortizacao') {
