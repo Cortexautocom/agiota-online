@@ -206,16 +206,32 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Amortização - Conta Corrente'),
         backgroundColor: Colors.green,
         centerTitle: true,
-        actions: [
-          /*IconButton(
-            icon: const Icon(Icons.save, color: Colors.white),
-            onPressed: _salvarNoBanco,
-            tooltip: 'Salvar no banco',
-          ),*/
-        ],
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          tooltip: 'Voltar para o financeiro',
+          onPressed: () {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (context) => FinanceiroPage(
+                  cliente: widget.emprestimo,
+                  forceRefresh: true, // 🔹 garante atualização dos dados
+                ),
+              ),
+            );
+          },
+        ),
+        title: Text(
+          "Empréstimo Nº $_numeroEmprestimo - $_nomeCliente - Amortização",
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+          ),
+          textAlign: TextAlign.center,
+          overflow: TextOverflow.ellipsis, // evita quebrar se o nome for grande
+        ),
       ),
       body: Container(
         color: Colors.grey[100],
@@ -306,9 +322,9 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
                               : "R\$ 0,00",
                           style: TextStyle(
                             fontSize: 13,
-                            color: (jurosEmAtraso > 0)
+                            color: _existeParcelaEmAtraso()
                                 ? Colors.redAccent
-                                : Colors.black,
+                                : const Color.fromARGB(255, 28, 121, 214), // 🟢 mesmo verde-azulado dos juros
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -325,7 +341,7 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
                       icon: const Icon(Icons.add, size: 18),
                       label: const Text('Nova Linha'),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green,
+                        backgroundColor: const Color.fromARGB(255, 132, 224, 135),
                         padding: const EdgeInsets.symmetric(vertical: 12),
                       ),
                     ),
@@ -341,7 +357,7 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
                       icon: const Icon(Icons.save, size: 18),
                       label: const Text('Salvar'),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue,
+                        backgroundColor: const Color.fromARGB(255, 127, 194, 248),
                         padding: const EdgeInsets.symmetric(vertical: 12),
                       ),
                     ),
@@ -758,15 +774,19 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
   
   double _calcularJurosEmAtraso() {
     double total = 0.0;
-    int linhasSomadas = 0; // 🆕 contador de linhas somadas
+    int linhasSomadas = 0;
     final hoje = DateTime.now();
     final formatador = DateFormat('dd/MM/yyyy');
 
-    for (final linha in _controllers.linhas) {
+    for (int i = 0; i < _controllers.linhas.length; i++) {
+      final linha = _controllers.linhas[i];
       final pg = linha['pg'] ?? 0;
 
-      // Ignora linhas marcadas como pagas
+      // 🔹 Ignora linhas marcadas como pagas
       if (pg == 1) continue;
+
+      // 🔹 Ignora a primeira linha (aporte inicial)
+      if (i == 0) continue;
 
       final dataTexto = linha['data'];
       if (dataTexto == null || dataTexto.toString().length != 10) continue;
@@ -774,11 +794,11 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
       try {
         final dataLinha = formatador.parse(dataTexto);
 
-        // Soma juros das linhas válidas
+        // 🔹 Soma apenas juros das linhas válidas (não aporte)
         total += (linha['juros_mes'] ?? 0.0) + (linha['juros_atraso'] ?? 0.0);
         linhasSomadas++;
 
-        // Se a data for maior que hoje → soma esta e para
+        // 🔹 Se a data for maior que hoje → soma esta e para
         if (dataLinha.isAfter(hoje)) {
           break;
         }
@@ -788,10 +808,38 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
       }
     }
 
-    // 🧩 NOVO: só considera se houve mais de uma linha somada
-    if (linhasSomadas <= 1) return 0.0;
+    // 🔹 Se não houver nenhuma linha válida além do aporte → retorna 0
+    if (linhasSomadas == 0) return 0.0;
 
     return total;
+  }
+
+  bool _existeParcelaEmAtraso() {
+    final hoje = DateTime.now();
+    final formatador = DateFormat('dd/MM/yyyy');
+
+    for (int i = 1; i < _controllers.linhas.length; i++) { // ignora a 1ª linha (aporte)
+      final linha = _controllers.linhas[i];
+      final pg = linha['pg'] ?? 0;
+
+      if (pg == 1) continue; // ignora pagas
+
+      final dataTexto = linha['data'];
+      if (dataTexto == null || dataTexto.toString().length != 10) continue;
+
+      try {
+        final dataLinha = formatador.parse(dataTexto);
+
+        if (dataLinha.isBefore(hoje)) {
+          // encontrou uma parcela vencida e não paga
+          return true;
+        }
+      } catch (e) {
+        // ignora erros de data
+      }
+    }
+
+    return false;
   }
 
 
