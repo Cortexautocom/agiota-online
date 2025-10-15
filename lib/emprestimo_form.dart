@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'utils.dart'; // seu formatador de moeda
+import 'utils.dart';
 import 'package:uuid/uuid.dart';
 import 'dart:math';
 import 'parcelas_page.dart';
-import 'package:flutter/services.dart'; // Adicionar para TextInputFormatter
+import 'package:flutter/services.dart';
 
 class EmprestimoForm extends StatefulWidget {
-  final String idCliente;   // vem do cliente selecionado
+  final String idCliente;
   final String? idUsuario;
-  final VoidCallback onSaved; // callback para atualizar tela de financeiro
+  final VoidCallback onSaved;
 
   const EmprestimoForm({
     super.key,
@@ -37,7 +37,6 @@ class _EmprestimoFormState extends State<EmprestimoForm> {
 
   DateTime dataEmprestimo = DateTime.now();
 
-  // 🔹 Máscara para campos de moeda
   TextInputFormatter _moedaFormatter() {
     return TextInputFormatter.withFunction((oldValue, newValue) {
       var text = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
@@ -147,7 +146,6 @@ class _EmprestimoFormState extends State<EmprestimoForm> {
         parcelasPreview.add({
           "numero": i,
           "valor": p,
-          // exibido só na tela em dd/MM/yyyy
           "vencimento":
               "${vencimento.day.toString().padLeft(2, '0')}/${vencimento.month.toString().padLeft(2, '0')}/${vencimento.year}"
         });
@@ -167,7 +165,7 @@ class _EmprestimoFormState extends State<EmprestimoForm> {
     final uuid = Uuid();
     final emprestimoId = uuid.v4();
 
-    final userId = Supabase.instance.client.auth.currentUser!.id; // ✅ sempre pega do Supabase
+    final userId = Supabase.instance.client.auth.currentUser!.id;
 
     final dataStr =
         "${dataEmprestimo.year}-${dataEmprestimo.month.toString().padLeft(2, '0')}-${dataEmprestimo.day.toString().padLeft(2, '0')}";
@@ -191,7 +189,6 @@ class _EmprestimoFormState extends State<EmprestimoForm> {
     final dataInicio = dataEmprestimo;
     final diaRef = dataInicio.day;
     final List<Map<String, dynamic>> parcelas = [];
-
     for (int i = 1; i <= meses; i++) {
       int ano = dataInicio.year;
       int mes = dataInicio.month + i;
@@ -209,7 +206,8 @@ class _EmprestimoFormState extends State<EmprestimoForm> {
         'id_emprestimo': emprestimoId,
         'numero': i,
         'valor': double.parse(prestacaoFinal.toStringAsFixed(2)),
-        'vencimento': "${vencimento.year}-${vencimento.month.toString().padLeft(2, '0')}-${vencimento.day.toString().padLeft(2, '0')}",
+        'vencimento':
+            "${vencimento.year}-${vencimento.month.toString().padLeft(2, '0')}-${vencimento.day.toString().padLeft(2, '0')}",
         'juros': 0.0,
         'desconto': 0.0,
         'pg_principal': 0.0,
@@ -225,19 +223,28 @@ class _EmprestimoFormState extends State<EmprestimoForm> {
 
     await supabase.from('parcelas').insert(parcelas);
 
-    if (!mounted) return;
+    // ✅ Consulta corrigida: usa id_cliente
+    final clienteResp = await supabase
+        .from('clientes')
+        .select('nome')
+        .eq('id_cliente', widget.idCliente) // 🔹 CORRIGIDO
+        .maybeSingle();
+
+    final nomeCliente = clienteResp != null && clienteResp['nome'] != null
+        ? clienteResp['nome'] as String
+        : 'Cliente';
 
     final emprestimo = {
       "id": emprestimoId,
       "id_cliente": widget.idCliente,
-      "valor": capital, // ✅ double
+      "valor": capital,
       "data_inicio": dataStr,
       "parcelas": meses,
-      "juros": totalJuros ?? 0, // ✅ double
-      "prestacao": prestacaoFinal, // ✅ double
+      "juros": totalJuros ?? 0,
+      "prestacao": prestacaoFinal,
       "id_usuario": userId,
       "ativo": "sim",
-      "cliente": "",
+      "cliente": nomeCliente,
     };
 
     Navigator.pop(context);
@@ -246,7 +253,7 @@ class _EmprestimoFormState extends State<EmprestimoForm> {
       MaterialPageRoute(
         builder: (_) => ParcelasPage(
           emprestimo: emprestimo,
-          onSaved: widget.onSaved, // ✅ envia o callback
+          onSaved: widget.onSaved,
         ),
       ),
     );
@@ -342,7 +349,7 @@ class _EmprestimoFormState extends State<EmprestimoForm> {
                               children: [
                                 Text("Parcela ${parc['numero']}"),
                                 Text(fmtMoeda(double.tryParse(parc['valor'].toString()) ?? 0)),
-                                Text(parc['vencimento']), // exibido dd/MM/yyyy
+                                Text(parc['vencimento']),
                               ],
                             ),
                           );
