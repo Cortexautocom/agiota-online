@@ -170,6 +170,71 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
     }
   }
 
+  // 🔹 Arquivar empréstimo
+  Future<void> _arquivarEmprestimo() async {
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Arquivar Empréstimo"),
+        content: const Text(
+          "Tem certeza que deseja arquivar este empréstimo?\n\n"
+          "O empréstimo será movido para a aba de arquivados.",
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text("Cancelar"),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text("Arquivar"),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmar == true) {
+      try {
+        await Supabase.instance.client
+            .from('emprestimos')
+            .update({'ativo': 'nao'})
+            .eq('id', widget.emprestimo['id']);
+
+        if (!mounted) return;
+
+        await showDialog(
+          context: context,
+          builder: (ctx) => const AlertDialog(
+            content: Text(
+              "Empréstimo arquivado com sucesso!",
+              textAlign: TextAlign.center,
+            ),
+          ),
+        );
+
+        Navigator.pop(context, true);
+      } catch (e) {
+        if (!mounted) return;
+        await showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            content: Text("Erro ao arquivar: $e", textAlign: TextAlign.center),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text("OK"),
+              ),
+            ],
+          ),
+        );
+      }
+    }
+  }
+
   // 🔹 Função auxiliar para excluir uma linha com segurança
   void _removerLinha(int index) {
     setState(() {
@@ -232,14 +297,14 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                       ),
                       onPressed: () {
-                        Navigator.of(context).pop(); // fecha o diálogo
-                        // 🔹 CORREÇÃO: Use pop com resultado
+                        Navigator.of(context).pop();
                         Navigator.pop(context, {
                           'atualizar': true,
                           'cliente': _nomeCliente,
                         });
                       },
-                      icon: const Icon(Icons.warning_amber_rounded, color: Colors.white, size: 18),
+                      icon: const Icon(Icons.warning_amber_rounded,
+                          color: Colors.white, size: 18),
                       label: const Text(
                         "Sim, sair sem salvar.",
                         style: TextStyle(color: Colors.white),
@@ -250,9 +315,7 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
                         backgroundColor: Colors.grey[200],
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                       ),
-                      onPressed: () {
-                        Navigator.of(context).pop(); // Fecha o diálogo
-                      },
+                      onPressed: () => Navigator.of(context).pop(),
                       child: const Text(
                         "Cancelar",
                         style: TextStyle(color: Colors.black87),
@@ -264,7 +327,6 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
             );
           },
         ),
-
         title: Text(
           "Empréstimo Nº $_numeroEmprestimo - $_nomeCliente - Amortização",
           style: const TextStyle(
@@ -272,361 +334,370 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
             fontWeight: FontWeight.w600,
           ),
           textAlign: TextAlign.center,
-          overflow: TextOverflow.ellipsis, // evita quebrar se o nome for grande
-        ),
+          overflow: TextOverflow.ellipsis,
+        ),        
       ),
-      body: Container(
-        color: Colors.grey[100],
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // 🔹 LADO ESQUERDO - PAINEL DE CONTROLE (250px)
-            Container(
-              width: 250,
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // 🔹 CARD INFORMAÇÕES DO EMPRÉSTIMO (único card à esquerda agora)
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.green[50],
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.green.shade200),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          "Empréstimo Nº ${_numeroEmprestimo}",
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
-                          ),
+      body: Stack(
+        children: [
+          Container(
+            color: Colors.grey[100],
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // 🔹 LADO ESQUERDO - PAINEL DE CONTROLE (250px)
+                Container(
+                  width: 250,
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // 🔹 CARD INFORMAÇÕES DO EMPRÉSTIMO (único card à esquerda agora)
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.green[50],
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.green.shade200),
                         ),
-                        const SizedBox(height: 6),
-                        Text(
-                          "Cliente: ${_nomeCliente}",
-                          style: const TextStyle(fontSize: 12),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 8),
-                        Divider(height: 10, color: Colors.green),
-                        const SizedBox(height: 8),
-                        Text(
-                          "Taxa de Juros: ${_controllers.taxaJuros.toStringAsFixed(2)}% a.m.",
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: Colors.black87,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          "Aporte total: ${_controllers.fmtMoeda(totalAporte)}",
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: Colors.black87,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          "Capital pago neste empréstimo: ${(totalPgCapital > 0) ? _controllers.fmtMoeda(totalPgCapital) : "R\$ 0,00"}",
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: Colors.black87,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          "Capital restando pagar: ${_controllers.fmtMoeda(totalAporte - totalPgCapital)}",
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: Color.fromARGB(255, 180, 50, 30),
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          "Juros acumulados para o próximo vencimento:",
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: Colors.black87,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          (jurosEmAtraso > 0)
-                              ? _controllers.fmtMoeda(jurosEmAtraso)
-                              : "R\$ 0,00",
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: _existeParcelaEmAtraso()
-                                ? Colors.redAccent
-                                : const Color.fromARGB(255, 28, 121, 214), // 🟢 mesmo verde-azulado dos juros
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 16),
-                  
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: _adicionarLinha,
-                      icon: const Icon(Icons.add_circle_outline, size: 18),
-                      label: const Text('Adicionar parcela'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color.fromARGB(255, 132, 224, 135),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 8),
-
-                  // 🔹 BOTÃO SALVAR
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: _salvarNoBanco,
-                      icon: const Icon(Icons.save, size: 18),
-                      label: const Text('Salvar'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color.fromARGB(255, 127, 194, 248),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // 🔹 LADO DIREITO - TABELA (OCUPA O RESTANTE)
-            Expanded(
-              child: Container(
-                padding: const EdgeInsets.all(16),
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.vertical,
-                    child: DataTable(
-                      columnSpacing: 16,
-                      headingRowColor:
-                          MaterialStateProperty.all(Colors.grey[300]),
-                      dataRowMinHeight: 38,
-                      dataRowMaxHeight: 42,
-                      headingTextStyle: const TextStyle(
-                        color: Colors.black,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 13,
-                      ),
-                      dataTextStyle:
-                          const TextStyle(color: Colors.black87, fontSize: 13),
-                      dividerThickness: 0.5,
-                      horizontalMargin: 0,
-                      columns: const [
-                        DataColumn(
-                            label: SizedBox(
-                                width: 95,
-                                child: Center(child: Text("Data")))),
-                        DataColumn(
-                            label: SizedBox(
-                                width: 130,
-                                child: Center(child: Text("Saldo Inicial")))),
-                        DataColumn(
-                            label: SizedBox(
-                                width: 105,
-                                child: Center(child: Text("Aporte")))),
-                        DataColumn(
-                            label: SizedBox(
-                                width: 115,
-                                child: Center(child: Text("Pag. Capital")))),
-                        DataColumn(
-                            label: SizedBox(
-                                width: 105,
-                                child: Center(child: Text("Pag. Juros")))),
-                        DataColumn(
-                            label: SizedBox(
-                                width: 95,
-                                child: Center(child: Text("Juros (período)")))),
-                        DataColumn(
-                            label: SizedBox(
-                              width: 105,
-                              child: Center(child: Text("Juros (atraso)")))),
-                        DataColumn(
-                            label: SizedBox(
-                                width: 130,
-                                child: Center(child: Text("Saldo Final")))),
-                        DataColumn(
-                            label: SizedBox(
-                              width: 50,
-                              child: Center(
-                                child: Text(
-                                  "",
-                                  textAlign: TextAlign.center,
-                                ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              "Empréstimo Nº ${_numeroEmprestimo}",
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
                               ),
                             ),
-                          ),
-                      ],
-                      rows: [
-                        ..._controllers.linhas.asMap().entries.map(
-                          (entry) {
-                            final linha = entry.value;
-                            final dataTexto = linha['data'];
-                            final pgCapital = linha['pg_capital'] ?? 0.0;
-                            final pgJuros = linha['pg_juros'] ?? 0.0;
-                            //final desconsiderar = linha['desconsiderar_atraso'] ?? false;
-
-                            Color? rowColor;
-
-                            try {
-                              final dataFormatada = DateFormat('dd/MM/yyyy').parse(dataTexto);
-                              final hoje = DateTime.now();
-                              final isFirstRow = entry.key == 0;
-
-                              final estaAtrasado = !isFirstRow &&
-                                  hoje.isAfter(dataFormatada) &&
-                                  pgCapital == 0.0 &&
-                                  pgJuros == 0.0;
-
-                              final marcadoComoPago = (linha['pg'] ?? 0) == 1; // 🆕 usa o novo campo
-
-                              if (estaAtrasado && !marcadoComoPago) {
-                                rowColor = Colors.red[100]; // 🔴 leve vermelho (atrasado)
-                              } else if (marcadoComoPago) {
-                                rowColor = Colors.green[100]; // 🟢 verde leve (desconsiderado/pago)
-                              } else {
-                                rowColor = null;
-                              }
-                            } catch (e) {
-                              rowColor = null;
-                            }
-
-                            return DataRow(
-                              color: MaterialStateProperty.all(rowColor),
-                              cells: [
-                                _buildDateCell(entry.key),
-                                _buildReadOnlyCell(
-                                    _fmt.format(linha['saldo_inicial'] ?? 0.0)),
-                                _buildEditableCell(entry.key, 'aporte', cor: Colors.red),
-                                _buildEditableCell(entry.key, 'pg_capital', cor: Colors.black),
-                                _buildEditableCell(entry.key, 'pg_juros', cor: Colors.green),
-                                _buildJurosMesCell(entry.key), // azul já aplicado
-                                _buildEditableCell(entry.key, 'juros_atraso', cor: Colors.green),
-                                _buildReadOnlyCell(
-                                    _fmt.format(linha['saldo_final'] ?? 0.0)),
-                                DataCell(
-                                  PopupMenuButton<String>(
-                                    icon: const Icon(Icons.more_vert, size: 20),
-                                    onSelected: (value) async {
-                                      if (value == 'paga') {
-                                        // 🔹 Marcar como paga
-                                        setState(() {
-                                          linha['pg'] = 1;
-                                        });
-                                        await _controllers.salvarParcelasNoBanco(widget.emprestimo['id']);
-                                      } else if (value == 'pendente') {
-                                        // 🔹 Marcar como pendente
-                                        setState(() {
-                                          linha['pg'] = 0;
-                                        });
-                                        await _controllers.salvarParcelasNoBanco(widget.emprestimo['id']);
-                                      } else if (value == 'excluir') {
-                                          // 🔹 Exclui a linha
-                                          _removerLinha(entry.key);
-
-                                          // 🔹 Mostra diálogo de confirmação
-                                          showDialog(
-                                            context: context,
-                                            builder: (BuildContext context) {
-                                              return AlertDialog(
-                                                title: const Text(
-                                                  "",
-                                                  textAlign: TextAlign.center,
-                                                  style: TextStyle(fontWeight: FontWeight.bold),
-                                                ),
-                                                content: const Text(
-                                                  "Parcela excluída.",
-                                                  textAlign: TextAlign.center,
-                                                ),
-                                                actionsAlignment: MainAxisAlignment.center,
-                                                actions: [
-                                                  TextButton(
-                                                    child: const Text("OK"),
-                                                    onPressed: () {
-                                                      Navigator.of(context).pop(); // Fecha o diálogo
-                                                    },
-                                                  ),
-                                                ],
-                                              );
-                                            },
-                                          );
-                                        }
-                                    },
-                                    itemBuilder: (context) => [
-                                      const PopupMenuItem(
-                                        value: 'paga',
-                                        child: Text('Marcar como paga'),
-                                      ),
-                                      const PopupMenuItem(
-                                        value: 'pendente',
-                                        child: Text('Marcar como pendente'),
-                                      ),
-                                      const PopupMenuItem(
-                                        value: 'excluir',
-                                        child: Text('Excluir linha'),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            );
-                          },
-                        ),
-                        DataRow(
-                          color: MaterialStateProperty.all(Colors.grey[200]),
-                          cells: [
-                            DataCell(Center(
-                                child: Text("TOTAIS",
-                                    style: TextStyle(fontWeight: FontWeight.bold)))),
-                            DataCell(Center(child: Text(""))),
-                            DataCell(Center(
-                                child: Text(_controllers.fmtMoeda(totalAporte),
-                                    style: TextStyle(fontWeight: FontWeight.bold)))),
-                            DataCell(Center(
-                                child: Text(_controllers.fmtMoeda(totalPgCapital),
-                                    style: TextStyle(fontWeight: FontWeight.bold)))),
-                            DataCell(Center(
-                                child: Text(_controllers.fmtMoeda(totalPgJuros),
-                                    style: TextStyle(fontWeight: FontWeight.bold)))),
-                            DataCell(Center(
-                                child: Text(_controllers.fmtMoeda(totalJurosPeriodo),
-                                    style: TextStyle(fontWeight: FontWeight.bold)))),
-                            DataCell(Center(
-                                child: Text(_controllers.fmtMoeda(totalJurosAtraso), // 🆕 total de juros atraso
-                                    style: TextStyle(fontWeight: FontWeight.bold)))),
-                            DataCell(Center(
-                                child: Text(_controllers.fmtMoeda(saldoFinal),
-                                    style: TextStyle(fontWeight: FontWeight.bold)))),
-                            DataCell(Center(child: Text(""))),
+                            const SizedBox(height: 6),
+                            Text(
+                              "Cliente: ${_nomeCliente}",
+                              style: const TextStyle(fontSize: 12),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 8),
+                            Divider(height: 10, color: Colors.green),
+                            const SizedBox(height: 8),
+                            Text(
+                              "Taxa de Juros: ${_controllers.taxaJuros.toStringAsFixed(2)}% a.m.",
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Colors.black87,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              "Aporte total: ${_controllers.fmtMoeda(totalAporte)}",
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Colors.black87,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              "Capital pago neste empréstimo: ${(totalPgCapital > 0) ? _controllers.fmtMoeda(totalPgCapital) : "R\$ 0,00"}",
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Colors.black87,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              "Capital restando pagar: ${_controllers.fmtMoeda(totalAporte - totalPgCapital)}",
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Color.fromARGB(255, 180, 50, 30),
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              "Juros acumulados para o próximo vencimento:",
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Colors.black87,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              (jurosEmAtraso > 0)
+                                  ? _controllers.fmtMoeda(jurosEmAtraso)
+                                  : "R\$ 0,00",
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: _existeParcelaEmAtraso()
+                                    ? Colors.redAccent
+                                    : const Color.fromARGB(255, 28, 121, 214),
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                           ],
                         ),
-                      ],
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: _adicionarLinha,
+                          icon: const Icon(Icons.add_circle_outline, size: 18),
+                          label: const Text('Adicionar parcela'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color.fromARGB(255, 132, 224, 135),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(height: 8),
+
+                      // 🔹 BOTÃO SALVAR
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: _salvarNoBanco,
+                          icon: const Icon(Icons.save, size: 18),
+                          label: const Text('Salvar'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color.fromARGB(255, 127, 194, 248),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // 🔹 LADO DIREITO - TABELA (OCUPA O RESTANTE)
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.vertical,
+                        child: DataTable(
+                          columnSpacing: 16,
+                          headingRowColor:
+                              MaterialStateProperty.all(Colors.grey[300]),
+                          dataRowMinHeight: 38,
+                          dataRowMaxHeight: 42,
+                          headingTextStyle: const TextStyle(
+                            color: Colors.black,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                          ),
+                          dataTextStyle:
+                              const TextStyle(color: Colors.black87, fontSize: 13),
+                          dividerThickness: 0.5,
+                          horizontalMargin: 0,
+                          columns: const [
+                            DataColumn(
+                                label: SizedBox(
+                                    width: 95,
+                                    child: Center(child: Text("Data")))),
+                            DataColumn(
+                                label: SizedBox(
+                                    width: 130,
+                                    child: Center(child: Text("Saldo Inicial")))),
+                            DataColumn(
+                                label: SizedBox(
+                                    width: 105,
+                                    child: Center(child: Text("Aporte")))),
+                            DataColumn(
+                                label: SizedBox(
+                                    width: 115,
+                                    child: Center(child: Text("Pag. Capital")))),
+                            DataColumn(
+                                label: SizedBox(
+                                    width: 105,
+                                    child: Center(child: Text("Pag. Juros")))),
+                            DataColumn(
+                                label: SizedBox(
+                                    width: 95,
+                                    child: Center(child: Text("Juros (período)")))),
+                            DataColumn(
+                                label: SizedBox(
+                                  width: 105,
+                                  child: Center(child: Text("Juros (atraso)")))),
+                            DataColumn(
+                                label: SizedBox(
+                                    width: 130,
+                                    child: Center(child: Text("Saldo Final")))),
+                            DataColumn(
+                                label: SizedBox(
+                                  width: 50,
+                                  child: Center(
+                                    child: Text(
+                                      "",
+                                      textAlign: TextAlign.center,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ],
+                          rows: [
+                            ..._controllers.linhas.asMap().entries.map(
+                              (entry) {
+                                final linha = entry.value;
+                                final dataTexto = linha['data'];
+                                final pgCapital = linha['pg_capital'] ?? 0.0;
+                                final pgJuros = linha['pg_juros'] ?? 0.0;
+
+                                Color? rowColor;
+
+                                try {
+                                  final dataFormatada = DateFormat('dd/MM/yyyy').parse(dataTexto);
+                                  final hoje = DateTime.now();
+                                  final isFirstRow = entry.key == 0;
+
+                                  final estaAtrasado = !isFirstRow &&
+                                      hoje.isAfter(dataFormatada) &&
+                                      pgCapital == 0.0 &&
+                                      pgJuros == 0.0;
+
+                                  final marcadoComoPago = (linha['pg'] ?? 0) == 1;
+
+                                  if (estaAtrasado && !marcadoComoPago) {
+                                    rowColor = Colors.red[100];
+                                  } else if (marcadoComoPago) {
+                                    rowColor = Colors.green[100];
+                                  } else {
+                                    rowColor = null;
+                                  }
+                                } catch (e) {
+                                  rowColor = null;
+                                }
+
+                                return DataRow(
+                                  color: MaterialStateProperty.all(rowColor),
+                                  cells: [
+                                    _buildDateCell(entry.key),
+                                    _buildReadOnlyCell(
+                                        _fmt.format(linha['saldo_inicial'] ?? 0.0)),
+                                    _buildEditableCell(entry.key, 'aporte', cor: Colors.red),
+                                    _buildEditableCell(entry.key, 'pg_capital', cor: Colors.black),
+                                    _buildEditableCell(entry.key, 'pg_juros', cor: Colors.green),
+                                    _buildJurosMesCell(entry.key),
+                                    _buildEditableCell(entry.key, 'juros_atraso', cor: Colors.green),
+                                    _buildReadOnlyCell(
+                                        _fmt.format(linha['saldo_final'] ?? 0.0)),
+                                    DataCell(
+                                      PopupMenuButton<String>(
+                                        icon: const Icon(Icons.more_vert, size: 20),
+                                        onSelected: (value) async {
+                                          if (value == 'paga') {
+                                            setState(() {
+                                              linha['pg'] = 1;
+                                            });
+                                            await _controllers.salvarParcelasNoBanco(widget.emprestimo['id']);
+                                          } else if (value == 'pendente') {
+                                            setState(() {
+                                              linha['pg'] = 0;
+                                            });
+                                            await _controllers.salvarParcelasNoBanco(widget.emprestimo['id']);
+                                          } else if (value == 'excluir') {
+                                            _removerLinha(entry.key);
+                                            showDialog(
+                                              context: context,
+                                              builder: (BuildContext context) {
+                                                return AlertDialog(
+                                                  content: const Text(
+                                                    "Parcela excluída.",
+                                                    textAlign: TextAlign.center,
+                                                  ),
+                                                  actionsAlignment: MainAxisAlignment.center,
+                                                  actions: [
+                                                    TextButton(
+                                                      child: const Text("OK"),
+                                                      onPressed: () {
+                                                        Navigator.of(context).pop();
+                                                      },
+                                                    ),
+                                                  ],
+                                                );
+                                              },
+                                            );
+                                          }
+                                        },
+                                        itemBuilder: (context) => [
+                                          const PopupMenuItem(
+                                            value: 'paga',
+                                            child: Text('Marcar como paga'),
+                                          ),
+                                          const PopupMenuItem(
+                                            value: 'pendente',
+                                            child: Text('Marcar como pendente'),
+                                          ),
+                                          const PopupMenuItem(
+                                            value: 'excluir',
+                                            child: Text('Excluir linha'),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                );
+                              },
+                            ),
+                            DataRow(
+                              color: MaterialStateProperty.all(Colors.grey[200]),
+                              cells: [
+                                DataCell(Center(
+                                    child: Text("TOTAIS",
+                                        style: TextStyle(fontWeight: FontWeight.bold)))),
+                                DataCell(Center(child: Text(""))),
+                                DataCell(Center(
+                                    child: Text(_controllers.fmtMoeda(totalAporte),
+                                        style: TextStyle(fontWeight: FontWeight.bold)))),
+                                DataCell(Center(
+                                    child: Text(_controllers.fmtMoeda(totalPgCapital),
+                                        style: TextStyle(fontWeight: FontWeight.bold)))),
+                                DataCell(Center(
+                                    child: Text(_controllers.fmtMoeda(totalPgJuros),
+                                        style: TextStyle(fontWeight: FontWeight.bold)))),
+                                DataCell(Center(
+                                    child: Text(_controllers.fmtMoeda(totalJurosPeriodo),
+                                        style: TextStyle(fontWeight: FontWeight.bold)))),
+                                DataCell(Center(
+                                    child: Text(_controllers.fmtMoeda(totalJurosAtraso),
+                                        style: TextStyle(fontWeight: FontWeight.bold)))),
+                                DataCell(Center(
+                                    child: Text(_controllers.fmtMoeda(saldoFinal),
+                                        style: TextStyle(fontWeight: FontWeight.bold)))),
+                                DataCell(Center(child: Text(""))),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
                 ),
+              ],
+            ),
+          ),
+
+          // 🔹 BOTÃO ARQUIVAR FIXADO NO RODAPÉ DIREITO
+          Positioned(
+            bottom: 20,
+            right: 20,
+            child: ElevatedButton.icon(
+              onPressed: _arquivarEmprestimo,
+              icon: const Icon(Icons.archive, size: 18),
+              label: const Text("Arquivar Empréstimo"),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
