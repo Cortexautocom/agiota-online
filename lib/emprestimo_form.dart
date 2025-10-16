@@ -371,41 +371,53 @@ class _EmprestimoFormState extends State<EmprestimoForm> {
             const SizedBox(width: 40),
 
             // 🔹 CARD DE INFORMAÇÕES
-            Container(
-              width: 260,
-              height: 370,
-              padding: const EdgeInsets.all(16),
+            // 🔹 CARD DE INFORMAÇÕES (altura flexível)
+            Flexible(
               child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.green[50],
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.green.shade200),
+                width: 260,
+                constraints: const BoxConstraints(
+                  minHeight: 200, // altura mínima opcional
+                  maxWidth: 260,
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text("Novo empréstimo",
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                    const SizedBox(height: 6),
-                    Text(nomeCliente ?? "Cliente",
+                padding: const EdgeInsets.all(16),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.green[50],
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.green.shade200),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min, // ✅ faz a altura se ajustar ao conteúdo
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        "Novo empréstimo",
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        nomeCliente ?? "Cliente",
                         style: const TextStyle(fontSize: 12),
-                        maxLines: 2, overflow: TextOverflow.ellipsis),
-                    const Divider(),
-                    Text("Valor financiado: ${fmtMoeda(totalComJuros ?? 0)}",
-                        style: const TextStyle(fontSize: 12)),
-                    Text("Taxa aplicada: ${(taxaFinal ?? 0).toStringAsFixed(2)}% a.m",
-                        style: const TextStyle(fontSize: 12)),
-                    Text("Qtd. de parcelas: ${qtdParcelas ?? '--'}",
-                        style: const TextStyle(fontSize: 12)),
-                    Text("Valor de cada parcela: ${fmtMoeda(prestacao ?? 0)}",
-                        style: const TextStyle(fontSize: 12)),
-                    Text("Capital em risco: ${fmtMoeda(capital ?? 0)}",
-                        style: const TextStyle(fontSize: 12)),
-                    Text("Juros totais: ${fmtMoeda(totalJuros ?? 0)}",
-                        style: const TextStyle(fontSize: 12)),
-                  ],
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const Divider(),
+                      Text("Valor financiado: ${fmtMoeda(totalComJuros ?? 0)}",
+                          style: const TextStyle(fontSize: 12)),
+                      Text("Taxa aplicada: ${(taxaFinal ?? 0).toStringAsFixed(2)}% a.m",
+                          style: const TextStyle(fontSize: 12)),
+                      Text("Qtd. de parcelas: ${qtdParcelas ?? '--'}",
+                          style: const TextStyle(fontSize: 12)),
+                      Text("Valor de cada parcela: ${fmtMoeda(prestacao ?? 0)}",
+                          style: const TextStyle(fontSize: 12)),
+                      Text("Capital em risco: ${fmtMoeda(capital ?? 0)}",
+                          style: const TextStyle(fontSize: 12)),
+                      Text("Juros totais: ${fmtMoeda(totalJuros ?? 0)}",
+                          style: const TextStyle(fontSize: 12)),
+                    ],
+                  ),
                 ),
               ),
             ),
