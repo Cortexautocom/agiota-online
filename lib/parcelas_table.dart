@@ -320,7 +320,7 @@ class ParcelasTableState extends State<ParcelasTable> {
                   color: Colors.black, fontWeight: FontWeight.bold),
               dataTextStyle: const TextStyle(color: Colors.black87, fontSize: 13),
               columns: const [
-                DataColumn(label: SizedBox(width: 50, child: Text("Nº"))),
+                DataColumn(label: SizedBox(width: 20, child: Text("Nº"))),
                 DataColumn(label: SizedBox(width: 100, child: Text("Vencimento"))),
                 DataColumn(label: SizedBox(width: 90, child: Text("     Valor"))),
                 DataColumn(label: SizedBox(width: 80, child: Text("Juros"))),
@@ -331,8 +331,8 @@ class ParcelasTableState extends State<ParcelasTable> {
                 DataColumn(label: SizedBox(width: 100, child: Text("Valor Pago"))),
                 DataColumn(label: SizedBox(width: 100, child: Text("    Saldo"))),
                 DataColumn(label: SizedBox(width: 110, child: Text("  Data Pag."))),
-                DataColumn(label: SizedBox(width: 80, child: Text("Acordo"))),
-                DataColumn(label: SizedBox(width: 60, child: Text("Ações"))), // 🔹 COLUNA NOVA
+                DataColumn(label: Center(child: SizedBox(width: 50, child: Text("Acordo")),),),                  
+                DataColumn(label: SizedBox(width: 5, child: Text(""))), // 🔹 COLUNA NOVA
               ],              
               rows: widget.parcelas.isNotEmpty ? [
                 ...List.generate(widget.parcelas.length, (i) {
@@ -390,8 +390,21 @@ class ParcelasTableState extends State<ParcelasTable> {
                   return DataRow(
                     color: rowColor != null ? MaterialStateProperty.all(rowColor) : null,
                     cells: [
-                      DataCell(Text("${p['numero'] ?? ''}",
-                          style: TextStyle(fontSize: 13, color: textColor, fontWeight: fontWeight))),
+                      DataCell(
+                        SizedBox(
+                          width: 20, // Largura
+                          child: Center(
+                            child: Text(
+                              "${p['numero'] ?? ''}",
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: textColor,
+                                fontWeight: fontWeight,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
                       DataCell(TextField(
                         controller: c['vencimento'],
                         inputFormatters: [service.dateMaskFormatter()],
@@ -524,128 +537,140 @@ class ParcelasTableState extends State<ParcelasTable> {
                         ),
                       )),
                       DataCell(
-                        Builder(
-                          builder: (context) {
-                            final vencimentoTxt = p['vencimento']?.toString() ?? "";
-                            DateTime? vencimento;
-                            try {
-                              // Agora o banco retorna "2025-10-03" (yyyy-MM-dd)
-                              vencimento = DateTime.parse(vencimentoTxt);
-                            } catch (_) {
-                              vencimento = null;
-                            }
+                        SizedBox(
+                          width: 50, // largura acordo
+                          child: Center(
+                            child: Builder(
+                              builder: (context) {
+                                // (mantém toda a lógica interna igual)
+                                final vencimentoTxt = p['vencimento']?.toString() ?? "";
+                                DateTime? vencimento;
+                                try {
+                                  vencimento = DateTime.parse(vencimentoTxt);
+                                } catch (_) {
+                                  vencimento = null;
+                                }
 
-                            final hoje = DateTime.now();
-                            final limite = hoje.add(const Duration(days: 7));
+                                final hoje = DateTime.now();
+                                final limite = hoje.add(const Duration(days: 7));
+                                final temAcordo = p['data_prevista'] != null &&
+                                    p['data_prevista'].toString().isNotEmpty;
+                                final podeFazerAcordo = vencimento != null &&
+                                    vencimento.isBefore(limite.add(const Duration(days: 1)));
 
-                            final temAcordo = p['data_prevista'] != null &&
-                                p['data_prevista'].toString().isNotEmpty;
+                                if (temAcordo) {
+                                  return IconButton(
+                                    icon: const Icon(Icons.warning_amber_rounded,
+                                        color: Colors.orange, size: 22),
+                                    tooltip: residualAtual == 0
+                                        ? "Acordo concluído (parcela paga)"
+                                        : "Acordo ativo",
+                                    onPressed: () async {
+                                      final parcelaAtualizada = await Supabase.instance.client
+                                          .from("parcelas")
+                                          .select()
+                                          .eq("id", p['id'])
+                                          .single();
 
-                            final podeFazerAcordo = vencimento != null &&
-                                vencimento.isBefore(limite.add(const Duration(days: 1)));
+                                      final resultado = await abrirAcordoDialog(
+                                          context, parcelaAtualizada, widget.emprestimo);
 
-                            // 🔹 Mantém o ícone visível mesmo quando a parcela está paga
-                            // Apenas muda o comportamento do clique
-                            if (temAcordo) {
-                              return IconButton(
-                                icon: const Icon(
-                                  Icons.warning_amber_rounded,
-                                  color: Colors.orange,
-                                  size: 22,
-                                ),
-                                tooltip: residualAtual == 0
-                                    ? "Acordo concluído (parcela paga)"
-                                    : "Acordo ativo",
-                                onPressed: () async {
-                                  // 🔹 BUSCA DADOS ATUALIZADOS DO SUPABASE ANTES DE ABRIR O DIÁLOGO
-                                  final parcelaAtualizada = await Supabase.instance.client
-                                      .from("parcelas")
-                                      .select()
-                                      .eq("id", p['id'])
-                                      .single();
-                                  
-                                  final resultado = await abrirAcordoDialog(context, parcelaAtualizada, widget.emprestimo);
-                                  if (resultado == true && mounted) {
-                                    // 🔹 Atualiza a tela de ParcelasPage (força recarga completa)
-                                    final state =
-                                        context.findAncestorStateOfType<ParcelasPageState>();
-                                    if (state != null && state.mounted) {
-                                      await state.atualizarParcelas();
-                                    }
-                                    // 🔹 Atualiza também o estado local da tabela
-                                    setState(() {});
-                                  }
-                                },
-                              );
-                            } else if (!podeFazerAcordo) {
-                              return IconButton(
-                                icon: const Icon(
-                                  Icons.handshake,
-                                  color: Colors.grey,
-                                  size: 22,
-                                ),
-                                tooltip: residualAtual == 0
-                                    ? "Parcela paga"
-                                    : "Só é possível criar acordo até 7 dias antes do vencimento",
-                                onPressed: residualAtual == 0
-                                    ? null
-                                    : () async {
-                                        await showDialog(
-                                          context: context,
-                                          builder: (ctx) => const AlertDialog(
-                                            content: Text(
-                                              "Só é possível criar acordo para parcelas que estão vencendo nos próximos 7 dias.",
-                                              textAlign: TextAlign.center,
-                                            ),
-                                          ),
-                                        );
-                                      },
-                              );
-                            } else {
-                              return IconButton(
-                                icon: Icon(
-                                  Icons.handshake,
-                                  color: residualAtual == 0 ? Colors.green : Colors.blue,
-                                  size: 22,
-                                ),
-                                tooltip: residualAtual == 0
-                                    ? "Parcela paga - Clique para ver histórico"
-                                    : "Acordo",
-                                onPressed: () async {
-                                  // 🔹 BUSCA DADOS ATUALIZADOS DO SUPABASE ANTES DE ABRIR O DIÁLOGO
-                                  final parcelaAtualizada = await Supabase.instance.client
-                                      .from("parcelas")
-                                      .select()
-                                      .eq("id", p['id'])
-                                      .single();
-                                  
-                                  final resultado = await abrirAcordoDialog(context, parcelaAtualizada, widget.emprestimo);
-                                  if (resultado == true && mounted) {
-                                    // 🔹 Atualiza a tela de ParcelasPage (força recarga completa)
-                                    final state =
-                                        context.findAncestorStateOfType<ParcelasPageState>();
-                                    if (state != null && state.mounted) {
-                                      await state.atualizarParcelas();
-                                    }
-                                    // 🔹 Atualiza também o estado local da tabela
-                                    setState(() {});
-                                  }
-                                },
-                              );
-                            }
-                          },
+                                      if (resultado == true && mounted) {
+                                        final state =
+                                            context.findAncestorStateOfType<ParcelasPageState>();
+                                        if (state != null && state.mounted) {
+                                          await state.atualizarParcelas();
+                                        }
+                                        setState(() {});
+                                      }
+                                    },
+                                  );
+                                } else if (!podeFazerAcordo) {
+                                  return IconButton(
+                                    icon: const Icon(Icons.handshake, color: Colors.grey, size: 22),
+                                    tooltip: residualAtual == 0
+                                        ? "Parcela paga"
+                                        : "Só é possível criar acordo até 7 dias antes do vencimento",
+                                    onPressed: residualAtual == 0
+                                        ? null
+                                        : () async {
+                                            await showDialog(
+                                              context: context,
+                                              builder: (ctx) => const AlertDialog(
+                                                content: Text(
+                                                  "Só é possível criar acordo para parcelas que estão vencendo nos próximos 7 dias.",
+                                                  textAlign: TextAlign.center,
+                                                ),
+                                              ),
+                                            );
+                                          },
+                                  );
+                                } else {
+                                  return IconButton(
+                                    icon: Icon(
+                                      Icons.handshake,
+                                      color: residualAtual == 0 ? Colors.green : Colors.blue,
+                                      size: 22,
+                                    ),
+                                    tooltip: residualAtual == 0
+                                        ? "Parcela paga - Clique para ver histórico"
+                                        : "Acordo",
+                                    onPressed: () async {
+                                      final parcelaAtualizada = await Supabase.instance.client
+                                          .from("parcelas")
+                                          .select()
+                                          .eq("id", p['id'])
+                                          .single();
+
+                                      final resultado = await abrirAcordoDialog(
+                                          context, parcelaAtualizada, widget.emprestimo);
+
+                                      if (resultado == true && mounted) {
+                                        final state =
+                                            context.findAncestorStateOfType<ParcelasPageState>();
+                                        if (state != null && state.mounted) {
+                                          await state.atualizarParcelas();
+                                        }
+                                        setState(() {});
+                                      }
+                                    },
+                                  );
+                                }
+                              },
+                            ),
+                          ),
                         ),
                       ),
-                      // 🔹 CÉLULA NOVA: Ações (remover parcela)
+
+
+                      // 🔹 CÉLULA NOVA: Menu de ações com 3 pontinhos
                       DataCell(
-                        IconButton(
-                          icon: const Icon(
-                            Icons.delete,
-                            size: 20,
-                            color: Colors.red,
+                        SizedBox(
+                          width: 20, // 👈 define largura mínima da célula
+                          child: Center(
+                            child: PopupMenuButton<String>(
+                              padding: EdgeInsets.zero, // 👈 remove margens internas
+                              icon: const Icon(Icons.more_vert, color: Colors.black54, size: 22),
+                              tooltip: 'Ações',
+                              onSelected: (value) {
+                                if (value == 'excluir') {
+                                  _removerParcela(i);
+                                }
+                              },
+                              itemBuilder: (BuildContext context) => [
+                                const PopupMenuItem<String>(
+                                  value: 'excluir',
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.delete, color: Colors.red, size: 18),
+                                      SizedBox(width: 8),
+                                      Text('Excluir parcela'),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
-                          tooltip: 'Remover parcela',
-                          onPressed: () => _removerParcela(i),
                         ),
                       ),
                     ],
