@@ -28,7 +28,7 @@ class _EmprestimoFormAmortState extends State<EmprestimoFormAmort> {
   final taxaCtrl = TextEditingController();
   final dataInicioCtrl = TextEditingController();
   final qtdParcelasCtrl = TextEditingController();
-
+  final FocusNode parcelasFocus = FocusNode();
   final ValueNotifier<bool> indefinido = ValueNotifier<bool>(false);
   final ValueNotifier<String?> frequencia = ValueNotifier<String?>(null);
 
@@ -38,7 +38,15 @@ class _EmprestimoFormAmortState extends State<EmprestimoFormAmort> {
     final hoje = DateTime.now();
     dataInicioCtrl.text =
         '${hoje.day.toString().padLeft(2, '0')}/${hoje.month.toString().padLeft(2, '0')}/${hoje.year}';
+
+    // 🔹 Listener: ao sair do campo de parcelas, calcula a data final
+    parcelasFocus.addListener(() {
+      if (!parcelasFocus.hasFocus) {
+        _atualizarDataFinal();
+      }
+    });
   }
+
 
   TextInputFormatter _moedaFormatter() {
     return TextInputFormatter.withFunction((oldValue, newValue) {
@@ -111,8 +119,8 @@ class _EmprestimoFormAmortState extends State<EmprestimoFormAmort> {
   Future<void> _criarEmprestimo() async {
     if (!_formKey.currentState!.validate()) return;
 
-    // 🔹 Verifica se a frequência foi escolhida
-    if (frequencia.value == null) {
+    // 🔹 Verifica se a frequência foi escolhida, exceto se for indefinido
+    if (frequencia.value == null && !indefinido.value) {
       showDialog(
         context: context,
         builder: (_) => AlertDialog(
@@ -309,7 +317,7 @@ class _EmprestimoFormAmortState extends State<EmprestimoFormAmort> {
                         return null;
                       },
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 16),                  
 
                     // 🔹 Campo Qtd. parcelas + Indefinido
                     ValueListenableBuilder<bool>(
@@ -322,12 +330,12 @@ class _EmprestimoFormAmortState extends State<EmprestimoFormAmort> {
                             Expanded(
                               child: TextFormField(
                                 controller: qtdParcelasCtrl,
+                                focusNode: parcelasFocus, // 🔹 adiciona o focus node
                                 keyboardType: TextInputType.number,
                                 enabled: !indef,
+                                onEditingComplete: _atualizarDataFinal, // 🔹 calcula ao sair do campo
                                 decoration: InputDecoration(
-                                  labelText: 'Qtd. parcelas',
-                                  filled: indef,
-                                  fillColor: indef ? Colors.grey.shade300 : null,
+                                  labelText: 'Qtd. parcelas',                                  
                                 ),
                                 validator: (v) {
                                   if (!indef) {
@@ -363,8 +371,6 @@ class _EmprestimoFormAmortState extends State<EmprestimoFormAmort> {
                       },
                     ),
 
-                    const SizedBox(height: 16),
-
                     // 🔹 Campo Frequência de pagamentos
                     ValueListenableBuilder<bool>(
                       valueListenable: indefinido,
@@ -390,8 +396,12 @@ class _EmprestimoFormAmortState extends State<EmprestimoFormAmort> {
                                           Checkbox(
                                             value: valorAtual == 'Semanal',
                                             onChanged: (checked) {
-                                              frequencia.value =
-                                                  checked == true ? 'Semanal' : null;
+                                              if (checked == true) {
+                                                frequencia.value = 'Semanal';
+                                                _atualizarDataFinal(); // 🔹 calcula data final automaticamente
+                                              } else {
+                                                frequencia.value = null;
+                                              }
                                             },
                                           ),
                                           const Text('Semanal'),
@@ -402,8 +412,12 @@ class _EmprestimoFormAmortState extends State<EmprestimoFormAmort> {
                                           Checkbox(
                                             value: valorAtual == 'Mensal',
                                             onChanged: (checked) {
-                                              frequencia.value =
-                                                  checked == true ? 'Mensal' : null;
+                                              if (checked == true) {
+                                                frequencia.value = 'Mensal';
+                                                _atualizarDataFinal(); // 🔹 calcula data final automaticamente
+                                              } else {
+                                                frequencia.value = null;
+                                              }
                                             },
                                           ),
                                           const Text('Mensal'),
@@ -435,18 +449,25 @@ class _EmprestimoFormAmortState extends State<EmprestimoFormAmort> {
                       },
                     ),
                     const SizedBox(height: 16),
-                    TextFormField(
-                      controller: dataFimCtrl,
-                      decoration: const InputDecoration(
-                        labelText: "Data final",
-                        hintText: "dd/mm/aaaa",
-                      ),
-                      keyboardType: TextInputType.number,
-                      inputFormatters: [_dateMaskFormatter()],
-                      validator: (value) {
-                        if (value == null || value.isEmpty) return "Informe a data final";
-                        if (!_validarData(value)) return "Data inválida";
-                        return null;
+                    ValueListenableBuilder<bool>(
+                      valueListenable: indefinido,
+                      builder: (context, indef, _) {
+                        return TextFormField(
+                          controller: dataFimCtrl,
+                          decoration: const InputDecoration(
+                            labelText: "Data final",
+                            hintText: "dd/mm/aaaa",
+                          ),
+                          enabled: !indef, // 🔹 bloqueia se indefinido
+                          keyboardType: TextInputType.number,
+                          inputFormatters: [_dateMaskFormatter()],
+                          validator: (value) {
+                            if (indef) return null; // 🔹 ignora validação se indefinido
+                            if (value == null || value.isEmpty) return "Informe a data final";
+                            if (!_validarData(value)) return "Data inválida";
+                            return null;
+                          },
+                        );
                       },
                     ),
                     const SizedBox(height: 16),
@@ -488,6 +509,7 @@ class _EmprestimoFormAmortState extends State<EmprestimoFormAmort> {
 
   @override
   void dispose() {
+    parcelasFocus.dispose(); // 🔹 libera o focus node
     dataInicioCtrl.dispose();
     valorCtrl.dispose();
     dataFimCtrl.dispose();
@@ -497,4 +519,43 @@ class _EmprestimoFormAmortState extends State<EmprestimoFormAmort> {
     frequencia.dispose();
     super.dispose();
   }
+
+  void _atualizarDataFinal() {
+    final qtd = int.tryParse(qtdParcelasCtrl.text) ?? 0;
+    if (qtd <= 0) return;
+    if (frequencia.value == null) return;
+    if (!_validarData(dataInicioCtrl.text)) return;
+
+    final partes = dataInicioCtrl.text.split('/');
+    DateTime data = DateTime(
+      int.parse(partes[2]),
+      int.parse(partes[1]),
+      int.parse(partes[0]),
+    );
+
+    // 🔹 Calcula data final conforme a frequência
+    for (int i = 0; i < qtd; i++) {
+      if (frequencia.value == 'Semanal') {
+        data = data.add(const Duration(days: 7));
+      } else if (frequencia.value == 'Mensal') {
+        final mes = data.month + 1;
+        final ano = data.year + ((mes - 1) ~/ 12);
+        final mesFinal = ((mes - 1) % 12) + 1;
+        int dia = data.day;
+
+        final ultimoDiaDoMes = DateTime(ano, mesFinal + 1, 0).day;
+        if (dia > ultimoDiaDoMes) dia = ultimoDiaDoMes;
+
+        data = DateTime(ano, mesFinal, dia);
+      }
+    }
+
+    final dia = data.day.toString().padLeft(2, '0');
+    final mes = data.month.toString().padLeft(2, '0');
+    final ano = data.year.toString();
+    dataFimCtrl.text = "$dia/$mes/$ano";
+  }
+
+
+
 }
