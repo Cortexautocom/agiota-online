@@ -206,18 +206,27 @@ class _EmprestimoFormState extends State<EmprestimoForm> {
     final taxaMensal = double.parse((taxaFinal ?? 0).toStringAsFixed(4));
 
     // 🔹 Inserir o empréstimo
-    await supabase.from('emprestimos').insert({
-      'id': emprestimoId,
-      'id_cliente': widget.idCliente,
-      'valor': cap,
-      'data_inicio': dataStr,
-      'parcelas': meses,
-      'juros': jurosReais,
-      'prestacao': prestacaoFinal,
-      'taxa': taxaMensal,
-      'id_usuario': userId,
-      'ativo': 'sim',
-    });
+    // 🔹 Inserir o empréstimo e retornar o número gerado pelo banco
+    final insertResp = await supabase
+        .from('emprestimos')
+        .insert({
+          'id': emprestimoId,
+          'id_cliente': widget.idCliente,
+          'valor': cap,
+          'data_inicio': dataStr,
+          'parcelas': meses,
+          'juros': jurosReais,
+          'prestacao': prestacaoFinal,
+          'taxa': taxaMensal,
+          'id_usuario': userId,
+          'ativo': 'sim',
+        })
+        .select('numero')
+        .maybeSingle();
+
+    // ✅ Captura o número do empréstimo gerado pelo trigger
+    final numeroEmprestimo = insertResp?['numero'] ?? 0;
+
 
     // ✅ 🔹 GERAR PARCELAS AUTOMATICAMENTE (compatível com schema)
     final List<Map<String, dynamic>> parcelas = [];
@@ -265,6 +274,7 @@ class _EmprestimoFormState extends State<EmprestimoForm> {
             "id_usuario": userId,
             "ativo": "sim",
             "cliente": nomeCliente ?? 'Cliente',
+            "numero": numeroEmprestimo, // ✅ agora o número vai para a tela de parcelas
           },
           onSaved: widget.onSaved,
         ),
