@@ -34,19 +34,19 @@ class _ClientesPageState extends State<ClientesPage> {
     final response = await Supabase.instance.client
         .from('clientes')
         .select()
-        .order('nome', ascending: true); // 🔹 Ordena por nome por padrão
+        .order('nome', ascending: true);
+
     final clientes = (response as List).map((e) => e as Map<String, dynamic>).toList();
-    
-    // Armazena todos os clientes e os filtrados inicialmente
+
     _todosClientes = clientes;
     _clientesFiltrados = List.from(_todosClientes);
-    
+
     return clientes;
   }
 
   void _filtrarClientes() {
     final termoPesquisa = _pesquisaController.text.toLowerCase().trim();
-    
+
     setState(() {
       if (termoPesquisa.isEmpty) {
         _clientesFiltrados = List.from(_todosClientes);
@@ -55,10 +55,12 @@ class _ClientesPageState extends State<ClientesPage> {
           final nome = cliente['nome']?.toString().toLowerCase() ?? '';
           final cpf = cliente['cpf']?.toString().toLowerCase() ?? '';
           final cidade = cliente['cidade']?.toString().toLowerCase() ?? '';
-          
+          final grupo = cliente['grupo']?.toString().toLowerCase() ?? '';
+
           return nome.contains(termoPesquisa) ||
-                 cpf.contains(termoPesquisa) ||
-                 cidade.contains(termoPesquisa);
+              cpf.contains(termoPesquisa) ||
+              cidade.contains(termoPesquisa) ||
+              grupo.contains(termoPesquisa);
         }).toList();
       }
     });
@@ -67,7 +69,7 @@ class _ClientesPageState extends State<ClientesPage> {
   void _recarregarClientes() {
     setState(() {
       _clientesFuture = _buscarClientes().then((clientes) {
-        _filtrarClientes(); // Reaplica o filtro após recarregar
+        _filtrarClientes();
         return clientes;
       });
     });
@@ -78,17 +80,17 @@ class _ClientesPageState extends State<ClientesPage> {
     return Stack(
       children: [
         Container(
-          color: const Color(0xFFFAF9F6), // 🔹 fundo creme
+          color: const Color(0xFFFAF9F6),
           child: Column(
             children: [
-              // 🔹 CAMPO DE PESQUISA
+              // 🔹 Campo de pesquisa
               Container(
                 padding: const EdgeInsets.all(16),
                 color: Colors.white,
                 child: TextField(
                   controller: _pesquisaController,
                   decoration: InputDecoration(
-                    hintText: "Pesquisar cliente por nome, CPF ou cidade...",
+                    hintText: "Pesquisar cliente por nome, CPF, cidade ou grupo...",
                     prefixIcon: const Icon(Icons.search, color: Colors.grey),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
@@ -108,7 +110,7 @@ class _ClientesPageState extends State<ClientesPage> {
                 ),
               ),
 
-              // 🔹 CONTADOR DE RESULTADOS
+              // 🔹 Contador de resultados
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 color: Colors.grey[100],
@@ -120,7 +122,7 @@ class _ClientesPageState extends State<ClientesPage> {
                       builder: (context, snapshot) {
                         final totalClientes = _todosClientes.length;
                         final clientesExibidos = _clientesFiltrados.length;
-                        
+
                         return Text(
                           "Exibindo $clientesExibidos de $totalClientes clientes",
                           style: const TextStyle(
@@ -143,7 +145,7 @@ class _ClientesPageState extends State<ClientesPage> {
                 ),
               ),
 
-              // 🔹 LISTA DE CLIENTES (mantida igual)
+              // 🔹 Lista de clientes
               Expanded(
                 child: FutureBuilder<List<Map<String, dynamic>>>(
                   future: _clientesFuture,
@@ -160,7 +162,6 @@ class _ClientesPageState extends State<ClientesPage> {
                       );
                     }
 
-                    // Usa a lista filtrada em vez da lista completa
                     final clientes = _clientesFiltrados;
 
                     if (clientes.isEmpty) {
@@ -169,8 +170,8 @@ class _ClientesPageState extends State<ClientesPage> {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Icon(
-                              _pesquisaController.text.isEmpty 
-                                  ? Icons.people_outline 
+                              _pesquisaController.text.isEmpty
+                                  ? Icons.people_outline
                                   : Icons.search_off,
                               size: 64,
                               color: Colors.grey[400],
@@ -219,7 +220,7 @@ class _ClientesPageState extends State<ClientesPage> {
                               style: const TextStyle(color: Colors.black87),
                             ),
                             subtitle: Text(
-                              "CPF: ${cliente['cpf'] ?? '-'} | Cidade: ${cliente['cidade'] ?? '-'}",
+                              "CPF: ${cliente['cpf'] ?? '-'} | Cidade: ${cliente['cidade'] ?? '-'} | Grupo: ${cliente['grupo'] ?? 'Sem grupo'}",
                               style: const TextStyle(color: Colors.black54),
                             ),
                             onTap: () {
@@ -243,7 +244,7 @@ class _ClientesPageState extends State<ClientesPage> {
                                 );
 
                                 if (resultado == true) {
-                                  _recarregarClientes(); // Recarrega e refiltra
+                                  _recarregarClientes();
                                 }
                               },
                             ),
@@ -258,7 +259,7 @@ class _ClientesPageState extends State<ClientesPage> {
           ),
         ),
 
-        // 🔹 Botão flutuante (mantido igual)
+        // 🔹 Botão flutuante
         Positioned(
           bottom: 16,
           right: 16,
@@ -269,7 +270,7 @@ class _ClientesPageState extends State<ClientesPage> {
                 await Supabase.instance.client
                     .from('clientes')
                     .insert(novoCliente);
-                _recarregarClientes(); // Usa a nova função de recarregar
+                _recarregarClientes();
               }
             },
             backgroundColor: Colors.green,
@@ -281,7 +282,7 @@ class _ClientesPageState extends State<ClientesPage> {
   }
 }
 
-// 🔹 mantém a função de criar novo cliente (inalterada)
+// 🔹 Formulário de novo cliente com campo de grupo
 Future<Map<String, dynamic>?> open_client_form(BuildContext context) async {
   final nomeController = TextEditingController();
   final cpfController = TextEditingController();
@@ -290,7 +291,9 @@ Future<Map<String, dynamic>?> open_client_form(BuildContext context) async {
   final cidadeController = TextEditingController();
   final indicacaoController = TextEditingController();
 
-  // 🔹 Máscaras
+  String? grupoSelecionado;
+  List<String> grupos = [];
+
   final cpfFormatter = MaskTextInputFormatter(
     mask: '###.###.###-##',
     filter: {"#": RegExp(r'[0-9]')},
@@ -301,45 +304,139 @@ Future<Map<String, dynamic>?> open_client_form(BuildContext context) async {
     filter: {"#": RegExp(r'[0-9]')},
   );
 
+  // 🔹 Buscar grupos existentes
+  final response = await Supabase.instance.client
+      .from('clientes')
+      .select('grupo')
+      .not('grupo', 'is', null)
+      .neq('grupo', '')
+      .order('grupo', ascending: true);
+
+  grupos = (response as List)
+      .map((e) => e['grupo']?.toString() ?? '')
+      .where((g) => g.isNotEmpty)
+      .toSet()
+      .toList();
+
   return showDialog<Map<String, dynamic>>(
     context: context,
     builder: (context) {
-      return AlertDialog(
-        title: const Text("Novo Cliente"),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: nomeController,
-                decoration: const InputDecoration(labelText: "Nome"),
+      return StatefulBuilder(
+        builder: (context, setState) {
+          return AlertDialog(
+            title: const Text("Novo Cliente"),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: nomeController,
+                    decoration: const InputDecoration(labelText: "Nome"),
+                  ),
+                  TextField(
+                    controller: cpfController,
+                    decoration: const InputDecoration(labelText: "CPF"),
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [cpfFormatter],
+                  ),
+                  TextField(
+                    controller: telefoneController,
+                    decoration: const InputDecoration(labelText: "Telefone"),
+                    keyboardType: TextInputType.phone,
+                    inputFormatters: [telefoneFormatter],
+                  ),
+                  TextField(
+                    controller: enderecoController,
+                    decoration: const InputDecoration(labelText: "Endereço"),
+                  ),
+                  TextField(
+                    controller: cidadeController,
+                    decoration: const InputDecoration(labelText: "Cidade"),
+                  ),
+                  TextField(
+                    controller: indicacaoController,
+                    decoration: const InputDecoration(labelText: "Indicação"),
+                  ),
+                  const SizedBox(height: 10),
+
+                  // 🔹 Campo de grupo
+                  DropdownButtonFormField<String>(
+                    decoration: const InputDecoration(labelText: "Grupo"),
+                    value: grupoSelecionado,
+                    items: [
+                      const DropdownMenuItem<String>(
+                        value: null,
+                        child: Text("Sem grupo"),
+                      ),
+                      ...grupos.map((g) => DropdownMenuItem<String>(
+                            value: g,
+                            child: Text(g),
+                          )),
+                      const DropdownMenuItem<String>(
+                        value: "__novo__",
+                        child: Text("➕ Criar novo grupo"),
+                      ),
+                    ],
+                    onChanged: (value) async {
+                      if (value == "__novo__") {
+                        final novoGrupo = await _criarNovoGrupo(context);
+                        if (novoGrupo != null && novoGrupo.isNotEmpty) {
+                          setState(() {
+                            grupos.add(novoGrupo);
+                            grupoSelecionado = novoGrupo;
+                          });
+                        }
+                      } else {
+                        setState(() {
+                          grupoSelecionado = value;
+                        });
+                      }
+                    },
+                  ),
+                ],
               ),
-              TextField(
-                controller: cpfController,
-                decoration: const InputDecoration(labelText: "CPF"),
-                keyboardType: TextInputType.number,
-                inputFormatters: [cpfFormatter],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, null),
+                child: const Text("Cancelar"),
               ),
-              TextField(
-                controller: telefoneController,
-                decoration: const InputDecoration(labelText: "Telefone"),
-                keyboardType: TextInputType.phone,
-                inputFormatters: [telefoneFormatter],
-              ),
-              TextField(
-                controller: enderecoController,
-                decoration: const InputDecoration(labelText: "Endereço"),
-              ),
-              TextField(
-                controller: cidadeController,
-                decoration: const InputDecoration(labelText: "Cidade"),
-              ),
-              TextField(
-                controller: indicacaoController,
-                decoration: const InputDecoration(labelText: "Indicação"),
+              ElevatedButton(
+                onPressed: () {
+                  final novoCliente = {
+                    "nome": nomeController.text,
+                    "cpf": cpfController.text,
+                    "telefone": telefoneController.text,
+                    "endereco": enderecoController.text,
+                    "cidade": cidadeController.text,
+                    "indicacao": indicacaoController.text,
+                    "grupo": grupoSelecionado,
+                    "id_usuario": Supabase.instance.client.auth.currentUser!.id,
+                  };
+                  Navigator.pop(context, novoCliente);
+                },
+                child: const Text("Salvar"),
               ),
             ],
-          ),
+          );
+        },
+      );
+    },
+  );
+}
+
+// 🔹 Função auxiliar para criar novo grupo
+Future<String?> _criarNovoGrupo(BuildContext context) async {
+  final grupoController = TextEditingController();
+
+  return showDialog<String>(
+    context: context,
+    builder: (context) {
+      return AlertDialog(
+        title: const Text("Novo Grupo"),
+        content: TextField(
+          controller: grupoController,
+          decoration: const InputDecoration(labelText: "Nome do grupo"),
         ),
         actions: [
           TextButton(
@@ -348,16 +445,7 @@ Future<Map<String, dynamic>?> open_client_form(BuildContext context) async {
           ),
           ElevatedButton(
             onPressed: () {
-              final novoCliente = {
-                "nome": nomeController.text,
-                "cpf": cpfController.text,
-                "telefone": telefoneController.text,
-                "endereco": enderecoController.text,
-                "cidade": cidadeController.text,
-                "indicacao": indicacaoController.text,
-                "id_usuario": Supabase.instance.client.auth.currentUser!.id,
-              };
-              Navigator.pop(context, novoCliente);
+              Navigator.pop(context, grupoController.text.trim());
             },
             child: const Text("Salvar"),
           ),
