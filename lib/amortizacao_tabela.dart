@@ -260,7 +260,7 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
     double saldoFinal = _controllers.linhas.isNotEmpty 
         ? (_controllers.linhas.last['saldo_final'] ?? 0.0) 
         : 0.0;
-    double jurosEmAtraso = _calcularJurosEmAtraso();
+    //double jurosEmAtraso = _calcularJurosEmAtraso();
     double totalJurosAtraso = 0;
 
     for (var i = 0; i < _controllers.linhas.length; i++) {
@@ -429,14 +429,10 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              (jurosEmAtraso > 0)
-                                  ? _controllers.fmtMoeda(jurosEmAtraso)
-                                  : "R\$ 0,00",
-                              style: TextStyle(
+                              _controllers.fmtMoeda(_calcularJurosProxVencimento()),
+                              style: const TextStyle(
                                 fontSize: 13,
-                                color: _existeParcelaEmAtraso()
-                                    ? Colors.redAccent
-                                    : const Color.fromARGB(255, 28, 121, 214),
+                                color: Color.fromARGB(255, 28, 121, 214),
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
@@ -954,7 +950,7 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
     }
   }
 
-  
+  /*
   double _calcularJurosEmAtraso() {
     double total = 0.0;
     int linhasSomadas = 0;
@@ -996,7 +992,51 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
 
     return total;
   }
+  */
+  // 🔹 Calcula juros para o próximo vencimento (nova lógica)
+  // 🔹 Calcula juros para o próximo vencimento (corrigido)
+  double _calcularJurosProxVencimento() {
+    double soma = 0.0;
+    final hoje = DateTime.now();
+    final formatador = DateFormat('dd/MM/yyyy');
 
+    DateTime? proximaData;
+    double jurosProximaData = 0.0;
+
+    for (int i = 1; i < _controllers.linhas.length; i++) {
+      final linha = _controllers.linhas[i];
+      final dataTexto = linha['data']?.toString() ?? "";
+      if (dataTexto.length != 10) continue;
+
+      try {
+        final dataLinha = formatador.parse(dataTexto);
+        final pgJuros = linha['pg_juros'] ?? 0;
+        final jurosPeriodo = (linha['juros_mes'] ?? 0.0) as double;
+
+        // 🔹 1. Soma juros de parcelas vencidas (data <= hoje) e ainda não pagas
+        if (dataLinha.isBefore(hoje) || dataLinha.isAtSameMomentAs(hoje)) {
+          if (pgJuros == 0) soma += jurosPeriodo;
+        }
+
+        // 🔹 2. Se encontrar a primeira parcela futura, guarda e para de procurar
+        if (dataLinha.isAfter(hoje) && proximaData == null) {
+          proximaData = dataLinha;
+          jurosProximaData = jurosPeriodo;
+        }
+      } catch (e) {
+        // ignora datas inválidas
+      }
+    }
+
+    // 🔹 3. Soma juros da primeira parcela futura (somente uma)
+    if (proximaData != null) {
+      soma += jurosProximaData;
+    }
+
+    return soma;
+  }
+
+  /*
   bool _existeParcelaEmAtraso() {
     final hoje = DateTime.now();
     final formatador = DateFormat('dd/MM/yyyy');
@@ -1024,7 +1064,7 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
 
     return false;
   }
-
+  */
 
 
 }

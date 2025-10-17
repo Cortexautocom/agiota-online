@@ -54,14 +54,16 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
   }
 
   /// 🔹 CALCULA VALORES ESPECÍFICOS PARA AMORTIZAÇÃO
+  /// 🔹 CALCULA VALORES ESPECÍFICOS PARA AMORTIZAÇÃO
+  /// 🔹 CALCULA VALORES ESPECÍFICOS PARA AMORTIZAÇÃO
   Future<Map<String, dynamic>> _calcularValoresAmortizacao(String idEmprestimo) async {
     try {
-      // Busca todas as parcelas do empréstimo
+      // 🔹 BUSCA TODOS OS CAMPOS NECESSÁRIOS
       final parcelas = await Supabase.instance.client
           .from('parcelas')
-          .select('juros_periodo, vencimento, residual')
+          .select('juros_periodo, residual, data_mov') // 🔹 USA data_mov COMO VENCIMENTO
           .eq('id_emprestimo', idEmprestimo)
-          .order('vencimento');
+          .order('data_mov'); // 🔹 ORDENA POR data_mov
 
       // Busca o valor do capital do empréstimo
       final emprestimo = await Supabase.instance.client
@@ -85,22 +87,22 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
       final numParcelas = parcelas.length;
       final valorParcela = numParcelas > 0 ? (capital / numParcelas) + (jurosTotais / numParcelas) : 0.0;
 
-      // Encontra próxima data de vencimento (primeira data posterior ao dia atual)
+      // 🔹 ENCONTRA PRÓXIMA DATA (USA data_mov)
       DateTime? proximaData;
       final agora = DateTime.now();
       
       for (final parcela in parcelas) {
-        final vencTxt = parcela['vencimento']?.toString() ?? "";
-        if (vencTxt.isEmpty) continue;
+        final dataTexto = parcela['data_mov']?.toString() ?? "";
+        if (dataTexto.isEmpty) continue;
         
-        final venc = DateTime.tryParse(vencTxt);
-        if (venc == null) continue;
+        final data = DateTime.tryParse(dataTexto);
+        if (data == null) continue;
 
         // Considera apenas parcelas com residual > 0 (não pagas)
         final residual = _asDouble(parcela['residual']);
-        if (residual > 0.01 && venc.isAfter(agora)) {
-          if (proximaData == null || venc.isBefore(proximaData)) {
-            proximaData = venc;
+        if (residual > 0.01 && data.isAfter(agora)) {
+          if (proximaData == null || data.isBefore(proximaData)) {
+            proximaData = data;
           }
         }
       }
@@ -108,15 +110,15 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
       // Verifica situação (Em dia ou Em atraso)
       String situacao = "Em dia";
       for (final parcela in parcelas) {
-        final vencTxt = parcela['vencimento']?.toString() ?? "";
-        if (vencTxt.isEmpty) continue;
+        final dataTexto = parcela['data_mov']?.toString() ?? "";
+        if (dataTexto.isEmpty) continue;
         
-        final venc = DateTime.tryParse(vencTxt);
-        if (venc == null) continue;
+        final data = DateTime.tryParse(dataTexto);
+        if (data == null) continue;
 
         final residual = _asDouble(parcela['residual']);
         // Se tem parcela vencida (antes de hoje) com residual > 0, está em atraso
-        if (residual > 0.01 && venc.isBefore(agora)) {
+        if (residual > 0.01 && data.isBefore(agora)) {
           situacao = "Em atraso";
           break;
         }
@@ -144,19 +146,70 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
   }
 
   Future<Map<String, String>> _calcularDatas(String idEmprestimo, String tipoMov) async {
-    // 🔹 SE FOR AMORTIZAÇÃO, USA CÁLCULO ESPECÍFICO
+    // 🔹 SE FOR AMORTIZAÇÃO, USA BUSCA DIRETA DO BANCO
     if (tipoMov == 'amortizacao') {
       try {
-        final valores = await _calcularValoresAmortizacao(idEmprestimo);
-        final proximaData = valores['proxima_data'] as DateTime?;
-        
+        // 🔹 BUSCA TODAS AS PARCELAS DO EMPRÉSTIMO
+        final parcelas = await Supabase.instance.client
+            .from('parcelas')
+            .select('data_mov, residual')
+            .eq('id_emprestimo', idEmprestimo)
+            .order('vencimento');
+
+        DateTime? ultimaData;
+        DateTime? proximaData;
+        final agora = DateTime.now();
+
+        // 🔹 PROCESSAMENTO DAS PARCELAS
+        for (final parcela in parcelas) {
+          final vencTxt = parcela['data_mov']?.toString() ?? "";
+          if (vencTxt.isEmpty) continue;
+
+          final venc = DateTime.tryParse(vencTxt);
+          if (venc == null) continue;
+
+          // 🔹 1. ENCONTRA A MAIOR DATA (ÚLTIMO VENCIMENTO)
+          if (ultimaData == null || venc.isAfter(ultimaData)) {
+            ultimaData = venc;
+          }
+
+          // 🔹 2. ENCONTRA A PRIMEIRA DATA MAIOR QUE HOJE (PRÓXIMO VENCIMENTO)
+          // No modelo amortização, não usa residual — considera apenas a data
+          if (venc.isAfter(agora)) {
+            if (proximaData == null || venc.isBefore(proximaData)) {
+              proximaData = venc;
+            }
+          }
+
+        }
+
+        // 🔹 CALCULA SITUAÇÃO (Em dia ou Em atraso)
+        String situacao = "Em dia";
+        for (final parcela in parcelas) {
+          final vencTxt = parcela['data_mov']?.toString() ?? "";
+          if (vencTxt.isEmpty) continue;
+
+          final venc = DateTime.tryParse(vencTxt);
+          if (venc == null) continue;
+
+          final residual = _asDouble(parcela['residual']);
+          
+          // Se tem parcela vencida e não paga, está em atraso
+          if (residual > 0.01 && venc.isBefore(agora)) {
+            situacao = "Em atraso";
+            break;
+          }
+        }
+
         return {
           "proxima": proximaData == null 
               ? "-" 
               : DateFormat("dd/MM/yyyy").format(proximaData),
-          "ultima": "-", // Amortização não tem último vencimento fixo
-          "situacao_linha1": valores['situacao'] ?? "Em dia",
-          "situacao_linha2": "${valores['num_parcelas']} parcelas",
+          "ultima": ultimaData == null
+              ? "-"
+              : DateFormat("dd/MM/yyyy").format(ultimaData),
+          "situacao_linha1": situacao,
+          "situacao_linha2": "${parcelas.length} parcelas",
           "acordo": "nao",
         };
       } catch (e) {
@@ -171,10 +224,14 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
       }
     }
 
-    // 🔹 COMPORTAMENTO ORIGINAL PARA PARCELAMENTO
+    // 🔹 COMPORTAMENTO ORIGINAL PARA PARCELAMENTO (MANTIDO IGUAL)
+    // 🔹 Para PARCELAMENTO, usa o campo 'vencimento'
+    // 🔹 Para AMORTIZAÇÃO, usa 'data_mov'
     final parcelas = await Supabase.instance.client
         .from('parcelas')
-        .select()
+        .select(tipoMov == 'amortizacao'
+            ? 'data_mov, residual, data_prevista'
+            : 'vencimento, residual, data_prevista')
         .eq('id_emprestimo', idEmprestimo);
 
     DateTime? proxima;
@@ -183,7 +240,11 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
     int abertas = 0;
 
     for (final p in parcelas) {
-      final vencTxt = p['vencimento']?.toString() ?? "";
+      // 🔹 Escolhe o campo de data conforme o tipo
+      final vencTxt = (tipoMov == 'amortizacao'
+          ? p['data_mov']
+          : p['vencimento'])?.toString() ?? "";
+
       if (vencTxt.isEmpty) continue;
 
       final venc = DateTime.tryParse(vencTxt);
@@ -191,7 +252,7 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
 
       final residual = num.tryParse("${p['residual']}") ?? 0;
 
-      // 🔹 considera paga se o residual for próximo de 0
+      // 🔹 considera paga se residual for próximo de 0
       if (residual.abs() < 0.01) {
         pagas++;
       } else {
@@ -208,13 +269,15 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
     }
 
     final temAcordo = parcelas.any((p) {
-      final vencTxt = p['vencimento']?.toString() ?? "";
+      final vencTxt = (tipoMov == 'amortizacao'
+          ? p['data_mov']
+          : p['vencimento'])?.toString() ?? "";
       if (vencTxt.isEmpty) return false;
       final venc = DateTime.tryParse(vencTxt);
       final residual = num.tryParse("${p['residual']}") ?? 0;
       final dataPrevista = p['data_prevista']?.toString().trim() ?? "";
 
-      return residual > 0.01 && // tolerância
+      return residual > 0.01 &&
           venc != null &&
           proxima != null &&
           venc.isAtSameMomentAs(proxima) &&
@@ -232,6 +295,7 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
       "situacao_linha2": "$abertas restando",
       "acordo": temAcordo ? "sim" : "nao",
     };
+
   }
 
   @override
