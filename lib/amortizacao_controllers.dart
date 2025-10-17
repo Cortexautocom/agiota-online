@@ -81,7 +81,7 @@ class AmortizacaoControllers {
     try {
       final parcelas = await supabase
           .from('parcelas')
-          .select('id, data_mov, aporte, pg_principal, pg_juros, juros_periodo, juros_atraso, pg')
+          .select('id, data_mov, aporte, pg_principal, pg_juros, juros_atraso, pg')
           .eq('id_emprestimo', idEmprestimo)
           .order('data_mov', ascending: true);
 
@@ -95,7 +95,7 @@ class AmortizacaoControllers {
           'aporte': (p['aporte'] as num?)?.toDouble() ?? 0.0,
           'pg_capital': (p['pg_principal'] as num?)?.toDouble() ?? 0.0,
           'pg_juros': (p['pg_juros'] as num?)?.toDouble() ?? 0.0,
-          'juros_mes': (p['juros_periodo'] as num?)?.toDouble() ?? 0.0,
+          'juros_mes': 0.0,
           'juros_atraso': (p['juros_atraso'] as num?)?.toDouble() ?? 0.0,
           'pg': (p['pg'] as int?) ?? 0,
           'saldo_final': 0.0,
@@ -104,6 +104,7 @@ class AmortizacaoControllers {
 
       preencherControllers();
       recalcularSaldos();
+      recalcularTodosJuros();
     } catch (e) {
       print('Erro ao carregar parcelas do banco: $e');
     }
@@ -262,6 +263,7 @@ class AmortizacaoControllers {
     if (_linhas.isEmpty) return;
     double? ultimoJurosValido;
 
+    // 🔹 Zera todos os juros antes de recalcular
     for (var i = 0; i < _linhas.length; i++) {
       _linhas[i]['juros_mes'] = 0.0;
       _controllers[i]['juros_mes']!.text = fmtMoeda(0.0);
@@ -273,9 +275,9 @@ class AmortizacaoControllers {
 
       if (dataAtual.length != 10 || dataAnterior.length != 10) continue;
 
+      // 🔸 Primeira parcela após o aporte
       if (i == 1) {
-        final diferencaDias =
-            _service.calcularDiferencaDias(dataAnterior, dataAtual);
+        final diferencaDias = _service.calcularDiferencaDias(dataAnterior, dataAtual);
         if (diferencaDias > 0 && _taxaJuros > 0) {
           final saldoAnterior = _linhas[i - 1]['saldo_final'] ?? 0.0;
           final jurosCalculado =
@@ -289,14 +291,35 @@ class AmortizacaoControllers {
       }
 
       final linhaAnterior = _linhas[i - 1];
-      final bool houveMovimentacao =
+
+      // 🔹 Detecta se a linha anterior está vencida e não paga
+      final dataTextoAnterior = linhaAnterior['data']?.toString() ?? '';
+      bool estaAtrasada = false;
+
+      try {
+        if (dataTextoAnterior.length == 10) {
+          final dataAnteriorFmt = DateFormat('dd/MM/yyyy').parse(dataTextoAnterior);
+          final agora = DateTime.now().toUtc().subtract(const Duration(hours: 3));
+          final hoje = DateTime(agora.year, agora.month, agora.day);
+          final pgAnterior = linhaAnterior['pg'] ?? 0;
+
+          if (dataAnteriorFmt.isBefore(hoje) && pgAnterior == 0) {
+            estaAtrasada = true;
+          }
+        }
+      } catch (e) {
+        estaAtrasada = false;
+      }
+
+      // 🔸 Critério de recálculo: houve movimentação OU está em atraso
+      final bool deveRecalcular =
           (linhaAnterior['aporte'] ?? 0) != 0 ||
           (linhaAnterior['pg_capital'] ?? 0) != 0 ||
-          (linhaAnterior['pg_juros'] ?? 0) != 0;
+          (linhaAnterior['pg_juros'] ?? 0) != 0 ||
+          estaAtrasada;
 
-      if (houveMovimentacao) {
-        final diferencaDias =
-            _service.calcularDiferencaDias(dataAnterior, dataAtual);
+      if (deveRecalcular) {
+        final diferencaDias = _service.calcularDiferencaDias(dataAnterior, dataAtual);
         if (diferencaDias > 0 && _taxaJuros > 0) {
           final saldoAnterior = _linhas[i - 1]['saldo_final'] ?? 0.0;
           final jurosCalculado =
@@ -307,12 +330,14 @@ class AmortizacaoControllers {
           ultimoJurosValido = jurosCalculado;
         }
       } else {
+        // 🔸 Sem movimentação e sem atraso → repete o último juros válido
         if (ultimoJurosValido != null) {
           _linhas[i]['juros_mes'] = ultimoJurosValido;
           _controllers[i]['juros_mes']!.text = fmtMoeda(ultimoJurosValido);
         }
       }
 
+      // 🔹 Atualiza saldos finais e iniciais
       final saldoInicial = _linhas[i]['saldo_inicial'] ?? 0.0;
       final aporte = _linhas[i]['aporte'] ?? 0.0;
       final pgCapital = _linhas[i]['pg_capital'] ?? 0.0;
@@ -330,6 +355,7 @@ class AmortizacaoControllers {
 
     recalcularSaldos();
   }
+
 
   void dispose() {
     for (final controllerMap in _controllers) {

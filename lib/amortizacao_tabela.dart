@@ -39,13 +39,15 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
     // 🔹 2. Busca parcelas no banco (com o campo ID incluído!)
     final parcelas = await supabase
       .from('parcelas')
-      .select('id, data_mov, aporte, pg_principal, pg_juros, juros_periodo, juros_atraso, pg') // 🆕 adiciona pg
+      .select('id, data_mov, aporte, pg_principal, pg_juros, juros_atraso, pg')
       .eq('id_emprestimo', widget.emprestimo['id'])
       .order('data_mov', ascending: true);
 
     // 🔹 3. Se encontrou parcelas, monta as linhas com ID
     if (parcelas.isNotEmpty) {
+      // 🔹 Zera tudo antes de carregar novas linhas
       _controllers.linhas.clear();
+      _controllers.controllers.clear();
 
       for (final p in parcelas) {
         final dataBr = _service.toBrDate(p['data_mov']) ??
@@ -58,20 +60,30 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
           'aporte': (p['aporte'] as num?)?.toDouble() ?? 0.0,
           'pg_capital': (p['pg_principal'] as num?)?.toDouble() ?? 0.0,
           'pg_juros': (p['pg_juros'] as num?)?.toDouble() ?? 0.0,
-          'juros_mes': (p['juros_periodo'] as num?)?.toDouble() ?? 0.0,
+          // 🔹 Força juros zerado na primeira exibição
+          'juros_mes': 0.0,
           'juros_atraso': (p['juros_atraso'] as num?)?.toDouble() ?? 0.0,
           'pg': (p['pg'] as int?) ?? 0,
-          'saldo_final': 0.0,          
+          'saldo_final': 0.0,
         });
       }
 
-            _controllers.preencherControllers();
+      // 🔹 Preenche os controllers zerando juros_mes explicitamente
+      _controllers.preencherControllers();
+      for (var map in _controllers.controllers) {
+        map['juros_mes']?.text = '0,00';
+      }
+
       _controllers.recalcularSaldos();
 
-      // 🔹 NOVO: calcula automaticamente todos os juros ao abrir a tabela
-      if (_controllers.linhas.isNotEmpty) {
-        _controllers.recalcularTodosJuros();
-      }
+      // 🔹 Só faz o cálculo real após o frame renderizado
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _controllers.linhas.isNotEmpty) {
+          setState(() {
+            _controllers.recalcularTodosJuros();
+          });
+        }
+      });
     } else {
       // 🔹 Se não encontrou parcelas, carrega normalmente via controller
       await _controllers.carregarParcelasDoBanco(widget.emprestimo['id']);
@@ -85,9 +97,20 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
     // 🔹 4. Carrega dados do empréstimo (número e cliente)
     try {
       final dadosEmprestimo = await _carregarDadosEmprestimo();
+
       setState(() {
         _numeroEmprestimo = dadosEmprestimo['numero']?.toString() ?? 'N/A';
         _nomeCliente = dadosEmprestimo['nome_cliente'] ?? 'Cliente não encontrado';
+      });
+
+      // 🟢 Aguarda o primeiro frame da tela e recalcula tudo visivelmente
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _controllers.linhas.isNotEmpty) {
+          setState(() {
+            _controllers.recalcularSaldos();
+            _controllers.recalcularTodosJuros();
+          });
+        }
       });
 
     } catch (e) {
@@ -420,7 +443,7 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
                             ),
                             const SizedBox(height: 6),
                             Text(
-                              "Juros para o próximo vencimento:",
+                              _getTituloJurosCiclo(),
                               style: const TextStyle(
                                 fontSize: 12,
                                 color: Colors.black87,
@@ -712,51 +735,52 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
             right: BorderSide(color: Colors.grey[300]!, width: 0.5),
           ),
         ),
-        child: TextField(
-          controller: controller,
-          textAlign: TextAlign.center,
-          style: _cellStyle.copyWith(
-            color: isEmpty ? Colors.red[700] : Colors.black87,
-          ),
-          inputFormatters: [_service.dateMaskFormatter()],
-          decoration: const InputDecoration(
-            border: InputBorder.none,
-            isDense: true,
-            contentPadding: EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-            hintText: 'dd/mm/aaaa',
-          ),
-          onChanged: (_) {}, // <- mantém mas vazio para não travar enquanto digita
+        child: Focus(
+          onFocusChange: (hasFocus) {
+            if (!hasFocus) {
+              String text = controller.text.trim();
 
-          onEditingComplete: () {
-            String text = controller.text.trim();
+              if (text.isNotEmpty) {
+                if (text.length == 5) {
+                  final anoAtual = DateTime.now().year.toString();
+                  text = "$text/$anoAtual";
+                  controller.text = text;
+                  controller.selection = TextSelection.fromPosition(
+                    TextPosition(offset: text.length),
+                  );
+                }
 
-            if (text.isNotEmpty) {
-              // 🔹 Se o usuário digitou apenas dia e mês (ex: "14/06")
-              if (text.length == 5) {
-                final anoAtual = DateTime.now().year.toString();
-                text = "$text/$anoAtual";
-                controller.text = text;
-                controller.selection = TextSelection.fromPosition(
-                  TextPosition(offset: text.length),
+                _controllers.linhas[index]['data'] = text;
+                setState(() {
+                  _controllers.recalcularSaldos();
+                  _controllers.recalcularTodosJuros();
+                });
+              }
+            }
+          },
+          child: TextField(
+            controller: controller,
+            textAlign: TextAlign.center,
+            style: _cellStyle.copyWith(
+              color: isEmpty ? Colors.red[700] : Colors.black87,
+            ),
+            inputFormatters: [_service.dateMaskFormatter()],
+            decoration: const InputDecoration(
+              border: InputBorder.none,
+              isDense: true,
+              contentPadding: EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+              hintText: 'dd/mm/aaaa',
+            ),
+            onChanged: (_) {},
+            onTap: () {
+              if (controller.text.isNotEmpty) {
+                controller.selection = TextSelection(
+                  baseOffset: 0,
+                  extentOffset: controller.text.length,
                 );
               }
-
-              // 🔹 Atualiza e recalcula somente ao sair do campo
-              _controllers.linhas[index]['data'] = text;
-              _controllers.recalcularSaldos();
-              _controllers.recalcularTodosJuros();
-              setState(() {});
-            }
-          },
-
-          onTap: () {
-            if (controller.text.isNotEmpty) {
-              controller.selection = TextSelection(
-                baseOffset: 0,
-                extentOffset: controller.text.length,
-              );
-            }
-          },
+            },
+          ),
         ),
       ),
     );
@@ -779,9 +803,11 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
               final valor = _controllers.parseMoeda(controller.text);
               controller.text = _controllers.fmtMoeda(valor);
               _controllers.linhas[index]['juros_mes'] = valor;
-              _controllers.recalcularSaldos();
-              _controllers.recalcularTodosJuros();
-              setState(() {});
+              
+              setState(() {
+                _controllers.recalcularSaldos();
+                _controllers.recalcularTodosJuros();
+              });
             }
           },
           child: TextField(
@@ -827,11 +853,11 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
           ),
         ),
         child: Focus(
-          onFocusChange: (hasFocus) {
+          onFocusChange: (hasFocus) async {
             if (!hasFocus) {
               final valor = _controllers.parseMoeda(controller.text);
 
-              // 🆕 Se for Aporte ou Juros (atraso) e o valor for 0 → deixa vazio
+              // 🟩 Se for Aporte ou Juros (atraso) e o valor for 0 → deixa vazio
               if ((campo == 'aporte' || campo == 'juros_atraso') && valor == 0.0) {
                 controller.text = '';
               } else {
@@ -839,9 +865,85 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
               }
 
               _controllers.linhas[index][campo] = valor;
-              _controllers.recalcularSaldos();
-              _controllers.recalcularTodosJuros();
-              setState(() {});
+
+              // 🟨 NOVO: dispara alerta ao sair do campo "juros_atraso" se parcela já venceu
+              if (campo == 'juros_atraso' && valor > 0) {
+                try {
+                  final dataTexto = _controllers.linhas[index]['data'];
+                  if (dataTexto != null && dataTexto.toString().length == 10) {
+                    final dataParcela = DateFormat('dd/MM/yyyy').parse(dataTexto);
+                    
+                    // 🔹 Normaliza fuso e hora: define como meia-noite no fuso GMT-3
+                    final hoje = DateTime.now().toUtc().subtract(const Duration(hours: 3));
+                    final hojeSemHora = DateTime(hoje.year, hoje.month, hoje.day);
+                    final parcelaSemHora = DateTime(dataParcela.year, dataParcela.month, dataParcela.day);
+
+                    if (parcelaSemHora.isBefore(hojeSemHora)) {
+                      await showDialog(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          title: const Text(
+                            "Atenção!",
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.orange,
+                            ),
+                          ),
+                          content: const Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              Text(
+                                "Você inseriu juros de atraso em uma parcela já vencida.",
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                              SizedBox(height: 10),
+                              Text(
+                                "Juros por atraso na modalidade amortização representam apenas uma previsão de recebimento, servindo apenas para alimentar relatórios.\n\nSe quiser inserir juros efetivamente pagos, use a coluna \"Pag. Juros\".",
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: 12.5,
+                                  color: Colors.black54,
+                                ),
+                              ),
+                            ],
+                          ),
+                          actionsAlignment: MainAxisAlignment.center,
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.of(ctx).pop(),
+                              child: const Text(
+                                "OK",
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.blue,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+                  }
+                } catch (e) {
+                  // ignora erros de data
+                }
+
+              }
+
+              // 🔹 Atualiza cálculos após sair do campo
+              setState(() {
+                _controllers.recalcularSaldos();
+                _controllers.recalcularTodosJuros();
+              });
             }
           },
           child: TextField(
@@ -855,18 +957,6 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
               contentPadding: EdgeInsets.symmetric(vertical: 8, horizontal: 4),
               hintText: '0,00',
             ),
-            onEditingComplete: () { // Pressionou Enter
-              final valor = _controllers.parseMoeda(controller.text);
-              if ((campo == 'aporte' || campo == 'juros_atraso') && valor == 0.0) {
-                controller.text = '';
-              } else {
-                controller.text = _controllers.fmtMoeda(valor);
-              }
-              _controllers.linhas[index][campo] = valor;
-              _controllers.recalcularSaldos();
-              _controllers.recalcularTodosJuros();
-              setState(() {});
-            },
             onTap: () {
               if (controller.text.isNotEmpty) {
                 controller.selection = TextSelection(
@@ -995,9 +1085,13 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
   */
   // 🔹 Calcula juros para o próximo vencimento (nova lógica)
   // 🔹 Calcula juros para o próximo vencimento (corrigido)
+  // 🔹 Calcula juros para o próximo vencimento (atualizado para incluir juros_atraso)
   double _calcularJurosProxVencimento() {
     double soma = 0.0;
-    final hoje = DateTime.now();
+
+    // 🔹 Fuso GMT-3 e sem horas
+    final agora = DateTime.now().toUtc().subtract(const Duration(hours: 3));
+    final hoje = DateTime(agora.year, agora.month, agora.day);
     final formatador = DateFormat('dd/MM/yyyy');
 
     DateTime? proximaData;
@@ -1010,31 +1104,84 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
 
       try {
         final dataLinha = formatador.parse(dataTexto);
-        final pgJuros = linha['pg_juros'] ?? 0;
+        final pg = linha['pg'] ?? 0; // 🔹 1 = pago
+        final pgJuros = (linha['pg_juros'] ?? 0.0) as double;
         final jurosPeriodo = (linha['juros_mes'] ?? 0.0) as double;
+        final jurosAtraso = (linha['juros_atraso'] ?? 0.0) as double;
 
-        // 🔹 1. Soma juros de parcelas vencidas (data <= hoje) e ainda não pagas
-        if (dataLinha.isBefore(hoje) || dataLinha.isAtSameMomentAs(hoje)) {
-          if (pgJuros == 0) soma += jurosPeriodo;
+        double jurosEfetivos;
+
+        // 🔸 Se a parcela já venceu, subtrai o Pag. Juros
+        if (dataLinha.isBefore(hoje)) {
+          jurosEfetivos = (jurosPeriodo + jurosAtraso) - pgJuros;
+        } else {
+          // 🔸 Se a parcela vence hoje ou no futuro, ignora Pag. Juros
+          jurosEfetivos = (jurosPeriodo + jurosAtraso);
         }
 
-        // 🔹 2. Se encontrar a primeira parcela futura, guarda e para de procurar
-        if (dataLinha.isAfter(hoje) && proximaData == null) {
+        // 🔸 1. Somar parcelas vencidas e ainda não pagas
+        if (pg == 0 && dataLinha.isBefore(hoje)) {
+          soma += jurosEfetivos;
+        }
+
+        // 🔸 2. Capturar a primeira parcela futura (>= hoje) e não paga
+        if (pg == 0 && !dataLinha.isBefore(hoje) && proximaData == null) {
           proximaData = dataLinha;
-          jurosProximaData = jurosPeriodo;
+          jurosProximaData = jurosEfetivos;
         }
       } catch (e) {
-        // ignora datas inválidas
+        // ignora erros de data
       }
     }
 
-    // 🔹 3. Soma juros da primeira parcela futura (somente uma)
+    // 🔸 3. Somar também a primeira parcela futura (a vencer)
     if (proximaData != null) {
       soma += jurosProximaData;
     }
 
     return soma;
   }
+
+  String _getTituloJurosCiclo() {
+    final agora = DateTime.now().toUtc().subtract(const Duration(hours: 3));
+    final hoje = DateTime(agora.year, agora.month, agora.day);
+    final formatador = DateFormat('dd/MM/yyyy');
+
+    DateTime? ultimaData;
+
+    for (int i = _controllers.linhas.length - 1; i >= 1; i--) {
+      final linha = _controllers.linhas[i];
+      final dataTexto = linha['data']?.toString() ?? "";
+      if (dataTexto.length != 10) continue;
+
+      try {
+        final dataParcela = formatador.parse(dataTexto);
+        final pg = linha['pg'] ?? 0;
+
+        // 🔸 considera apenas parcelas não pagas
+        if (pg == 0) {
+          ultimaData = dataParcela;
+          break;
+        }
+      } catch (e) {
+        continue;
+      }
+    }
+
+    if (ultimaData == null) return "Juros a liquidar neste ciclo:";
+
+    // 🔹 Comparações sem hora
+    if (ultimaData.isAtSameMomentAs(hoje)) {
+      return "Juros a liquidar neste ciclo:";
+    } else if (ultimaData.isAfter(hoje)) {
+      return "Juros a liquidar no próximo ciclo:";
+    } else {
+      return "Juros a liquidar neste ciclo:";
+    }
+  }
+
+
+
 
   /*
   bool _existeParcelaEmAtraso() {
