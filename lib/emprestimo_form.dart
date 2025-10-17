@@ -315,7 +315,7 @@ class _EmprestimoFormState extends State<EmprestimoForm> {
                       const SizedBox(height: 12),
                       TextFormField(
                         controller: mesesCtrl,
-                        decoration: const InputDecoration(labelText: "Meses"),
+                        decoration: const InputDecoration(labelText: "Qtd. de parcelas"),
                         keyboardType: TextInputType.number,
                       ),
                       const SizedBox(height: 12),

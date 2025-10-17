@@ -414,7 +414,7 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
                             ),
                             const SizedBox(height: 6),
                             Text(
-                              "Juros acumulados para o próximo vencimento:",
+                              "Juros para o próximo vencimento:",
                               style: const TextStyle(
                                 fontSize: 12,
                                 color: Colors.black87,

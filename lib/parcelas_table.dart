@@ -325,7 +325,6 @@ class ParcelasTableState extends State<ParcelasTable> {
                 DataColumn(label: SizedBox(width: 90, child: Text("     Valor"))),
                 DataColumn(label: SizedBox(width: 80, child: Text("Juros"))),
                 DataColumn(label: SizedBox(width: 90, child: Text("Desconto"))),
-                DataColumn(label: SizedBox(width: 60, child: Text(" Calc."))),
                 DataColumn(label: SizedBox(width: 110, child: Text("Pg. Principal"))),
                 DataColumn(label: SizedBox(width: 100, child: Text("Pg. Juros"))),
                 DataColumn(label: SizedBox(width: 100, child: Text("Valor Pago"))),
@@ -457,30 +456,7 @@ class ParcelasTableState extends State<ParcelasTable> {
                           decoration: const InputDecoration(border: InputBorder.none),
                         ),
                       )),
-                      DataCell(IconButton(
-                        icon: const Icon(Icons.calculate,
-                            size: 20, color: Colors.blue),
-                        onPressed: () {
-                          final capital =
-                              num.tryParse("${widget.emprestimo["valor"]}") ?? 0;
-                          final jurosSupabase =
-                              num.tryParse("${widget.emprestimo["juros"]}") ?? 0;
-                          final qtdParcelas =
-                              num.tryParse("${widget.emprestimo["parcelas"]}") ?? 1;
-                          final jurosDigitado =
-                              service.parseMoeda(c['juros']!.text);
-                          final desconto = service.parseMoeda(c['desconto']!.text);
-
-                          final pgPrincipal = capital / qtdParcelas;
-                          final pgJuros =
-                              jurosSupabase / qtdParcelas + jurosDigitado - desconto;
-
-                          c['pg_principal']!.text = service.fmtMoeda(pgPrincipal);
-                          c['pg_juros']!.text = service.fmtMoeda(pgJuros);
-
-                          setState(() {});
-                        },
-                      )),
+                      
                       DataCell(Focus(
                         onFocusChange: (hasFocus) {
                           if (!hasFocus) {
@@ -655,9 +631,34 @@ class ParcelasTableState extends State<ParcelasTable> {
                               onSelected: (value) {
                                 if (value == 'excluir') {
                                   _removerParcela(i);
+                                } else if (value == 'calcular') {
+                                  // 🔹 Lógica de cálculo automático (igual ao botão antigo)
+                                  final capital = num.tryParse("${widget.emprestimo["valor"]}") ?? 0;
+                                  final jurosSupabase = num.tryParse("${widget.emprestimo["juros"]}") ?? 0;
+                                  final qtdParcelas = num.tryParse("${widget.emprestimo["parcelas"]}") ?? 1;
+                                  final jurosDigitado = service.parseMoeda(c['juros']!.text);
+                                  final desconto = service.parseMoeda(c['desconto']!.text);
+
+                                  final pgPrincipal = capital / qtdParcelas;
+                                  final pgJuros = jurosSupabase / qtdParcelas + jurosDigitado - desconto;
+
+                                  c['pg_principal']!.text = service.fmtMoeda(pgPrincipal);
+                                  c['pg_juros']!.text = service.fmtMoeda(pgJuros);
+
+                                  setState(() {});
                                 }
                               },
                               itemBuilder: (BuildContext context) => [
+                                const PopupMenuItem<String>(
+                                  value: 'calcular',
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.calculate, color: Colors.blue, size: 18),
+                                      SizedBox(width: 8),
+                                      Text('Lançamento automático'),
+                                    ],
+                                  ),
+                                ),
                                 const PopupMenuItem<String>(
                                   value: 'excluir',
                                   child: Row(
@@ -693,7 +694,6 @@ class ParcelasTableState extends State<ParcelasTable> {
                       DataCell(Text(service.fmtMoeda(totalDesconto),
                           style: const TextStyle(
                               fontSize: 14, fontWeight: FontWeight.bold))),
-                      const DataCell(Text("")),
                       DataCell(Text(service.fmtMoeda(totalPgPrincipal),
                           style: const TextStyle(
                               fontSize: 14, fontWeight: FontWeight.bold))),
@@ -704,7 +704,7 @@ class ParcelasTableState extends State<ParcelasTable> {
                       const DataCell(Text("")),
                       const DataCell(Text("")),
                       const DataCell(Text("")),
-                      const DataCell(Text("")), // 🔹 Célula vazia para a coluna Ações
+                      const DataCell(Text("")), // 🔹 coluna Ações
                     ],
                   ),
               ] : [ // ← CORREÇÃO: espaço antes dos dois pontos
@@ -726,7 +726,6 @@ class ParcelasTableState extends State<ParcelasTable> {
                       ),
                     )),
                     // Células vazias para as outras colunas
-                    DataCell(Container()), DataCell(Container()), DataCell(Container()),
                     DataCell(Container()), DataCell(Container()), DataCell(Container()),
                     DataCell(Container()), DataCell(Container()), DataCell(Container()),
                     DataCell(Container()), DataCell(Container()), DataCell(Container()),
