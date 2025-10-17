@@ -53,29 +53,121 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
     setState(() {});
   }
 
+  /// 🔹 CALCULA VALORES ESPECÍFICOS PARA AMORTIZAÇÃO
+  Future<Map<String, dynamic>> _calcularValoresAmortizacao(String idEmprestimo) async {
+    try {
+      // Busca todas as parcelas do empréstimo
+      final parcelas = await Supabase.instance.client
+          .from('parcelas')
+          .select('juros_periodo, vencimento, residual')
+          .eq('id_emprestimo', idEmprestimo)
+          .order('vencimento');
+
+      // Busca o valor do capital do empréstimo
+      final emprestimo = await Supabase.instance.client
+          .from('emprestimos')
+          .select('valor')
+          .eq('id', idEmprestimo)
+          .single();
+
+      final capital = _asDouble(emprestimo['valor']);
+      
+      // Calcula juros totais (soma de todos os juros_periodo)
+      double jurosTotais = 0.0;
+      for (final parcela in parcelas) {
+        jurosTotais += _asDouble(parcela['juros_periodo']);
+      }
+
+      // Calcula total (capital + juros totais)
+      final total = capital + jurosTotais;
+
+      // Calcula valor da parcela (capital/num_parcelas + juros_totais/num_parcelas)
+      final numParcelas = parcelas.length;
+      final valorParcela = numParcelas > 0 ? (capital / numParcelas) + (jurosTotais / numParcelas) : 0.0;
+
+      // Encontra próxima data de vencimento (primeira data posterior ao dia atual)
+      DateTime? proximaData;
+      final agora = DateTime.now();
+      
+      for (final parcela in parcelas) {
+        final vencTxt = parcela['vencimento']?.toString() ?? "";
+        if (vencTxt.isEmpty) continue;
+        
+        final venc = DateTime.tryParse(vencTxt);
+        if (venc == null) continue;
+
+        // Considera apenas parcelas com residual > 0 (não pagas)
+        final residual = _asDouble(parcela['residual']);
+        if (residual > 0.01 && venc.isAfter(agora)) {
+          if (proximaData == null || venc.isBefore(proximaData)) {
+            proximaData = venc;
+          }
+        }
+      }
+
+      // Verifica situação (Em dia ou Em atraso)
+      String situacao = "Em dia";
+      for (final parcela in parcelas) {
+        final vencTxt = parcela['vencimento']?.toString() ?? "";
+        if (vencTxt.isEmpty) continue;
+        
+        final venc = DateTime.tryParse(vencTxt);
+        if (venc == null) continue;
+
+        final residual = _asDouble(parcela['residual']);
+        // Se tem parcela vencida (antes de hoje) com residual > 0, está em atraso
+        if (residual > 0.01 && venc.isBefore(agora)) {
+          situacao = "Em atraso";
+          break;
+        }
+      }
+
+      return {
+        'juros': jurosTotais,
+        'total': total,
+        'valor_parcela': valorParcela,
+        'proxima_data': proximaData,
+        'situacao': situacao,
+        'num_parcelas': numParcelas,
+      };
+    } catch (e) {
+      print('Erro ao calcular valores da amortização: $e');
+      return {
+        'juros': 0.0,
+        'total': 0.0,
+        'valor_parcela': 0.0,
+        'proxima_data': null,
+        'situacao': "Em dia",
+        'num_parcelas': 0,
+      };
+    }
+  }
+
   Future<Map<String, String>> _calcularDatas(String idEmprestimo, String tipoMov) async {
-    // 🔹 SE FOR AMORTIZAÇÃO, USA data_fim DO EMPRÉSTIMO COMO ÚLTIMO VENCIMENTO
+    // 🔹 SE FOR AMORTIZAÇÃO, USA CÁLCULO ESPECÍFICO
     if (tipoMov == 'amortizacao') {
       try {
-        final emprestimo = await Supabase.instance.client
-            .from('emprestimos')
-            .select('data_fim')
-            .eq('id', idEmprestimo)
-            .single();
-
-        final dataFim = emprestimo['data_fim']?.toString();
-        if (dataFim != null && dataFim.isNotEmpty) {
-          final data = DateTime.parse(dataFim);
-          return {
-            "proxima": "-", // Amortização não tem próxima parcela fixa
-            "ultima": DateFormat("dd/MM/yyyy").format(data),
-            "situacao_linha1": "Amortização",
-            "situacao_linha2": "Conta corrente",
-            "acordo": "nao",
-          };
-        }
+        final valores = await _calcularValoresAmortizacao(idEmprestimo);
+        final proximaData = valores['proxima_data'] as DateTime?;
+        
+        return {
+          "proxima": proximaData == null 
+              ? "-" 
+              : DateFormat("dd/MM/yyyy").format(proximaData),
+          "ultima": "-", // Amortização não tem último vencimento fixo
+          "situacao_linha1": valores['situacao'] ?? "Em dia",
+          "situacao_linha2": "${valores['num_parcelas']} parcelas",
+          "acordo": "nao",
+        };
       } catch (e) {
-        print('Erro ao buscar data_fim para amortização: $e');
+        print('Erro ao calcular datas para amortização: $e');
+        return {
+          "proxima": "-",
+          "ultima": "-",
+          "situacao_linha1": "Em dia",
+          "situacao_linha2": "Amortização",
+          "acordo": "nao",
+        };
       }
     }
 
@@ -310,9 +402,45 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
                                                     : Center(child: Text(snap.data!['ultima'] ?? "-")),
                                           ))),
                                           DataCell(SizedBox(width: 80, child: Center(child: Text(fmtMoeda(_asDouble(emp['valor'])))))),
-                                          DataCell(SizedBox(width: 80, child: Center(child: Text(fmtMoeda(_asDouble(emp['juros'])))))),
-                                          DataCell(SizedBox(width: 80, child: Center(child: Text(fmtMoeda(_asDouble(emp['valor']) + _asDouble(emp['juros'])))))),
-                                          DataCell(SizedBox(width: 100, child: Center(child: Text("${emp['parcelas']} x ${fmtMoeda(_asDouble(emp['prestacao']))}")))),
+                                          // 🔹 COLUNA JUROS: Mostra juros calculados para amortização
+                                          DataCell(SizedBox(width: 80, child: Center(child: 
+                                            tipoMov == 'amortizacao'
+                                                ? FutureBuilder<Map<String, dynamic>>(
+                                                    future: _calcularValoresAmortizacao(emp['id']),
+                                                    builder: (context, snap) {
+                                                      if (!snap.hasData) return Text(fmtMoeda(0.0));
+                                                      return Text(fmtMoeda(snap.data!['juros'] ?? 0.0));
+                                                    },
+                                                  )
+                                                : Text(fmtMoeda(_asDouble(emp['juros'])))
+                                          ))),
+                                          // 🔹 COLUNA TOTAL: Para amortização é capital + juros totais
+                                          DataCell(SizedBox(width: 80, child: Center(child: 
+                                            tipoMov == 'amortizacao'
+                                                ? FutureBuilder<Map<String, dynamic>>(
+                                                    future: _calcularValoresAmortizacao(emp['id']),
+                                                    builder: (context, snap) {
+                                                      if (!snap.hasData) return Text(fmtMoeda(_asDouble(emp['valor'])));
+                                                      final total = snap.data!['total'] ?? _asDouble(emp['valor']);
+                                                      return Text(fmtMoeda(total));
+                                                    },
+                                                  )
+                                                : Text(fmtMoeda(_asDouble(emp['valor']) + _asDouble(emp['juros'])))
+                                          ))),
+                                          // 🔹 COLUNA PARCELAS: Para amortização mostra cálculo específico
+                                          DataCell(SizedBox(width: 100, child: Center(child: 
+                                            tipoMov == 'amortizacao'
+                                                ? FutureBuilder<Map<String, dynamic>>(
+                                                    future: _calcularValoresAmortizacao(emp['id']),
+                                                    builder: (context, snap) {
+                                                      if (!snap.hasData) return const Text("-");
+                                                      final numParcelas = snap.data!['num_parcelas'] ?? 0;
+                                                      final valorParcela = snap.data!['valor_parcela'] ?? 0.0;
+                                                      return Text("$numParcelas x ${fmtMoeda(valorParcela)}");
+                                                    },
+                                                  )
+                                                : Text("${emp['parcelas']} x ${fmtMoeda(_asDouble(emp['prestacao']))}"))
+                                          )),
                                           DataCell(SizedBox(width: 95, child: FutureBuilder<Map<String, String>>(
                                             future: _calcularDatas(emp['id'], tipoMov),
                                             builder: (context, snap) {
@@ -353,6 +481,7 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
                                               );
                                             },
                                           ))),
+                                          // 🔹 COLUNA SITUAÇÃO: Para amortização mostra "Em dia" ou "Em atraso"
                                           DataCell(SizedBox(width: 75, child: FutureBuilder<Map<String, String>>(
                                             future: _calcularDatas(emp['id'], tipoMov),
                                             builder: (context, snap) => !snap.hasData
@@ -361,7 +490,19 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
                                                     child: Column(
                                                       mainAxisSize: MainAxisSize.min,
                                                       children: [
-                                                        Text(snap.data!['situacao_linha1'] ?? "-", style: const TextStyle(fontSize: 11)),
+                                                        if (tipoMov == 'amortizacao')
+                                                          Text(
+                                                            snap.data!['situacao_linha1'] ?? "Em dia",
+                                                            style: TextStyle(
+                                                              fontSize: 11,
+                                                              color: (snap.data!['situacao_linha1'] == "Em atraso")
+                                                                  ? Colors.red
+                                                                  : Colors.green,
+                                                              fontWeight: FontWeight.bold,
+                                                            ),
+                                                          )
+                                                        else
+                                                          Text(snap.data!['situacao_linha1'] ?? "-", style: const TextStyle(fontSize: 11)),
                                                         Text(snap.data!['situacao_linha2'] ?? "-", style: const TextStyle(fontSize: 11)),
                                                       ],
                                                     ),

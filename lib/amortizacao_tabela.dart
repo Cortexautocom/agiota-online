@@ -534,17 +534,9 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
                                 label: SizedBox(
                                     width: 130,
                                     child: Center(child: Text("Saldo Final")))),
-                            DataColumn(
-                                label: SizedBox(
-                                  width: 20,
-                                  child: Center(
-                                    child: Text(
-                                      "",
-                                      textAlign: TextAlign.center,
-                                    ),
-                                  ),
-                                ),
-                              ),
+                            
+                            DataColumn(label: SizedBox(child: Center(child: Text("")))),
+
                           ],
                           rows: [
                             ..._controllers.linhas.asMap().entries.map(
@@ -590,60 +582,63 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
                                     _buildEditableCell(entry.key, 'pg_juros', cor: Colors.green),
                                     _buildJurosMesCell(entry.key),
                                     _buildEditableCell(entry.key, 'juros_atraso', cor: Colors.green),
-                                    _buildReadOnlyCell(
-                                        _fmt.format(linha['saldo_final'] ?? 0.0)),
+                                    _buildReadOnlyCell(_fmt.format(linha['saldo_final'] ?? 0.0)),
+                                  
                                     DataCell(
-                                      PopupMenuButton<String>(
-                                        icon: const Icon(Icons.more_vert, size: 20),
-                                        onSelected: (value) async {
-                                          if (value == 'paga') {
-                                            setState(() {
-                                              linha['pg'] = 1;
-                                            });
-                                            await _controllers.salvarParcelasNoBanco(widget.emprestimo['id']);
-                                          } else if (value == 'pendente') {
-                                            setState(() {
-                                              linha['pg'] = 0;
-                                            });
-                                            await _controllers.salvarParcelasNoBanco(widget.emprestimo['id']);
-                                          } else if (value == 'excluir') {
-                                            _removerLinha(entry.key);
-                                            showDialog(
-                                              context: context,
-                                              builder: (BuildContext context) {
-                                                return AlertDialog(
-                                                  content: const Text(
-                                                    "Parcela excluída.",
-                                                    textAlign: TextAlign.center,
-                                                  ),
-                                                  actionsAlignment: MainAxisAlignment.center,
-                                                  actions: [
-                                                    TextButton(
-                                                      child: const Text("OK"),
-                                                      onPressed: () {
-                                                        Navigator.of(context).pop();
+                                      Container(
+                                        width: 15,
+                                        alignment: Alignment.centerRight,
+                                        child: entry.key == 0 // 🔹 SE FOR A PRIMEIRA LINHA (aporte)
+                                            ? const SizedBox.shrink() // 🔹 MOSTRA ESPAÇO VAZIO (sem menu)
+                                            : PopupMenuButton<String>( // 🔹 SENÃO, MOSTRA O MENU NORMAL
+                                                icon: const Icon(Icons.more_vert, size: 18, color: Colors.grey),
+                                                padding: EdgeInsets.zero,
+                                                onSelected: (value) async {
+                                                  final linha = _controllers.linhas[entry.key];
+                                                  if (value == 'paga') {
+                                                    setState(() {
+                                                      linha['pg'] = 1;
+                                                    });
+                                                    await _controllers.salvarParcelasNoBanco(widget.emprestimo['id']);
+                                                  } else if (value == 'pendente') {
+                                                    setState(() {
+                                                      linha['pg'] = 0;
+                                                    });
+                                                    await _controllers.salvarParcelasNoBanco(widget.emprestimo['id']);
+                                                  } else if (value == 'excluir') {
+                                                    _removerLinha(entry.key);
+                                                    showDialog(
+                                                      context: context,
+                                                      builder: (BuildContext context) {
+                                                        return AlertDialog(
+                                                          content: const Text("Parcela excluída.", textAlign: TextAlign.center),
+                                                          actionsAlignment: MainAxisAlignment.center,
+                                                          actions: [
+                                                            TextButton(
+                                                              child: const Text("OK"),
+                                                              onPressed: () => Navigator.of(context).pop(),
+                                                            ),
+                                                          ],
+                                                        );
                                                       },
-                                                    ),
-                                                  ],
-                                                );
-                                              },
-                                            );
-                                          }
-                                        },
-                                        itemBuilder: (context) => [
-                                          const PopupMenuItem(
-                                            value: 'paga',
-                                            child: Text('Marcar como paga'),
-                                          ),
-                                          const PopupMenuItem(
-                                            value: 'pendente',
-                                            child: Text('Marcar como pendente'),
-                                          ),
-                                          const PopupMenuItem(
-                                            value: 'excluir',
-                                            child: Text('Excluir linha'),
-                                          ),
-                                        ],
+                                                    );
+                                                  }
+                                                },
+                                                itemBuilder: (context) => [
+                                                  const PopupMenuItem(
+                                                    value: 'paga',
+                                                    child: Text('Marcar como paga', style: TextStyle(fontSize: 12)),
+                                                  ),
+                                                  const PopupMenuItem(
+                                                    value: 'pendente', 
+                                                    child: Text('Marcar como pendente', style: TextStyle(fontSize: 12)),
+                                                  ),
+                                                  const PopupMenuItem(
+                                                    value: 'excluir',
+                                                    child: Text('Excluir parcela', style: TextStyle(fontSize: 12)),
+                                                  ),
+                                                ],
+                                              ),
                                       ),
                                     ),
                                   ],
@@ -687,7 +682,7 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
               ],
             ),
           ),
-
+                    
           // 🔹 BOTÃO ARQUIVAR FIXADO NO RODAPÉ DIREITO
           Positioned(
             bottom: 20,
