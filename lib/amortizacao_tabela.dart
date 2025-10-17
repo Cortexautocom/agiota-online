@@ -208,11 +208,17 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
 
         await showDialog(
           context: context,
-          builder: (ctx) => const AlertDialog(
+          builder: (ctx) => AlertDialog(
             content: Text(
               "Empréstimo arquivado com sucesso!",
               textAlign: TextAlign.center,
             ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: Text("OK"),
+              ),
+            ],
           ),
         );
 
@@ -530,7 +536,7 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
                                     child: Center(child: Text("Saldo Final")))),
                             DataColumn(
                                 label: SizedBox(
-                                  width: 50,
+                                  width: 20,
                                   child: Center(
                                     child: Text(
                                       "",
