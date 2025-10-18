@@ -614,15 +614,12 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
                                                 padding: EdgeInsets.zero,
                                                 onSelected: (value) async {
                                                   final linha = _controllers.linhas[entry.key];
+
                                                   if (value == 'paga') {
-                                                    setState(() {
-                                                      linha['pg'] = 1;
-                                                    });
+                                                    linha['pg'] = 1;
                                                     await _controllers.salvarParcelasNoBanco(widget.emprestimo['id']);
                                                   } else if (value == 'pendente') {
-                                                    setState(() {
-                                                      linha['pg'] = 0;
-                                                    });
+                                                    linha['pg'] = 0;
                                                     await _controllers.salvarParcelasNoBanco(widget.emprestimo['id']);
                                                   } else if (value == 'excluir') {
                                                     _removerLinha(entry.key);
@@ -642,7 +639,14 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
                                                       },
                                                     );
                                                   }
+
+                                                  // ✅ NOVO: força recálculo da tabela
+                                                  setState(() {
+                                                    _controllers.recalcularSaldos();
+                                                    _controllers.recalcularTodosJuros();
+                                                  });
                                                 },
+
                                                 itemBuilder: (context) => [
                                                   const PopupMenuItem(
                                                     value: 'paga',
@@ -1168,15 +1172,15 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
       }
     }
 
-    if (ultimaData == null) return "Juros a liquidar neste ciclo:";
+    if (ultimaData == null) return "Juros a liquidar:";
 
     // 🔹 Comparações sem hora
     if (ultimaData.isAtSameMomentAs(hoje)) {
-      return "Juros a liquidar neste ciclo:";
+      return "Juros a liquidar:";
     } else if (ultimaData.isAfter(hoje)) {
-      return "Juros a liquidar no próximo ciclo:";
+      return "Juros a liquidar:";
     } else {
-      return "Juros a liquidar neste ciclo:";
+      return "Juros a liquidar:";
     }
   }
 
