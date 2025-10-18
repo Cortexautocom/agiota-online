@@ -30,28 +30,39 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
   @override
   void initState() {
     super.initState();
+    print('🧩 [Financeiro] initState chamado');
     _buscarEmprestimos();
   }
 
   @override
   void didUpdateWidget(FinanceiroPage oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // 🔹 SE RECEBEU forceRefresh, RECARREGA OS DADOS
+    print('🔁 [Financeiro] didUpdateWidget chamado');
     if (widget.forceRefresh && !oldWidget.forceRefresh) {
       _buscarEmprestimos();
     }
   }
 
-  /// 🔹 Recarrega a lista de empréstimos (usado pelos callbacks)
-  void _buscarEmprestimos() {
-    _emprestimosFuture = Supabase.instance.client
-        .from('emprestimos')
-        .select()
-        .eq('id_cliente', widget.cliente['id_cliente'])
-        .eq('ativo', 'sim')
-        .order('data_inicio');
-    setState(() {});
+  @override
+  void dispose() {
+    print('🟥 [Financeiro] dispose chamado (tela destruída)');
+    super.dispose();
   }
+
+  /// 🔹 Recarrega a lista de empréstimos (usado pelos callbacks)
+  Future<void> _buscarEmprestimos() async {
+    print('🔄 [Financeiro] Chamando _buscarEmprestimos()...');
+    setState(() {
+      _emprestimosFuture = Supabase.instance.client
+          .from('emprestimos')
+          .select()
+          .eq('id_cliente', widget.cliente['id_cliente'])
+          .eq('ativo', 'sim')
+          .order('data_inicio');
+    });
+  }
+
+
 
   /// 🔹 CALCULA VALORES ESPECÍFICOS PARA AMORTIZAÇÃO
   /// 🔹 CALCULA VALORES ESPECÍFICOS PARA AMORTIZAÇÃO
@@ -396,39 +407,42 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
                                     rows: emprestimos.map((emp) {
                                       final tipoMov = emp['tipo_mov'] ?? 'parcelamento';
                                       return DataRow(
-                                        onSelectChanged: (_) {
+                                        onSelectChanged: (_) async {
                                           emp['cliente'] = cliente['nome'];
                                           emp['id_cliente'] = cliente['id_cliente'];
                                           emp['id_usuario'] = cliente['id_usuario'] ?? '';
-                                          
-                                          // 🔹 VERIFICA SE É AMORTIZAÇÃO OU PARCELAMENTO
+
+                                          print('🟦 [Financeiro] TipoMov detectado: $tipoMov');
+
                                           if (tipoMov == 'amortizacao') {
-                                            // 🔹 AMORTIZAÇÃO: Vai para AmortizacaoTabela
-                                            Navigator.push(
+                                            print('🟦 [Financeiro] Abrindo tela AmortizacaoTabela...');
+                                            final resultado = await Navigator.push(
                                               context,
                                               MaterialPageRoute(
-                                                builder: (context) => AmortizacaoTabela(emprestimo: emp),
+                                                builder: (context) => AmortizacaoTabela(
+                                                  emprestimo: emp,
+                                                  onSaved: _buscarEmprestimos, // ✅ NOVO, igual ao ParcelasPage
+                                                ),
                                               ),
-                                            ).then((resultado) {
-                                              // 🔹 Caso a tela de Amortização retorne um mapa (com nome do cliente e flag de atualização)
-                                              if (resultado is Map && resultado['atualizar'] == true) {
-                                                _buscarEmprestimos();
+                                            );
+                                            print('🟧 [Financeiro] Retorno da tela AmortizacaoTabela: $resultado');
 
-                                                // 🔹 Atualiza o nome do cliente no título do Financeiro
-                                                if (resultado['cliente'] != null) {
-                                                  setState(() {
-                                                    widget.cliente['nome'] = resultado['cliente'];
-                                                  });
-                                                }
-                                              }
-                                              // 🔹 Caso a tela antiga só retorne "true" (compatibilidade)
-                                              else if (resultado == true) {
-                                                _buscarEmprestimos();
-                                              }
-                                            });
+                                            if (mounted && (resultado == true || (resultado is Map && resultado['atualizar'] == true))) {
+                                              print('🟢 [Financeiro] Recarregando _emprestimosFuture...');
+                                              setState(() {
+                                                _emprestimosFuture = Supabase.instance.client
+                                                    .from('emprestimos')
+                                                    .select()
+                                                    .eq('id_cliente', widget.cliente['id_cliente'])
+                                                    .eq('ativo', 'sim')
+                                                    .order('data_inicio');
+                                              });
+                                            } else {
+                                              print('🟠 [Financeiro] Nenhum reload disparado. Resultado não esperado.');
+                                            }
                                           } else {
-                                            // 🔹 PARCELAMENTO: Vai para ParcelasPage (comportamento normal)
-                                            Navigator.push(
+                                            print('🟦 [Financeiro] Abrindo tela ParcelasPage...');
+                                            final resultado = await Navigator.push(
                                               context,
                                               MaterialPageRoute(
                                                 builder: (context) => ParcelasPage(
@@ -436,15 +450,18 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
                                                   onSaved: _buscarEmprestimos,
                                                 ),
                                               ),
-                                            ).then((resultado) {
-                                              // 🔹 Caso o usuário arquive o empréstimo ou salve algo
-                                              if (resultado == true ||
-                                                  (resultado is Map && resultado['atualizar'] == true)) {
-                                                _buscarEmprestimos(); // 🔄 Atualiza tudo do banco
-                                              }
-                                            });
+                                            );
+                                            print('🟧 [Financeiro] Retorno da tela ParcelasPage: $resultado');
+
+                                            if (mounted && (resultado == true || (resultado is Map && resultado['atualizar'] == true))) {
+                                              print('🟢 [Financeiro] Recarregando via _buscarEmprestimos()...');
+                                              _buscarEmprestimos();
+                                            } else {
+                                              print('🟠 [Financeiro] Nenhum reload disparado. Resultado não esperado.');
+                                            }
                                           }
                                         },
+
                                         cells: [
                                           DataCell(SizedBox(width: 20, child: Center(child: Text("${emp['numero'] ?? ''}")))),
                                           DataCell(SizedBox(width: 75, child: Center(child: Text(_formatarData(emp['data_inicio']))))),
@@ -617,37 +634,61 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
                                   ),
                                 );
                               } else if (tipo == 'amortizacao') {
-                                // 🔹 PRIMEIRO CRIA O EMPRÉSTIMO NO BANCO
                                 final emprestimoId = Uuid().v4();
-                                
+                                print('🟦 [Financeiro] Criando novo empréstimo (amortização)... ID=$emprestimoId');
+
                                 try {
+                                  // 🔹 Cria o novo registro
                                   await Supabase.instance.client.from('emprestimos').insert({
                                     'id': emprestimoId,
                                     'id_cliente': cliente['id_cliente'],
-                                    'valor': 0.0, // Valor inicial zero (será calculado depois)
+                                    'valor': 0.0,
                                     'data_inicio': DateFormat('yyyy-MM-dd').format(DateTime.now()),
-                                    'parcelas': 0, // Amortização não tem número fixo de parcelas
+                                    'parcelas': 0,
                                     'juros': 0.0,
                                     'prestacao': 0.0,
                                     'id_usuario': cliente['id_usuario'] ?? '',
                                     'ativo': 'sim',
-                                    'tipo_mov': 'amortizacao', // Novo campo para diferenciar
+                                    'tipo_mov': 'amortizacao',
                                   });
 
-                                  // 🔹 AGORA VAI PARA AMORTIZAÇÃO
+                                  print('✅ [Financeiro] Empréstimo criado no banco. Atualizando lista antes de abrir a tabela...');
+
+                                  // 🔹 Força recarregar antes de abrir a tela
+                                  await _buscarEmprestimos();
+                                  await Future.delayed(const Duration(milliseconds: 300));
+
+                                  // 🔹 Monta o objeto para a tela
                                   final emprestimo = {
                                     'id': emprestimoId,
                                     'cliente': cliente['nome'],
                                     'id_cliente': cliente['id_cliente'],
+                                    'id_usuario': cliente['id_usuario'] ?? '',
+                                    'tipo_mov': 'amortizacao',
                                   };
 
-                                  Navigator.push(
+                                  print('🟦 [Financeiro] Abrindo tela AmortizacaoTabela...');
+                                  final resultado = await Navigator.push(
                                     context,
                                     MaterialPageRoute(
-                                      builder: (_) => AmortizacaoTabela(emprestimo: emprestimo),
+                                      builder: (context) => AmortizacaoTabela(
+                                        emprestimo: emprestimo,
+                                        onSaved: _buscarEmprestimos, // ✅ NOVO, igual ao ParcelasPage
+                                      ),
                                     ),
                                   );
+
+                                  print('🟧 [Financeiro] Retorno da criação de amortização: $resultado');
+
+                                  if (mounted && (resultado == true || (resultado is Map && resultado['atualizar'] == true))) {
+                                    print('🟢 [Financeiro] Recarregando lista após salvar amortização...');
+                                    _buscarEmprestimos();
+                                  } else {
+                                    print('🟠 [Financeiro] Nenhum reload após salvar amortização.');
+                                  }
                                 } catch (e) {
+                                  print('❌ [Financeiro] Erro ao criar empréstimo: $e');
+                                  if (!mounted) return;
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(
                                       content: Text('Erro ao criar empréstimo: $e'),

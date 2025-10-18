@@ -7,8 +7,13 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 class AmortizacaoTabela extends StatefulWidget {
   final Map<String, dynamic> emprestimo;
+  final VoidCallback onSaved;
 
-  const AmortizacaoTabela({super.key, required this.emprestimo});
+  const AmortizacaoTabela({
+    super.key,
+    required this.emprestimo,
+    required this.onSaved, // ✅ NOVO
+  });
 
   @override
   State<AmortizacaoTabela> createState() => _AmortizacaoTabelaState();
@@ -33,7 +38,7 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
   Future<void> _carregarDadosIniciais() async {
     // 🔹 1. Carrega taxa do banco
     await _carregarTaxaDoBanco();
-
+    if (!mounted) return;
     final supabase = Supabase.instance.client;
 
     // 🔹 2. Busca parcelas no banco (com o campo ID incluído!)
@@ -154,6 +159,7 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
     if (!mounted) return;
 
     if (sucesso) {
+      // Mostra o diálogo e espera o usuário fechar
       await showDialog(
         context: context,
         barrierDismissible: false,
@@ -178,12 +184,13 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
         ),
       );
 
-      if (mounted) {
-        // 🔹 Retorna à tela de FinanceiroPage sinalizando que deve atualizar
-        Navigator.pop(context, {
-          'atualizar': true,
-          'cliente': _nomeCliente,
-        });
+      // ✅ Atualiza o Financeiro imediatamente (mesmo comportamento da ParcelasPage)
+      widget.onSaved();
+
+      // ✅ Retorna ao Financeiro após o diálogo
+      if (mounted && Navigator.of(context).canPop()) {
+        print('🟩 [AmortizacaoTabela] Salvamento bem-sucedido! Retornando TRUE ao Financeiro...');
+        Navigator.of(context).pop(true);
       }
     } else {
       if (!mounted) return;
@@ -330,11 +337,10 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                       ),
                       onPressed: () {
-                        Navigator.of(context).pop();
-                        Navigator.pop(context, {
-                          'atualizar': true,
-                          'cliente': _nomeCliente,
-                        });
+                        Navigator.of(context).pop(); // fecha o diálogo
+                        if (Navigator.of(context).canPop()) {
+                          Navigator.of(context).pop(true); // retorna ao Financeiro
+                        }
                       },
                       icon: const Icon(Icons.warning_amber_rounded,
                           color: Colors.white, size: 18),

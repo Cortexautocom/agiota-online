@@ -275,7 +275,12 @@ class _EmprestimoFormAmortState extends State<EmprestimoFormAmort> {
       Navigator.pop(context);
       Navigator.push(
         context,
-        MaterialPageRoute(builder: (_) => AmortizacaoTabela(emprestimo: emprestimo)),
+        MaterialPageRoute(
+          builder: (_) => AmortizacaoTabela(
+            emprestimo: emprestimo,
+            onSaved: widget.onSaved, // ✅ adiciona o callback herdado do form
+          ),
+        ),
       );
     } catch (e) {
       if (!mounted) return;
