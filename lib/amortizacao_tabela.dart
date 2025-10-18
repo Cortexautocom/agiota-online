@@ -154,10 +154,11 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
     if (!mounted) return;
 
     if (sucesso) {
+      
       showDialog(
         context: context,
         barrierDismissible: false,
-        builder: (context) => const AlertDialog(          
+        builder: (context) => const AlertDialog(
           content: Text(
             "Dados salvos com sucesso!",
             textAlign: TextAlign.center,
@@ -165,20 +166,15 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
         ),
       );
 
-      Future.delayed(const Duration(seconds: 2), () {
-        if (mounted && Navigator.canPop(context)) {
-          Navigator.of(context).pop(); // Fecha o diálogo
-        }
-      });
+      await Future.delayed(const Duration(seconds: 2));
 
-      // 🔹 CORREÇÃO: Use Navigator.pop com resultado em vez de pushAndRemoveUntil
-      await Future.delayed(const Duration(seconds: 1));
-      
       if (mounted) {
-        // Retorna para a tela anterior (FinanceiroPage) com dados atualizados
+        Navigator.of(context).pop(); // fecha o diálogo de sucesso
+
+        // 🔹 Retorna à tela de FinanceiroPage sinalizando que deve atualizar
         Navigator.pop(context, {
           'atualizar': true,
-          'cliente': _nomeCliente, // Use o nome carregado localmente
+          'cliente': _nomeCliente,
         });
       }
     } else {
