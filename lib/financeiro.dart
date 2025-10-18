@@ -159,22 +159,23 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
         int abertas = 0;
         DateTime? ultimaData;
         DateTime? proximaData;
-
         final agora = DateTime.now();
 
-        for (final p in parcelas) {
-          final dataTxt = p['data_mov']?.toString() ?? "";
+        for (final parcela in parcelas) {
+          final dataTxt = parcela['data_mov']?.toString() ?? "";
           if (dataTxt.isEmpty) continue;
           final data = DateTime.tryParse(dataTxt);
           if (data == null) continue;
 
-          final pg = p['pg'] ?? 0;
-          if (pg == 1) pagas++;
-          else abertas++;
-
-          if (data.isAfter(agora)) {
-            if (proximaData == null || data.isBefore(proximaData)) {
-              proximaData = data;
+          final pg = parcela['pg'] ?? 0;
+          if (pg == 1) {
+            pagas++;
+          } else {
+            abertas++;
+            if (data.isAfter(agora)) {
+              if (proximaData == null || data.isBefore(proximaData)) {
+                proximaData = data;
+              }
             }
           }
 
@@ -184,10 +185,15 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
         }
 
         return {
-          "proxima": proximaData == null ? "-" : DateFormat("dd/MM/yyyy").format(proximaData),
-          "ultima": ultimaData == null ? "-" : DateFormat("dd/MM/yyyy").format(ultimaData),
-          "linha1": "${pagas.toString()} pagas",
-          "linha2": "${abertas.toString()} restando",
+          "proxima": proximaData == null
+              ? "-"
+              : DateFormat("dd/MM/yyyy").format(proximaData),
+          "ultima": ultimaData == null
+              ? "-"
+              : DateFormat("dd/MM/yyyy").format(ultimaData),
+          // 🔹 As linhas que serão mostradas na tabela:
+          "situacao_linha1": "$pagas pagas",
+          "situacao_linha2": "$abertas restando",
           "acordo": "nao",
         };
       } catch (e) {
@@ -195,8 +201,8 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
         return {
           "proxima": "-",
           "ultima": "-",
-          "linha1": "0 pagas",
-          "linha2": "0 restando",
+          "situacao_linha1": "0 pagas",
+          "situacao_linha2": "0 restando",
           "acordo": "nao",
         };
       }
@@ -526,36 +532,44 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
                                           // 🔹 COLUNA SITUAÇÃO: Para amortização mostra "Em dia" ou "Em atraso"
                                           // 🔹 COLUNA SITUAÇÃO: Para amortização mostra "Em dia" ou "Em atraso"
                                           DataCell(SizedBox(
-                                            width: 75,
+                                            width: 90,
                                             child: FutureBuilder<Map<String, String>>(
                                               future: _calcularDatas(emp['id'], tipoMov),
                                               builder: (context, snap) {
                                                 if (!snap.hasData) return const Text("-");
-                                                if (tipoMov == 'amortizacao') {
-                                                  final linha1 = snap.data!['linha1'] ?? "0 pagas";
-                                                  final linha2 = snap.data!['linha2'] ?? "0 restando";
-                                                  return Center(
-                                                    child: Column(
-                                                      mainAxisSize: MainAxisSize.min,
-                                                      children: [
-                                                        Text(linha1, style: const TextStyle(fontSize: 11, color: Colors.black)),
-                                                        Text(linha2, style: const TextStyle(fontSize: 11, color: Colors.black)),
-                                                      ],
-                                                    ),
-                                                  );
-                                                } else {
-                                                  final linha1 = snap.data!['situacao_linha1'] ?? "-";
-                                                  final linha2 = snap.data!['situacao_linha2'] ?? "-";
-                                                  return Center(
-                                                    child: Column(
-                                                      mainAxisSize: MainAxisSize.min,
-                                                      children: [
-                                                        Text(linha1, style: const TextStyle(fontSize: 11, color: Colors.black)),
-                                                        Text(linha2, style: const TextStyle(fontSize: 11, color: Colors.black)),
-                                                      ],
-                                                    ),
-                                                  );
-                                                }
+
+                                                // 🔹 Define o tipo e as cores
+                                                final tipoTexto = (tipoMov == 'amortizacao') ? "Amortização" : "Parcelamento";
+                                                final tipoCor = (tipoMov == 'amortizacao') ? Colors.green : Colors.blue;
+
+                                                // 🔹 Captura contagens do banco
+                                                final linhaPagas = snap.data!['situacao_linha1'] ?? "0 pagas";
+                                                final linhaRestantes = snap.data!['situacao_linha2'] ?? "0 restando";
+
+                                                // 🔹 Monta exibição
+                                                return Center(
+                                                  child: Column(
+                                                    mainAxisSize: MainAxisSize.min,
+                                                    children: [
+                                                      Text(
+                                                        tipoTexto,
+                                                        style: TextStyle(
+                                                          fontSize: 11,
+                                                          color: tipoCor,
+                                                          fontWeight: FontWeight.bold,
+                                                        ),
+                                                      ),
+                                                      Text(
+                                                        linhaPagas,
+                                                        style: const TextStyle(fontSize: 11, color: Colors.black),
+                                                      ),
+                                                      Text(
+                                                        linhaRestantes,
+                                                        style: const TextStyle(fontSize: 11, color: Colors.black),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                );
                                               },
                                             ),
                                           )),
