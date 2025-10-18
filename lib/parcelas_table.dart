@@ -361,7 +361,7 @@ class ParcelasTableState extends State<ParcelasTable> {
                       vencimento.isBefore(DateTime(hoje.year, hoje.month, hoje.day));
 
                   // 🔹 NOVA REGRA: Se residual == 0 → formatação verde (prioridade máxima)
-                  final bool parcelaPaga = residualAtual.abs() < 0.01;
+                  final bool parcelaPaga = residualAtual <= 0.01;
 
                   // 🔹 Define cores com prioridade: Paga > Acordo > Atraso > Normal
                   final rowColor = parcelaPaga

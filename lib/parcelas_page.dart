@@ -27,6 +27,7 @@ class ParcelasPageState extends State<ParcelasPage> {
   double aporteTotal = 0.0;
   double capitalPago = 0.0;
   double taxaJuros = 0.0;
+  double totalEmAtraso = 0.0;
   bool mostrarInfo = true; // controla a largura do painel lateral
 
   @override
@@ -73,9 +74,26 @@ class ParcelasPageState extends State<ParcelasPage> {
   void _calcularTotais(List<Map<String, dynamic>> parcelas) {
     aporteTotal = widget.emprestimo['valor'] ?? 0.0;
     capitalPago = 0.0;
+    totalEmAtraso = 0.0; // 🔹 zera antes de somar
+
+    final hoje = DateTime.now();
 
     for (final p in parcelas) {
       capitalPago += (p['pg_principal'] as num?)?.toDouble() ?? 0.0;
+
+      // 🔹 Verifica se está em atraso
+      final vencimentoTxt = p['vencimento']?.toString();
+      if (vencimentoTxt != null && vencimentoTxt.isNotEmpty) {
+        try {
+          final vencimento = DateTime.parse(vencimentoTxt);
+          final residual = ((p['valor'] ?? 0) + (p['juros'] ?? 0) - (p['desconto'] ?? 0)
+              - ((p['pg_principal'] ?? 0) + (p['pg_juros'] ?? 0)));
+
+          if (vencimento.isBefore(DateTime(hoje.year, hoje.month, hoje.day)) && residual > 0.01) {
+            totalEmAtraso += residual;
+          }
+        } catch (_) {}
+      }
     }
   }
 
@@ -250,6 +268,15 @@ class ParcelasPageState extends State<ParcelasPage> {
                                         fontWeight: FontWeight.w600,
                                       ),
                                     ),
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      "Total em atraso: ${service.fmtMoeda2(totalEmAtraso)}",
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.redAccent,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
                                   ],
                                 ),
                               ),
@@ -291,7 +318,7 @@ class ParcelasPageState extends State<ParcelasPage> {
                                             TextButton(
                                               onPressed: () => Navigator.of(ctx).pop(), // 🔹 MUDAR para Navigator.of(ctx).pop()
                                               style: TextButton.styleFrom( // 🔹 ADICIONAR estilo do botão
-                                                backgroundColor: Colors.orange,
+                                                backgroundColor: const Color.fromARGB(255, 4, 0, 224),
                                                 foregroundColor: Colors.white,
                                                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                                               ),
