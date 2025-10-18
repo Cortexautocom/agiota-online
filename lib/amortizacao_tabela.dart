@@ -154,23 +154,31 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
     if (!mounted) return;
 
     if (sucesso) {
-      
-      showDialog(
+      await showDialog(
         context: context,
         barrierDismissible: false,
-        builder: (context) => const AlertDialog(
-          content: Text(
+        builder: (ctx) => AlertDialog(
+          content: const Text(
             "Dados salvos com sucesso!",
             textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 15),
           ),
+          actionsAlignment: MainAxisAlignment.center,
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              style: TextButton.styleFrom(
+                backgroundColor: Colors.orange,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              ),
+              child: const Text("OK"),
+            ),
+          ],
         ),
       );
 
-      await Future.delayed(const Duration(seconds: 2));
-
       if (mounted) {
-        Navigator.of(context).pop(); // fecha o diálogo de sucesso
-
         // 🔹 Retorna à tela de FinanceiroPage sinalizando que deve atualizar
         Navigator.pop(context, {
           'atualizar': true,

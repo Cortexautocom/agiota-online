@@ -436,7 +436,13 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
                                                   onSaved: _buscarEmprestimos,
                                                 ),
                                               ),
-                                            );
+                                            ).then((resultado) {
+                                              // 🔹 Caso o usuário arquive o empréstimo ou salve algo
+                                              if (resultado == true ||
+                                                  (resultado is Map && resultado['atualizar'] == true)) {
+                                                _buscarEmprestimos(); // 🔄 Atualiza tudo do banco
+                                              }
+                                            });
                                           }
                                         },
                                         cells: [

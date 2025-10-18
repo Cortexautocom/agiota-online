@@ -122,8 +122,15 @@ class ParcelasPageState extends State<ParcelasPage> {
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                       ),
                       onPressed: () {
-                        Navigator.of(context).pop();
-                        Navigator.pop(context, {'atualizar': true, 'cliente': cliente});
+                        Navigator.of(context).pop(); // Fecha o diálogo de confirmação
+                        Future.delayed(const Duration(milliseconds: 150), () {
+                          if (Navigator.canPop(context)) {
+                            Navigator.of(context).pop({
+                              'atualizar': true,
+                              'cliente': widget.emprestimo['cliente']
+                            });
+                          }
+                        });
                       },
                       icon: const Icon(Icons.warning_amber_rounded,
                           color: Colors.white, size: 18),
@@ -272,15 +279,22 @@ class ParcelasPageState extends State<ParcelasPage> {
                                     if (ok == true && mounted) {
                                       await showDialog(
                                         context: context,
+                                        barrierDismissible: false, // 🔹 ADICIONAR (igual à amortização)
                                         builder: (ctx) => AlertDialog(
                                           content: const Text(
-                                            "Parcelas salvas com sucesso",
+                                            "Parcelas salvas com sucesso!",
                                             textAlign: TextAlign.center,
+                                            style: TextStyle(fontSize: 15), // 🔹 ADICIONAR estilo
                                           ),
                                           actionsAlignment: MainAxisAlignment.center,
                                           actions: [
                                             TextButton(
-                                              onPressed: () => Navigator.pop(ctx),
+                                              onPressed: () => Navigator.of(ctx).pop(), // 🔹 MUDAR para Navigator.of(ctx).pop()
+                                              style: TextButton.styleFrom( // 🔹 ADICIONAR estilo do botão
+                                                backgroundColor: Colors.orange,
+                                                foregroundColor: Colors.white,
+                                                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                                              ),
                                               child: const Text("OK"),
                                             ),
                                           ],
@@ -392,24 +406,39 @@ class ParcelasPageState extends State<ParcelasPage> {
 
               if (!mounted) return;
 
+              // 🔹 Mostra diálogo de sucesso com botão OK
               await showDialog(
                 context: context,
-                builder: (ctx) => const AlertDialog(
-                  content: Text(
+                barrierDismissible: false,
+                builder: (ctx) => AlertDialog(
+                  content: const Text(
                     "Empréstimo arquivado com sucesso!",
                     textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 15),
                   ),
+                  actionsAlignment: MainAxisAlignment.center,
+                  actions: [
+                    TextButton(
+                      onPressed: () {
+                        Navigator.pop(ctx); // fecha o diálogo
+                        Navigator.pop(context, true); // volta ao financeiro com atualização
+                      },
+                      style: TextButton.styleFrom(
+                        backgroundColor: Colors.orange,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                      ),
+                      child: const Text("OK"),
+                    ),
+                  ],
                 ),
               );
-
-              Navigator.pop(context, true);
             } catch (e) {
               if (!mounted) return;
               await showDialog(
                 context: context,
                 builder: (ctx) => AlertDialog(
-                  content: Text("Erro ao arquivar: $e",
-                      textAlign: TextAlign.center),
+                  content: Text("Erro ao arquivar: $e", textAlign: TextAlign.center),
                   actions: [
                     TextButton(
                       onPressed: () => Navigator.pop(ctx),
