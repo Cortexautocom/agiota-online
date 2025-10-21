@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'main.dart';
+
 
 
 class LoginPage extends StatefulWidget {
@@ -97,7 +100,7 @@ class _LoginPageState extends State<LoginPage> {
                   SizedBox(
                     width: 200,
                     child: ElevatedButton(
-                      onPressed: () {},
+                      onPressed: _fazerLogin,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF28A745),
                         padding: const EdgeInsets.symmetric(vertical: 14),
@@ -142,4 +145,45 @@ class _LoginPageState extends State<LoginPage> {
       ),
     );
   }
+
+  Future<void> _fazerLogin() async {
+    final email = emailController.text.trim();
+    final senha = senhaController.text.trim();
+
+    if (email.isEmpty || senha.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Preencha e-mail e senha!')),
+      );
+      return;
+    }
+
+    try {
+      final supabase = Supabase.instance.client;
+
+      final res = await supabase.auth.signInWithPassword(
+        email: email,
+        password: senha,
+      );
+
+      if (res.user != null) {
+        // ✅ Login bem-sucedido
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const HomePage()),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Falha no login. Verifique seus dados.')),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erro: $e')),
+      );
+    }
+  }
+
+
+
+
 }

@@ -13,12 +13,10 @@ import 'login_page.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 🔹 SOLUÇÃO: Só carrega o .env se NÃO for web
   if (!kIsWeb) {
     await dotenv.load(fileName: '.env');
   }
 
-  // 🔹 Usando as credenciais do arquivo de configuração
   await Supabase.initialize(
     url: Env.supabaseUrl,
     anonKey: Env.supabaseAnonKey,
@@ -26,29 +24,36 @@ Future<void> main() async {
 
   await initializeDateFormatting("pt_BR", null);
 
-  runApp(const MyApp());
+  // 🔹 Pega o usuário atual, se existir
+  final user = Supabase.instance.client.auth.currentUser;
+
+  // 🔹 Decide qual página abrir
+  final Widget startPage =
+      user != null ? const HomePage() : const LoginPage();
+
+  runApp(MyApp(initialPage: startPage));
 }
 
 
+
+
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  final Widget initialPage;
+  const MyApp({super.key, required this.initialPage});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      locale: const Locale("pt", "BR"), // 👈 força pt-BR
-      supportedLocales: const [
-        Locale("pt", "BR"),
-      ],
+      locale: const Locale("pt", "BR"),
+      supportedLocales: const [Locale("pt", "BR")],
       localizationsDelegates: [
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-
       theme: ThemeData(
-        scaffoldBackgroundColor: const Color(0xFFFAF9F6), // 🔹 fundo creme em todas as páginas
+        scaffoldBackgroundColor: const Color(0xFFFAF9F6),
         appBarTheme: const AppBarTheme(
           backgroundColor: Color(0xFF1c2331),
           iconTheme: IconThemeData(color: Colors.white),
@@ -59,10 +64,11 @@ class MyApp extends StatelessWidget {
           ),
         ),
       ),
-      home: const LoginPage(),
+      home: initialPage,
     );
   }
 }
+
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
