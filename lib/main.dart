@@ -8,6 +8,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'relatorios_page.dart';
 import 'config/env.dart';
+import 'login_page.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -62,109 +63,6 @@ class MyApp extends StatelessWidget {
     );
   }
 }
-
-
-class LoginPage extends StatefulWidget {
-  const LoginPage({super.key});
-
-  @override
-  State<LoginPage> createState() => _LoginPageState();
-}
-
-class _LoginPageState extends State<LoginPage> {
-  final emailController = TextEditingController();
-  final senhaController = TextEditingController();
-  bool carregando = false;
-  String erro = "";
-
-  Future<void> _login() async {
-    setState(() {
-      carregando = true;
-      erro = "";
-    });
-
-    try {
-      final response = await Supabase.instance.client.auth.signInWithPassword(
-        email: emailController.text.trim(),
-        password: senhaController.text.trim(),
-      );
-
-      if (response.user != null) {
-        final user = response.user!;
-
-        // 🔹 Garante que o usuário também exista na tabela public.usuarios
-        await Supabase.instance.client.from('usuarios').upsert({
-          'id': user.id,        // mesmo UUID do auth.users
-          'email': user.email,  // ajuste conforme colunas da sua tabela usuarios
-        });
-
-        // Login OK → vai para HomePage
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const HomePage()),
-        );
-      } else {
-        setState(() {
-          erro = "Usuário ou senha inválidos.";
-        });
-      }
-    } catch (e) {
-      setState(() {
-        erro = "Erro: $e";
-      });
-    } finally {
-      setState(() {
-        carregando = false;
-      });
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                "Login",
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 20),
-              TextField(
-                controller: emailController,
-                decoration: const InputDecoration(labelText: "E-mail"),
-                keyboardType: TextInputType.emailAddress,
-              ),
-              TextField(
-                controller: senhaController,
-                decoration: const InputDecoration(labelText: "Senha"),
-                obscureText: true,
-              ),
-              const SizedBox(height: 20),
-              if (erro.isNotEmpty)
-                Text(
-                  erro,
-                  style: const TextStyle(color: Colors.red),
-                ),
-              ElevatedButton(
-                onPressed: carregando ? null : _login,
-                child: carregando
-                    ? const CircularProgressIndicator(color: Colors.white)
-                    : const Text("Entrar"),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-
-
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
