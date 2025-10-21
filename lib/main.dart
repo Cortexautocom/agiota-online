@@ -22,6 +22,11 @@ Future<void> main() async {
     anonKey: Env.supabaseAnonKey,
   );
 
+  final client = Supabase.instance.client;
+  final response = await client.from('clientes').select().limit(1);
+  print('Teste de conexão Supabase: $response');
+
+
   await initializeDateFormatting("pt_BR", null);
 
   // 🔹 Pega o usuário atual, se existir

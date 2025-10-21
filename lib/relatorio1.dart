@@ -98,7 +98,7 @@ class _RelatorioParcelasEmAbertoState
             juros_total,
             qtd_parcelas
           ''')
-          .gt('residual', 0)
+          .gt('residual', 1.00) // 🔹 ALTERADO: considera apenas residual acima de R$ 1,00
           .eq('ativo', 'sim')
           .order('cliente', ascending: true)
           .order('vencimento', ascending: true);

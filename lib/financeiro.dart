@@ -30,14 +30,12 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
   @override
   void initState() {
     super.initState();
-    print('🧩 [Financeiro] initState chamado');
     _buscarEmprestimos();
   }
 
   @override
   void didUpdateWidget(FinanceiroPage oldWidget) {
     super.didUpdateWidget(oldWidget);
-    print('🔁 [Financeiro] didUpdateWidget chamado');
     if (widget.forceRefresh && !oldWidget.forceRefresh) {
       _buscarEmprestimos();
     }
@@ -45,13 +43,10 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
 
   @override
   void dispose() {
-    print('🟥 [Financeiro] dispose chamado (tela destruída)');
     super.dispose();
   }
 
-  /// 🔹 Recarrega a lista de empréstimos (usado pelos callbacks)
   Future<void> _buscarEmprestimos() async {
-    print('🔄 [Financeiro] Chamando _buscarEmprestimos()...');
     setState(() {
       _emprestimosFuture = Supabase.instance.client
           .from('emprestimos')
@@ -62,21 +57,14 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
     });
   }
 
-
-
-  /// 🔹 CALCULA VALORES ESPECÍFICOS PARA AMORTIZAÇÃO
-  /// 🔹 CALCULA VALORES ESPECÍFICOS PARA AMORTIZAÇÃO
-  /// 🔹 CALCULA VALORES ESPECÍFICOS PARA AMORTIZAÇÃO
   Future<Map<String, dynamic>> _calcularValoresAmortizacao(String idEmprestimo) async {
     try {
-      // 🔹 BUSCA TODOS OS CAMPOS NECESSÁRIOS
       final parcelas = await Supabase.instance.client
           .from('parcelas')
-          .select('juros_periodo, residual, data_mov') // 🔹 USA data_mov COMO VENCIMENTO
+          .select('juros_periodo, residual, data_mov')
           .eq('id_emprestimo', idEmprestimo)
-          .order('data_mov'); // 🔹 ORDENA POR data_mov
+          .order('data_mov');
 
-      // Busca o valor do capital do empréstimo
       final emprestimo = await Supabase.instance.client
           .from('emprestimos')
           .select('valor')
@@ -85,20 +73,16 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
 
       final capital = _asDouble(emprestimo['valor']);
       
-      // Calcula juros totais (soma de todos os juros_periodo)
       double jurosTotais = 0.0;
       for (final parcela in parcelas) {
         jurosTotais += _asDouble(parcela['juros_periodo']);
       }
 
-      // Calcula total (capital + juros totais)
       final total = capital + jurosTotais;
 
-      // Calcula valor da parcela (capital/num_parcelas + juros_totais/num_parcelas)
       final numParcelas = parcelas.length;
       final valorParcela = numParcelas > 0 ? (capital / numParcelas) + (jurosTotais / numParcelas) : 0.0;
 
-      // 🔹 ENCONTRA PRÓXIMA DATA (USA data_mov)
       DateTime? proximaData;
       final agora = DateTime.now();
       
@@ -109,7 +93,6 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
         final data = DateTime.tryParse(dataTexto);
         if (data == null) continue;
 
-        // Considera apenas parcelas com residual > 0 (não pagas)
         final residual = _asDouble(parcela['residual']);
         if (residual > 0.01 && data.isAfter(agora)) {
           if (proximaData == null || data.isBefore(proximaData)) {
@@ -118,7 +101,6 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
         }
       }
 
-      // Verifica situação (Em dia ou Em atraso)
       String situacao = "Em dia";
       for (final parcela in parcelas) {
         final dataTexto = parcela['data_mov']?.toString() ?? "";
@@ -128,7 +110,6 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
         if (data == null) continue;
 
         final residual = _asDouble(parcela['residual']);
-        // Se tem parcela vencida (antes de hoje) com residual > 0, está em atraso
         if (residual > 0.01 && data.isBefore(agora)) {
           situacao = "Em atraso";
           break;
@@ -144,7 +125,6 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
         'num_parcelas': numParcelas,
       };
     } catch (e) {
-      print('Erro ao calcular valores da amortização: $e');
       return {
         'juros': 0.0,
         'total': 0.0,
@@ -157,7 +137,6 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
   }
 
   Future<Map<String, String>> _calcularDatas(String idEmprestimo, String tipoMov) async {
-    // 🔹 SE FOR AMORTIZAÇÃO, USA BUSCA DIRETA DO BANCO
     if (tipoMov == 'amortizacao') {
       try {
         final parcelas = await Supabase.instance.client
@@ -202,13 +181,11 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
           "ultima": ultimaData == null
               ? "-"
               : DateFormat("dd/MM/yyyy").format(ultimaData),
-          // 🔹 As linhas que serão mostradas na tabela:
           "situacao_linha1": "$pagas pagas",
           "situacao_linha2": "$abertas restando",
           "acordo": "nao",
         };
       } catch (e) {
-        print('Erro ao calcular amortização: $e');
         return {
           "proxima": "-",
           "ultima": "-",
@@ -219,9 +196,6 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
       }
     }
 
-    // 🔹 COMPORTAMENTO ORIGINAL PARA PARCELAMENTO (MANTIDO IGUAL)
-    // 🔹 Para PARCELAMENTO, usa o campo 'vencimento'
-    // 🔹 Para AMORTIZAÇÃO, usa 'data_mov'
     final parcelas = await Supabase.instance.client
         .from('parcelas')
         .select(tipoMov == 'amortizacao'
@@ -235,7 +209,6 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
     int abertas = 0;
 
     for (final p in parcelas) {
-      // 🔹 Escolhe o campo de data conforme o tipo
       final vencTxt = (tipoMov == 'amortizacao'
           ? p['data_mov']
           : p['vencimento'])?.toString() ?? "";
@@ -247,7 +220,6 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
 
       final residual = num.tryParse("${p['residual']}") ?? 0;
 
-      // 🔹 considera paga se residual for próximo de 0
       if (residual.abs() < 0.01) {
         pagas++;
       } else {
@@ -257,7 +229,6 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
         }
       }
 
-      // 🔹 mantém a última data de vencimento
       if (ultima == null || venc.isAfter(ultima)) {
         ultima = venc;
       }
@@ -327,7 +298,6 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
         body: TabBarView(
           physics: const NeverScrollableScrollPhysics(),
           children: [
-            // 🔹 Aba 1: Empréstimos Ativos
             Container(
               color: const Color(0xFFFAF9F6),
               padding: const EdgeInsets.all(16),
@@ -412,23 +382,18 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
                                           emp['id_cliente'] = cliente['id_cliente'];
                                           emp['id_usuario'] = cliente['id_usuario'] ?? '';
 
-                                          print('🟦 [Financeiro] TipoMov detectado: $tipoMov');
-
                                           if (tipoMov == 'amortizacao') {
-                                            print('🟦 [Financeiro] Abrindo tela AmortizacaoTabela...');
                                             final resultado = await Navigator.push(
                                               context,
                                               MaterialPageRoute(
                                                 builder: (context) => AmortizacaoTabela(
                                                   emprestimo: emp,
-                                                  onSaved: _buscarEmprestimos, // ✅ NOVO, igual ao ParcelasPage
+                                                  onSaved: _buscarEmprestimos,
                                                 ),
                                               ),
                                             );
-                                            print('🟧 [Financeiro] Retorno da tela AmortizacaoTabela: $resultado');
 
                                             if (mounted && (resultado == true || (resultado is Map && resultado['atualizar'] == true))) {
-                                              print('🟢 [Financeiro] Recarregando _emprestimosFuture...');
                                               setState(() {
                                                 _emprestimosFuture = Supabase.instance.client
                                                     .from('emprestimos')
@@ -437,11 +402,8 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
                                                     .eq('ativo', 'sim')
                                                     .order('data_inicio');
                                               });
-                                            } else {
-                                              print('🟠 [Financeiro] Nenhum reload disparado. Resultado não esperado.');
                                             }
                                           } else {
-                                            print('🟦 [Financeiro] Abrindo tela ParcelasPage...');
                                             final resultado = await Navigator.push(
                                               context,
                                               MaterialPageRoute(
@@ -451,13 +413,9 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
                                                 ),
                                               ),
                                             );
-                                            print('🟧 [Financeiro] Retorno da tela ParcelasPage: $resultado');
 
                                             if (mounted && (resultado == true || (resultado is Map && resultado['atualizar'] == true))) {
-                                              print('🟢 [Financeiro] Recarregando via _buscarEmprestimos()...');
                                               _buscarEmprestimos();
-                                            } else {
-                                              print('🟠 [Financeiro] Nenhum reload disparado. Resultado não esperado.');
                                             }
                                           }
                                         },
@@ -473,7 +431,6 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
                                                     : Center(child: Text(snap.data!['ultima'] ?? "-")),
                                           ))),
                                           DataCell(SizedBox(width: 80, child: Center(child: Text(fmtMoeda(_asDouble(emp['valor'])))))),
-                                          // 🔹 COLUNA JUROS: Mostra juros calculados para amortização
                                           DataCell(SizedBox(width: 80, child: Center(child: 
                                             tipoMov == 'amortizacao'
                                                 ? FutureBuilder<Map<String, dynamic>>(
@@ -485,7 +442,6 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
                                                   )
                                                 : Text(fmtMoeda(_asDouble(emp['juros'])))
                                           ))),
-                                          // 🔹 COLUNA TOTAL: Para amortização é capital + juros totais
                                           DataCell(SizedBox(width: 80, child: Center(child: 
                                             tipoMov == 'amortizacao'
                                                 ? FutureBuilder<Map<String, dynamic>>(
@@ -498,7 +454,6 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
                                                   )
                                                 : Text(fmtMoeda(_asDouble(emp['valor']) + _asDouble(emp['juros'])))
                                           ))),
-                                          // 🔹 COLUNA PARCELAS: Para amortização mostra cálculo específico
                                           DataCell(SizedBox(width: 100, child: Center(child: 
                                             tipoMov == 'amortizacao'
                                                 ? FutureBuilder<Map<String, dynamic>>(
@@ -552,8 +507,6 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
                                               );
                                             },
                                           ))),
-                                          // 🔹 COLUNA SITUAÇÃO: Para amortização mostra "Em dia" ou "Em atraso"
-                                          // 🔹 COLUNA SITUAÇÃO: Para amortização mostra "Em dia" ou "Em atraso"
                                           DataCell(SizedBox(
                                             width: 90,
                                             child: FutureBuilder<Map<String, String>>(
@@ -561,15 +514,12 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
                                               builder: (context, snap) {
                                                 if (!snap.hasData) return const Text("-");
 
-                                                // 🔹 Define o tipo e as cores
                                                 final tipoTexto = (tipoMov == 'amortizacao') ? "Amortização" : "Parcelamento";
                                                 final tipoCor = (tipoMov == 'amortizacao') ? Colors.green : Colors.blue;
 
-                                                // 🔹 Captura contagens do banco
                                                 final linhaPagas = snap.data!['situacao_linha1'] ?? "0 pagas";
                                                 final linhaRestantes = snap.data!['situacao_linha2'] ?? "0 restando";
 
-                                                // 🔹 Monta exibição
                                                 return Center(
                                                   child: Column(
                                                     mainAxisSize: MainAxisSize.min,
@@ -620,7 +570,7 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
                                 ),
                               );
 
-                              if (tipo == null) return; // Usuário cancelou
+                              if (tipo == null) return;
 
                               if (tipo == 'parcelamento') {
                                 Navigator.push(
@@ -635,10 +585,8 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
                                 );
                               } else if (tipo == 'amortizacao') {
                                 final emprestimoId = Uuid().v4();
-                                print('🟦 [Financeiro] Criando novo empréstimo (amortização)... ID=$emprestimoId');
 
                                 try {
-                                  // 🔹 Cria o novo registro
                                   await Supabase.instance.client.from('emprestimos').insert({
                                     'id': emprestimoId,
                                     'id_cliente': cliente['id_cliente'],
@@ -652,13 +600,9 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
                                     'tipo_mov': 'amortizacao',
                                   });
 
-                                  print('✅ [Financeiro] Empréstimo criado no banco. Atualizando lista antes de abrir a tabela...');
-
-                                  // 🔹 Força recarregar antes de abrir a tela
                                   await _buscarEmprestimos();
                                   await Future.delayed(const Duration(milliseconds: 300));
 
-                                  // 🔹 Monta o objeto para a tela
                                   final emprestimo = {
                                     'id': emprestimoId,
                                     'cliente': cliente['nome'],
@@ -667,27 +611,20 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
                                     'tipo_mov': 'amortizacao',
                                   };
 
-                                  print('🟦 [Financeiro] Abrindo tela AmortizacaoTabela...');
                                   final resultado = await Navigator.push(
                                     context,
                                     MaterialPageRoute(
                                       builder: (context) => AmortizacaoTabela(
                                         emprestimo: emprestimo,
-                                        onSaved: _buscarEmprestimos, // ✅ NOVO, igual ao ParcelasPage
+                                        onSaved: _buscarEmprestimos,
                                       ),
                                     ),
                                   );
 
-                                  print('🟧 [Financeiro] Retorno da criação de amortização: $resultado');
-
                                   if (mounted && (resultado == true || (resultado is Map && resultado['atualizar'] == true))) {
-                                    print('🟢 [Financeiro] Recarregando lista após salvar amortização...');
                                     _buscarEmprestimos();
-                                  } else {
-                                    print('🟠 [Financeiro] Nenhum reload após salvar amortização.');
                                   }
                                 } catch (e) {
-                                  print('❌ [Financeiro] Erro ao criar empréstimo: $e');
                                   if (!mounted) return;
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(
@@ -731,7 +668,7 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
       final data = DateTime.parse(dataISO);
       return DateFormat("dd/MM/yyyy").format(data);
     } catch (e) {
-      return dataISO; // Se der erro, retorna o original
+      return dataISO;
     }
   }
 }

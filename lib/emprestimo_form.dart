@@ -205,8 +205,9 @@ class _EmprestimoFormState extends State<EmprestimoForm> {
     final prestacaoFinal = double.parse((prestacao ?? 0).toStringAsFixed(2));
     final taxaMensal = double.parse((taxaFinal ?? 0).toStringAsFixed(4));
 
-    // 🔹 Inserir o empréstimo
     // 🔹 Inserir o empréstimo e retornar o número gerado pelo banco
+    print('DEBUG: Enviando tipo_mov = parcelamento');
+
     final insertResp = await supabase
         .from('emprestimos')
         .insert({
@@ -220,9 +221,10 @@ class _EmprestimoFormState extends State<EmprestimoForm> {
           'taxa': taxaMensal,
           'id_usuario': userId,
           'ativo': 'sim',
+          'tipo_mov': 'parcelamento', // ✅ valor explícito
         })
-        .select('numero')
-        .maybeSingle();
+        .select()
+        .maybeSingle(); // ✅ retorna o registro completo
 
     // ✅ Captura o número do empréstimo gerado pelo trigger
     final numeroEmprestimo = insertResp?['numero'] ?? 0;
