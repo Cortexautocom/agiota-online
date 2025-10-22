@@ -364,9 +364,18 @@ class ParcelasTableState extends State<ParcelasTable> {
                   final bool parcelaPaga = residualAtual <= 1.00;
 
                   // 🔹 Define cores com prioridade: Paga > Acordo > Atraso > Normal
+                  // 🔹 Verifica se a próxima parcela tem um acordo ativo
+                  bool proximaTemAcordo = false;
+                  if (i < widget.parcelas.length - 1) {
+                    final prox = widget.parcelas[i + 1];
+                    proximaTemAcordo = prox['data_prevista'] != null &&
+                        prox['data_prevista'].toString().isNotEmpty;
+                  }
+
+                  // 🔹 Define cores com prioridade: Paga > Acordo (inclui próxima) > Atraso > Normal
                   final rowColor = parcelaPaga
                       ? Colors.green.withOpacity(0.2)
-                      : (temAcordo && residualAtual != 0)
+                      : ((temAcordo || proximaTemAcordo) && residualAtual > 1.00)
                           ? Colors.orange.withOpacity(0.2)
                           : estaEmAtraso
                               ? Colors.red.withOpacity(0.2)
@@ -374,7 +383,7 @@ class ParcelasTableState extends State<ParcelasTable> {
 
                   final textColor = parcelaPaga
                       ? Colors.green[800]
-                      : (temAcordo && residualAtual > 1.00)
+                      : ((temAcordo || proximaTemAcordo) && residualAtual > 1.00)
                           ? Colors.brown
                           : estaEmAtraso
                               ? Colors.red

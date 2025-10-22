@@ -157,6 +157,11 @@ Future<bool?> abrirAcordoDialog(
         // 🔹 Botão Excluir acordo - ROSA CLARO
         FilledButton.tonal(
           onPressed: () async {
+            final idEmprestimo = parcela["id_emprestimo"];
+            final idUsuario = parcela["id_usuario"];
+            final hojeISO = DateFormat("yyyy-MM-dd").format(DateTime.now());
+
+            // 🔹 Remove o acordo de TODAS as parcelas vencidas do mesmo empréstimo
             await Supabase.instance.client
                 .from("parcelas")
                 .update({
@@ -164,7 +169,10 @@ Future<bool?> abrirAcordoDialog(
                   "comentario": null,
                   "juros_acordo": null,
                 })
-                .eq("id", parcela["id"]);
+                .eq("id_emprestimo", idEmprestimo)
+                .eq("id_usuario", idUsuario)
+                .lte("vencimento", hojeISO);
+
 
             parcela["data_prevista"] = null;
             parcela["comentario"] = null;
@@ -337,6 +345,11 @@ Future<bool?> abrirAcordoDialog(
                 DateFormat("dd/MM/yyyy").parseStrict(dataCtrl.text);
             final dataISO = DateFormat("yyyy-MM-dd").format(acordoDate);
 
+            final idEmprestimo = parcela["id_emprestimo"];
+            final idUsuario = parcela["id_usuario"];
+            final hojeISO = DateFormat("yyyy-MM-dd").format(DateTime.now());
+
+            // 🔹 Atualiza TODAS as parcelas vencidas e não pagas (residual > 1)
             await Supabase.instance.client
                 .from("parcelas")
                 .update({
@@ -344,7 +357,11 @@ Future<bool?> abrirAcordoDialog(
                   "comentario": comentarioCtrl.text,
                   "juros_acordo": jurosAcordo,
                 })
-                .eq("id", parcela["id"]);
+                .eq("id_emprestimo", idEmprestimo)
+                .eq("id_usuario", idUsuario)
+                .lte("vencimento", hojeISO)
+                .gte("residual", 1.00);
+
 
             parcela["data_prevista"] = dataCtrl.text;
             parcela["comentario"] = comentarioCtrl.text;
