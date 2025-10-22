@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:mask_text_input_formatter/mask_text_input_formatter.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:flutter/foundation.dart'; // ADICIONE ESTA LINHA
+import 'package:flutter/foundation.dart';
 import 'clientes_page.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -26,21 +26,13 @@ Future<void> main() async {
   final response = await client.from('clientes').select().limit(1);
   print('Teste de conexão Supabase: $response');
 
-
   await initializeDateFormatting("pt_BR", null);
 
-  // 🔹 Pega o usuário atual, se existir
   final user = Supabase.instance.client.auth.currentUser;
-
-  // 🔹 Decide qual página abrir
-  final Widget startPage =
-      user != null ? const HomePage() : const LoginPage();
+  final Widget startPage = user != null ? const HomePage() : const LoginPage();
 
   runApp(MyApp(initialPage: startPage));
 }
-
-
-
 
 class MyApp extends StatelessWidget {
   final Widget initialPage;
@@ -74,7 +66,6 @@ class MyApp extends StatelessWidget {
   }
 }
 
-
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
 
@@ -84,6 +75,25 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   int _selectedIndex = 0;
+  String? userEmail;
+
+  @override
+  void initState() {
+    super.initState();
+    final user = Supabase.instance.client.auth.currentUser;
+    userEmail = user?.email ?? "Usuário";
+  }
+
+  Future<void> _logout() async {
+    await Supabase.instance.client.auth.signOut();
+
+    if (!mounted) return;
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (_) => const LoginPage()),
+      (route) => false,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -96,7 +106,7 @@ class _HomePageState extends State<HomePage> {
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 20),
             decoration: const BoxDecoration(
-              color: Color(0xFF1C2331), // fundo escuro elegante
+              color: Color(0xFF1C2331),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black26,
@@ -106,15 +116,62 @@ class _HomePageState extends State<HomePage> {
               ],
             ),
             child: Row(
-              children: const [
-                Icon(Icons.attach_money, color: Colors.greenAccent, size: 28),
-                SizedBox(width: 10),
-                Text(
-                  "Agiota Online",
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                // 🔹 Logo e nome do sistema
+                Row(
+                  children: const [
+                    Icon(Icons.attach_money,
+                        color: Colors.greenAccent, size: 28),
+                    SizedBox(width: 10),
+                    Text(
+                      "Agiota Online",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+
+                // 🔹 Menu de usuário no canto superior direito
+                PopupMenuButton<String>(
+                  offset: const Offset(0, 40),
+                  color: Colors.white,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10)),
+                  onSelected: (value) {
+                    if (value == 'logout') {
+                      _logout();
+                    }
+                  },
+                  itemBuilder: (context) => [
+                    const PopupMenuItem<String>(
+                      value: 'logout',
+                      child: Row(
+                        children: [
+                          Icon(Icons.logout, color: Colors.red),
+                          SizedBox(width: 8),
+                          Text('Sair'),
+                        ],
+                      ),
+                    ),
+                  ],
+                  child: Row(
+                    children: [
+                      const CircleAvatar(
+                        radius: 16,
+                        backgroundColor: Colors.white,
+                        child: Icon(Icons.person, color: Color(0xFF1C2331)),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        userEmail ?? "Usuário",
+                        style: const TextStyle(color: Colors.white),
+                      ),
+                      const Icon(Icons.arrow_drop_down, color: Colors.white),
+                    ],
                   ),
                 ),
               ],
@@ -192,7 +249,6 @@ class _HomePageState extends State<HomePage> {
   }
 }
 
-
 Future<Map<String, dynamic>?> open_client_form(BuildContext context) async {
   final nomeController = TextEditingController();
   final cpfController = TextEditingController();
@@ -201,7 +257,6 @@ Future<Map<String, dynamic>?> open_client_form(BuildContext context) async {
   final cidadeController = TextEditingController();
   final indicacaoController = TextEditingController();
 
-  // 🔹 Máscaras
   final cpfFormatter = MaskTextInputFormatter(
     mask: '###.###.###-##',
     filter: {"#": RegExp(r'[0-9]')},
@@ -277,5 +332,3 @@ Future<Map<String, dynamic>?> open_client_form(BuildContext context) async {
     },
   );
 }
-
-

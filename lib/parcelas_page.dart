@@ -140,15 +140,16 @@ class ParcelasPageState extends State<ParcelasPage> {
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                       ),
                       onPressed: () {
-                        Navigator.of(context).pop(); // Fecha o diálogo de confirmação
-                        Future.delayed(const Duration(milliseconds: 150), () {
-                          if (Navigator.canPop(context)) {
-                            Navigator.of(context).pop({
-                              'atualizar': true,
-                              'cliente': widget.emprestimo['cliente']
-                            });
-                          }
-                        });
+                        // Fecha o diálogo de confirmação imediatamente
+                        Navigator.of(context).pop();
+
+                        // Fecha a tela atual e sinaliza atualização (sem delay)
+                        if (Navigator.canPop(context)) {
+                          Navigator.of(context).pop({
+                            'atualizar': true,
+                            'cliente': widget.emprestimo['cliente'],
+                          });
+                        }
                       },
                       icon: const Icon(Icons.warning_amber_rounded,
                           color: Colors.white, size: 18),

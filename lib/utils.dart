@@ -1,4 +1,9 @@
 import 'package:intl/intl.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+// -------------------------
+// 🔹 FORMATAÇÃO DE MOEDA
+// -------------------------
 
 final _formatter = NumberFormat.currency(locale: "pt_BR", symbol: "R\$");
 
@@ -17,17 +22,15 @@ String fmtMoeda2(dynamic valor) {
   final txt = valor.toString().trim();
   if (txt.isEmpty) return "";
   if (txt.startsWith("R\$")) return txt; // já está formatado
-  
+
   final numero = num.tryParse(txt.replaceAll(",", "."));
   if (numero == null) return txt;
 
-  // 🔹 NOVA LÓGICA: Só adiciona ponto se o valor for >= 1000
+  // 🔹 NOVA LÓGICA: só adiciona ponto se o valor for >= 1000
   if (numero < 1000) {
-    // Valores abaixo de 1000: apenas substitui ponto por vírgula
     final partes = numero.toStringAsFixed(2).split('.');
     return "R\$ ${partes[0]},${partes[1]}";
   } else {
-    // Valores acima de 1000: usa o formatador normal com separador de milhar
     final _formatter = NumberFormat.currency(locale: "pt_BR", symbol: "R\$");
     return _formatter.format(numero);
   }
@@ -44,6 +47,10 @@ double parseMoeda(String? txt) {
   return double.tryParse(cleaned) ?? 0.0;
 }
 
+// -------------------------
+// 🔹 FORMATAÇÃO DE DATA
+// -------------------------
+
 String formatarData(String? data) {
   if (data == null || data.isEmpty) return "";
   try {
@@ -54,10 +61,47 @@ String formatarData(String? data) {
       final dia = partes[2];
       return "$dia/$mes/$ano";
     }
-    return data; // aqui já não é mais nulo
+    return data;
   } catch (_) {
-    return ""; // se der erro, retorna vazio
+    return "";
   }
 }
 
+// -------------------------
+// 🔹 LIMPEZA AUTOMÁTICA DE ACORDOS VENCIDOS
+// -------------------------
 
+/// Executa automaticamente no login do usuário
+Future<void> verificarAcordosVencidosAoLogin(String idUsuario) async {
+  try {
+    final supabase = Supabase.instance.client;
+    final hoje = DateTime.now();
+    final hojeISO =
+        "${hoje.year}-${hoje.month.toString().padLeft(2, '0')}-${hoje.day.toString().padLeft(2, '0')}";
+
+    // 🔹 Busca acordos vencidos e ainda não pagos
+    final acordosVencidos = await supabase
+        .from('parcelas')
+        .select('id, id_emprestimo')
+        .eq('id_usuario', idUsuario)
+        .lt('data_prevista', hojeISO)
+        .gte('residual', 1.00);
+
+    if (acordosVencidos.isNotEmpty) {
+      // 🔹 Remove o acordo das parcelas vencidas (incluindo anteriores)
+      await supabase
+          .from('parcelas')
+          .update({
+            'data_prevista': null,
+            'comentario': null,
+            'juros_acordo': null,
+          })
+          .eq('id_usuario', idUsuario)
+          .lte('vencimento', hojeISO);
+
+      print("⚠️ Acordos vencidos removidos automaticamente no login (${acordosVencidos.length}).");
+    }
+  } catch (e) {
+    print("❌ Erro ao remover acordos vencidos: $e");
+  }
+}

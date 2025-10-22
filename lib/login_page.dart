@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'main.dart';
-
-
+import 'utils.dart'; // 🔹 Import necessário para usar verificarAcordosVencidosAoLogin
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -47,7 +46,7 @@ class _LoginPageState extends State<LoginPage> {
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
-                children: [                  
+                children: [
                   const SizedBox(height: 12),
                   Image.asset(
                     'assets/logo_agiomestre.png',
@@ -166,7 +165,13 @@ class _LoginPageState extends State<LoginPage> {
       );
 
       if (res.user != null) {
-        // ✅ Login bem-sucedido
+        final usuario = res.user!;
+
+        // ✅ Limpa acordos vencidos antes de abrir o app
+        await verificarAcordosVencidosAoLogin(usuario.id);
+
+        // ✅ Login bem-sucedido — entra na Home
+        if (!mounted) return;
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (context) => const HomePage()),
@@ -182,8 +187,4 @@ class _LoginPageState extends State<LoginPage> {
       );
     }
   }
-
-
-
-
 }
