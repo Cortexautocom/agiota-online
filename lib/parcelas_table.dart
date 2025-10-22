@@ -538,39 +538,70 @@ class ParcelasTableState extends State<ParcelasTable> {
 
                                 final hoje = DateTime.now();
                                 final limite = hoje.add(const Duration(days: 7));
-                                final temAcordo = p['data_prevista'] != null &&
-                                    p['data_prevista'].toString().isNotEmpty;
+                                final temAcordo =
+                                    p['data_prevista'] != null && p['data_prevista'].toString().isNotEmpty;
                                 final podeFazerAcordo = vencimento != null &&
                                     vencimento.isBefore(limite.add(const Duration(days: 1)));
 
+                                // 🔹 BLOCO 1 — Quando já existe um acordo ativo
                                 if (temAcordo) {
-                                  return IconButton(
-                                    icon: const Icon(Icons.warning_amber_rounded,
-                                        color: Colors.orange, size: 22),
-                                    tooltip: residualAtual <= 1.00
-                                        ? "Acordo concluído (parcela paga)"
-                                        : "Acordo ativo",
-                                    onPressed: () async {
-                                      final parcelaAtualizada = await Supabase.instance.client
-                                          .from("parcelas")
-                                          .select()
-                                          .eq("id", p['id'])
-                                          .single();
+                                  return FutureBuilder(
+                                    future: Supabase.instance.client
+                                        .from('parcelas')
+                                        .select('comentario')
+                                        .eq('id', p['id'])
+                                        .maybeSingle(),
+                                    builder: (context, snapshot) {
+                                      String tooltipTexto;
 
-                                      final resultado = await abrirAcordoDialog(
-                                          context, parcelaAtualizada, widget.emprestimo);
-
-                                      if (resultado == true && mounted) {
-                                        final state =
-                                            context.findAncestorStateOfType<ParcelasPageState>();
-                                        if (state != null && state.mounted) {
-                                          await state.atualizarParcelas();
-                                        }
-                                        setState(() {});
+                                      if (snapshot.connectionState == ConnectionState.waiting) {
+                                        tooltipTexto = "Verificando acordo...";
+                                      } else if (snapshot.hasError) {
+                                        tooltipTexto = "Erro ao verificar acordo.";
+                                      } else if (snapshot.hasData &&
+                                          (snapshot.data?['comentario']
+                                                  ?.toString()
+                                                  .toLowerCase()
+                                                  .contains('acordo vencido') ??
+                                              false)) {
+                                        tooltipTexto =
+                                            "Contém acordo vencido. Acesse 'Consultar acordo vencido' no menu ao lado.";
+                                      } else {
+                                        tooltipTexto = residualAtual <= 1.00
+                                            ? "Acordo concluído (parcela paga)"
+                                            : "Acordo ativo";
                                       }
+
+                                      return IconButton(
+                                        icon: const Icon(Icons.warning_amber_rounded,
+                                            color: Colors.orange, size: 22),
+                                        tooltip: tooltipTexto,
+                                        onPressed: () async {
+                                          final parcelaAtualizada = await Supabase.instance.client
+                                              .from("parcelas")
+                                              .select()
+                                              .eq("id", p['id'])
+                                              .single();
+
+                                          final resultado = await abrirAcordoDialog(
+                                              context, parcelaAtualizada, widget.emprestimo);
+
+                                          if (resultado == true && mounted) {
+                                            final state =
+                                                context.findAncestorStateOfType<ParcelasPageState>();
+                                            if (state != null && state.mounted) {
+                                              await state.atualizarParcelas();
+                                            }
+                                            setState(() {});
+                                          }
+                                        },
+                                      );
                                     },
                                   );
-                                } else if (!podeFazerAcordo) {
+                                }
+
+                                // 🔹 BLOCO 2 — Quando não pode mais criar acordo
+                                else if (!podeFazerAcordo) {
                                   return IconButton(
                                     icon: const Icon(Icons.handshake, color: Colors.grey, size: 22),
                                     tooltip: residualAtual < 1.00
@@ -590,32 +621,29 @@ class ParcelasTableState extends State<ParcelasTable> {
                                             );
                                           },
                                   );
-                                } else {
+                                }
+
+                                // 🔹 BLOCO 3 — Pode criar acordo normalmente (verifica última vencida)
+                                else {
                                   final parcelasVencidas = widget.parcelas.where((parcela) {
                                     try {
                                       final v = DateTime.parse(parcela['vencimento'].toString());
-
-                                      // 🔹 Calcula residual atualizado com os mesmos critérios visuais
                                       final residualAtualTemp = (parcela['valor'] ?? 0).toDouble() +
                                           (parcela['juros'] ?? 0).toDouble() -
                                           (parcela['desconto'] ?? 0).toDouble() -
                                           ((parcela['pg_principal'] ?? 0).toDouble() +
                                               (parcela['pg_juros'] ?? 0).toDouble());
-
-                                      // 🔹 Só considera "vencida" se for anterior a hoje e residual > 1,00
                                       return v.isBefore(DateTime.now()) && residualAtualTemp > 1.00;
                                     } catch (_) {
                                       return false;
                                     }
                                   }).toList();
 
-                                  parcelasVencidas.sort((a, b) =>
-                                      DateTime.parse(a['vencimento'].toString())
-                                          .compareTo(DateTime.parse(b['vencimento'].toString())));
+                                  parcelasVencidas.sort((a, b) => DateTime.parse(a['vencimento'].toString())
+                                      .compareTo(DateTime.parse(b['vencimento'].toString())));
 
-                                  final ultimaVencida = parcelasVencidas.isNotEmpty
-                                      ? parcelasVencidas.last
-                                      : null;
+                                  final ultimaVencida =
+                                      parcelasVencidas.isNotEmpty ? parcelasVencidas.last : null;
 
                                   final bool naoEhUltimaVencida =
                                       ultimaVencida != null && ultimaVencida['id'] != p['id'];
@@ -624,7 +652,8 @@ class ParcelasTableState extends State<ParcelasTable> {
                                     // ❌ Bloqueia criação de acordo nesta parcela
                                     return IconButton(
                                       icon: const Icon(Icons.handshake, color: Colors.grey, size: 22),
-                                      tooltip: "Acordo disponível apenas para a última parcela em atraso.",
+                                      tooltip:
+                                          "Acordo disponível apenas para a última parcela em atraso.",
                                       onPressed: () async {
                                         await showDialog(
                                           context: context,
@@ -649,7 +678,7 @@ class ParcelasTableState extends State<ParcelasTable> {
                                       ),
                                       tooltip: residualAtual < 1.00
                                           ? "Parcela paga - Clique para ver histórico"
-                                          : "Acordo",
+                                          : "Criar Acordo",
                                       onPressed: () async {
                                         final parcelaAtualizada = await Supabase.instance.client
                                             .from("parcelas")
@@ -661,7 +690,8 @@ class ParcelasTableState extends State<ParcelasTable> {
                                             context, parcelaAtualizada, widget.emprestimo);
 
                                         if (resultado == true && mounted) {
-                                          final state = context.findAncestorStateOfType<ParcelasPageState>();
+                                          final state =
+                                              context.findAncestorStateOfType<ParcelasPageState>();
                                           if (state != null && state.mounted) {
                                             await state.atualizarParcelas();
                                           }
@@ -670,7 +700,6 @@ class ParcelasTableState extends State<ParcelasTable> {
                                       },
                                     );
                                   }
-
                                 }
                               },
                             ),
@@ -685,14 +714,14 @@ class ParcelasTableState extends State<ParcelasTable> {
                           width: 20, // 👈 define largura mínima da célula
                           child: Center(
                             child: PopupMenuButton<String>(
-                              padding: EdgeInsets.zero, // 👈 remove margens internas
+                              padding: EdgeInsets.zero,
                               icon: const Icon(Icons.more_vert, color: Colors.black54, size: 22),
                               tooltip: 'Ações',
-                              onSelected: (value) {
+                              onSelected: (value) async {
                                 if (value == 'excluir') {
                                   _removerParcela(i);
                                 } else if (value == 'calcular') {
-                                  // 🔹 Lógica de cálculo automático (igual ao botão antigo)
+                                  // 🔹 Lógica de cálculo automático
                                   final capital = num.tryParse("${widget.emprestimo["valor"]}") ?? 0;
                                   final jurosSupabase = num.tryParse("${widget.emprestimo["juros"]}") ?? 0;
                                   final qtdParcelas = num.tryParse("${widget.emprestimo["parcelas"]}") ?? 1;
@@ -706,6 +735,80 @@ class ParcelasTableState extends State<ParcelasTable> {
                                   c['pg_juros']!.text = service.fmtMoeda(pgJuros);
 
                                   setState(() {});
+                                } else if (value == 'consultar_acordo') {
+                                  // 🔹 Busca o comentário no Supabase
+                                  final resposta = await Supabase.instance.client
+                                      .from('parcelas')
+                                      .select('comentario, vencimento')
+                                      .eq('id', p['id'])
+                                      .maybeSingle();
+
+                                  final comentario = (resposta?['comentario'] ?? '').toString().trim();
+                                  final vencimento = resposta?['vencimento']?.toString();
+
+                                  if (comentario.isNotEmpty) {
+                                    await showDialog(
+                                      context: context,
+                                      builder: (ctx) => AlertDialog(
+                                        title: const Text(
+                                          "Acordo Vencido",
+                                          textAlign: TextAlign.center,
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.redAccent,
+                                          ),
+                                        ),
+                                        content: Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            if (vencimento != null && vencimento.isNotEmpty)
+                                              Text(
+                                                "Vencimento: ${formatarData(vencimento)}",
+                                                style: const TextStyle(
+                                                  fontSize: 13,
+                                                  fontWeight: FontWeight.w500,
+                                                ),
+                                              ),
+                                            const SizedBox(height: 8),
+                                            Text(
+                                              comentario,
+                                              textAlign: TextAlign.center,
+                                              style: const TextStyle(fontSize: 14),
+                                            ),
+                                          ],
+                                        ),
+                                        actionsAlignment: MainAxisAlignment.center,
+                                        actions: [
+                                          TextButton(
+                                            onPressed: () => Navigator.pop(ctx),
+                                            style: TextButton.styleFrom(
+                                              backgroundColor: Colors.blue,
+                                              foregroundColor: Colors.white,
+                                              padding:
+                                                  const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                                            ),
+                                            child: const Text("OK"),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  } else {
+                                    await showDialog(
+                                      context: context,
+                                      builder: (ctx) => AlertDialog(
+                                        content: const Text(
+                                          "Nenhum acordo vencido registrado para esta parcela.",
+                                          textAlign: TextAlign.center,
+                                        ),
+                                        actions: [
+                                          TextButton(
+                                            onPressed: () => Navigator.pop(ctx),
+                                            child: const Text("OK"),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  }
                                 }
                               },
                               itemBuilder: (BuildContext context) => [
@@ -716,6 +819,16 @@ class ParcelasTableState extends State<ParcelasTable> {
                                       Icon(Icons.calculate, color: Colors.blue, size: 18),
                                       SizedBox(width: 8),
                                       Text('Lançamento automático'),
+                                    ],
+                                  ),
+                                ),
+                                const PopupMenuItem<String>(
+                                  value: 'consultar_acordo',
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.article_outlined, color: Colors.orange, size: 18),
+                                      SizedBox(width: 8),
+                                      Text('Consultar acordo vencido'),
                                     ],
                                   ),
                                 ),
@@ -731,6 +844,7 @@ class ParcelasTableState extends State<ParcelasTable> {
                                 ),
                               ],
                             ),
+
                           ),
                         ),
                       ),

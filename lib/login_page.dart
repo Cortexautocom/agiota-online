@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'main.dart';
-import 'utils.dart'; // 🔹 Import necessário para usar verificarAcordosVencidosAoLogin
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -187,4 +186,47 @@ class _LoginPageState extends State<LoginPage> {
       );
     }
   }
+
+  /// 🔹 Função para limpar acordos vencidos e atualizar comentários
+  Future<void> verificarAcordosVencidosAoLogin(String idUsuario) async {
+    try {
+      final supabase = Supabase.instance.client;
+      final hojeISO = DateTime.now().toIso8601String().split('T').first;
+
+      // 🔹 Busca parcelas com acordo vencido
+      final parcelasComAcordo = await supabase
+          .from('parcelas')
+          .select('id, comentario, juros_acordo')
+          .eq('id_usuario', idUsuario)
+          .lte('vencimento', hojeISO)
+          .not('data_prevista', 'is', null);
+
+      for (final parcela in parcelasComAcordo) {
+        final comentarioAtual = (parcela['comentario'] ?? '').toString();
+        final jurosAcordo = (parcela['juros_acordo'] ?? 0).toDouble();
+
+        // 🔹 Monta novo comentário sem duplicar
+        String novoComentario = comentarioAtual;
+        if (jurosAcordo > 0 &&
+            !comentarioAtual.contains('Acordo vencido de R\$')) {
+          final valorFmt = jurosAcordo.toStringAsFixed(2).replaceAll('.', ',');
+          novoComentario = comentarioAtual.isEmpty
+              ? 'Acordo vencido de R\$ $valorFmt'
+              : '$comentarioAtual | Acordo vencido de R\$ $valorFmt';
+        }
+
+        // 🔹 Atualiza apenas os campos necessários
+        await supabase.from('parcelas').update({
+          'data_prevista': null,
+          'juros_acordo': null,
+          'comentario': novoComentario,
+        }).eq('id', parcela['id']);
+      }
+
+      debugPrint("⚠️ Acordos vencidos removidos e comentários atualizados.");
+    } catch (e) {
+      debugPrint("Erro ao verificar acordos vencidos: $e");
+    }
+  }
+
 }
