@@ -71,17 +71,18 @@ class _RelatorioParcelasEmAbertoState
   }
 
   Future<void> _buscarParcelasEmAberto() async {
-    
-    // ✅ VERIFICAÇÃO mounted ANTES de iniciar o loading
+    // ✅ Verifica se o widget ainda está montado antes de começar
     if (!mounted) return;
-    
+
     setState(() {
       carregando = true;
-      // 🔹 MANTÉM os dados antigos durante o carregamento para evitar flicker
+      // 🔹 Mantém os dados antigos na tela enquanto carrega
     });
 
     try {
       final supabase = Supabase.instance.client;
+
+      // 🔹 Busca os dados da view
       final response = await supabase
           .from('vw_parcelas_detalhes')
           .select('''
@@ -96,19 +97,21 @@ class _RelatorioParcelasEmAbertoState
             ativo,
             capital_total,
             juros_total,
-            qtd_parcelas
+            qtd_parcelas,
+            tipo_mov
           ''')
-          .gt('residual', 1.00) // 🔹 ALTERADO: considera apenas residual acima de R$ 1,00
+          .gt('residual', 1.00) // 🔹 Somente parcelas com valor residual acima de R$ 1,00
           .eq('ativo', 'sim')
           .order('cliente', ascending: true)
           .order('vencimento', ascending: true);
 
-      // ✅ VERIFICAÇÃO mounted após a requisição
+      // ✅ Garante que o widget ainda existe
       if (!mounted) return;
 
       final dataInicio = _parseDataFiltro(widget.dataInicioCtrl.text);
       final dataFim = _parseDataFiltro(widget.dataFimCtrl.text);
 
+      // 🔹 Filtra por intervalo de datas
       final filtradas = response.where((p) {
         final venc = DateTime.tryParse(p['vencimento'] ?? '');
         if (venc == null) return false;
@@ -117,6 +120,7 @@ class _RelatorioParcelasEmAbertoState
         return true;
       }).toList();
 
+      // 🔹 Ordena por cliente e depois por vencimento
       filtradas.sort((a, b) {
         final nomeA = (a['cliente'] ?? '').toString().toLowerCase();
         final nomeB = (b['cliente'] ?? '').toString().toLowerCase();
@@ -128,18 +132,34 @@ class _RelatorioParcelasEmAbertoState
         return da.compareTo(db);
       });
 
-      // ✅ VERIFICAÇÃO mounted antes de atualizar os dados
       if (!mounted) return;
-      
+
       setState(() {
         relatorio = filtradas.map<Map<String, dynamic>>((p) {
           final nomeCliente = p['cliente'] ?? 'Sem cliente';
-          final capitalTotal = (p['capital_total'] ?? 0).toDouble();
-          final jurosSupabase = (p['juros_total'] ?? 0).toDouble();
-          final qtdParcelas = (p['qtd_parcelas'] ?? 1).toDouble();
+          final tipoMov = (p['tipo_mov'] ?? 'parcelamento').toString();
 
-          final pgPrincipal = capitalTotal / qtdParcelas;
-          final pgJuros = jurosSupabase / qtdParcelas;
+          final capitalTotal = (p['capital_total'] ?? 0).toDouble();
+          final jurosTotal = (p['juros_total'] ?? 0).toDouble();
+          final qtdParcelas = (p['qtd_parcelas'] ?? 1).toDouble();
+          final numeroParcela = (p['numero'] ?? 1).toDouble();
+
+          double pgPrincipal = 0;
+          double pgJuros = 0;
+
+          if (tipoMov == 'parcelamento') {
+            // 🟢 Parcelamento: divide igualmente o capital e o juros
+            pgPrincipal = capitalTotal / qtdParcelas;
+            pgJuros = jurosTotal / qtdParcelas;
+          } else if (tipoMov == 'amortizacao') {
+            // 🟣 Amortização: juros sobre saldo devedor (simplificado)
+            final saldoDevedor =
+                capitalTotal - ((numeroParcela - 1) * (capitalTotal / qtdParcelas));
+            final taxaJuros = jurosTotal / capitalTotal; // taxa média
+            pgJuros = saldoDevedor * taxaJuros;
+            pgPrincipal = capitalTotal / qtdParcelas;
+          }
+
           final total = pgPrincipal + pgJuros;
 
           return {
@@ -154,15 +174,14 @@ class _RelatorioParcelasEmAbertoState
         }).toList();
       });
     } catch (e) {
-      // ✅ VERIFICAÇÃO mounted no catch também
+      // ✅ Se der erro, limpa o relatório
       if (mounted) {
-        // 🔹 GARANTE que a lista seja limpa em caso de erro
         setState(() {
           relatorio = [];
         });
       }
     } finally {
-      // ✅ VERIFICAÇÃO mounted no finally
+      // ✅ Finaliza o carregamento
       if (mounted) {
         setState(() {
           carregando = false;
@@ -170,6 +189,7 @@ class _RelatorioParcelasEmAbertoState
       }
     }
   }
+
 
   @override
   Widget build(BuildContext context) {

@@ -142,8 +142,8 @@ class ParcelasTableState extends State<ParcelasTable> {
 
         final valorTotalOriginal = valor + juros - desconto;
 
-        // 🔹 VALIDAÇÕES (mantidas do código original)
-        if (residual == 0 && dataPag.isEmpty) {
+        
+        if (residual < 1.00 && dataPag.isEmpty) {
           if (!mounted) return false;
           await showDialog(
             context: context,
@@ -163,7 +163,7 @@ class ParcelasTableState extends State<ParcelasTable> {
           return false;
         }
 
-        if ((residual.abs() > 0.01) && (residual.abs() < (valorTotalOriginal - 0.01))) {
+        if ((residual.abs() > 1.00) && (residual.abs() < (valorTotalOriginal - 1.00))) {
           if (!mounted) return false;
           await showDialog(
             context: context,
@@ -361,7 +361,7 @@ class ParcelasTableState extends State<ParcelasTable> {
                       vencimento.isBefore(DateTime(hoje.year, hoje.month, hoje.day));
 
                   // 🔹 NOVA REGRA: Se residual == 0 → formatação verde (prioridade máxima)
-                  final bool parcelaPaga = residualAtual <= 0.01;
+                  final bool parcelaPaga = residualAtual <= 1.00;
 
                   // 🔹 Define cores com prioridade: Paga > Acordo > Atraso > Normal
                   final rowColor = parcelaPaga
@@ -374,7 +374,7 @@ class ParcelasTableState extends State<ParcelasTable> {
 
                   final textColor = parcelaPaga
                       ? Colors.green[800]
-                      : (temAcordo && residualAtual != 0)
+                      : (temAcordo && residualAtual > 1.00)
                           ? Colors.brown
                           : estaEmAtraso
                               ? Colors.red
@@ -538,7 +538,7 @@ class ParcelasTableState extends State<ParcelasTable> {
                                   return IconButton(
                                     icon: const Icon(Icons.warning_amber_rounded,
                                         color: Colors.orange, size: 22),
-                                    tooltip: residualAtual == 0
+                                    tooltip: residualAtual <= 1.00
                                         ? "Acordo concluído (parcela paga)"
                                         : "Acordo ativo",
                                     onPressed: () async {
@@ -564,7 +564,7 @@ class ParcelasTableState extends State<ParcelasTable> {
                                 } else if (!podeFazerAcordo) {
                                   return IconButton(
                                     icon: const Icon(Icons.handshake, color: Colors.grey, size: 22),
-                                    tooltip: residualAtual == 0
+                                    tooltip: residualAtual < 1.00
                                         ? "Parcela paga"
                                         : "Só é possível criar acordo até 7 dias antes do vencimento",
                                     onPressed: residualAtual == 0
@@ -582,35 +582,86 @@ class ParcelasTableState extends State<ParcelasTable> {
                                           },
                                   );
                                 } else {
-                                  return IconButton(
-                                    icon: Icon(
-                                      Icons.handshake,
-                                      color: residualAtual == 0 ? Colors.green : Colors.blue,
-                                      size: 22,
-                                    ),
-                                    tooltip: residualAtual == 0
-                                        ? "Parcela paga - Clique para ver histórico"
-                                        : "Acordo",
-                                    onPressed: () async {
-                                      final parcelaAtualizada = await Supabase.instance.client
-                                          .from("parcelas")
-                                          .select()
-                                          .eq("id", p['id'])
-                                          .single();
+                                  final parcelasVencidas = widget.parcelas.where((parcela) {
+                                    try {
+                                      final v = DateTime.parse(parcela['vencimento'].toString());
 
-                                      final resultado = await abrirAcordoDialog(
-                                          context, parcelaAtualizada, widget.emprestimo);
+                                      // 🔹 Calcula residual atualizado com os mesmos critérios visuais
+                                      final residualAtualTemp = (parcela['valor'] ?? 0).toDouble() +
+                                          (parcela['juros'] ?? 0).toDouble() -
+                                          (parcela['desconto'] ?? 0).toDouble() -
+                                          ((parcela['pg_principal'] ?? 0).toDouble() +
+                                              (parcela['pg_juros'] ?? 0).toDouble());
 
-                                      if (resultado == true && mounted) {
-                                        final state =
-                                            context.findAncestorStateOfType<ParcelasPageState>();
-                                        if (state != null && state.mounted) {
-                                          await state.atualizarParcelas();
+                                      // 🔹 Só considera "vencida" se for anterior a hoje e residual > 1,00
+                                      return v.isBefore(DateTime.now()) && residualAtualTemp > 1.00;
+                                    } catch (_) {
+                                      return false;
+                                    }
+                                  }).toList();
+
+                                  parcelasVencidas.sort((a, b) =>
+                                      DateTime.parse(a['vencimento'].toString())
+                                          .compareTo(DateTime.parse(b['vencimento'].toString())));
+
+                                  final ultimaVencida = parcelasVencidas.isNotEmpty
+                                      ? parcelasVencidas.last
+                                      : null;
+
+                                  final bool naoEhUltimaVencida =
+                                      ultimaVencida != null && ultimaVencida['id'] != p['id'];
+
+                                  if (naoEhUltimaVencida) {
+                                    // ❌ Bloqueia criação de acordo nesta parcela
+                                    return IconButton(
+                                      icon: const Icon(Icons.handshake, color: Colors.grey, size: 22),
+                                      tooltip: "Acordo disponível apenas para a última parcela em atraso.",
+                                      onPressed: () async {
+                                        await showDialog(
+                                          context: context,
+                                          builder: (ctx) => const AlertDialog(
+                                            content: Text(
+                                              "Não é possível criar acordo nesta parcela.\n\n"
+                                              "Existe uma parcela posterior em atraso.\n"
+                                              "Crie o acordo apenas na última vencida.",
+                                              textAlign: TextAlign.center,
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                    );
+                                  } else {
+                                    // ✅ Pode criar o acordo normalmente
+                                    return IconButton(
+                                      icon: Icon(
+                                        Icons.handshake,
+                                        color: residualAtual < 1.00 ? Colors.green : Colors.blue,
+                                        size: 22,
+                                      ),
+                                      tooltip: residualAtual < 1.00
+                                          ? "Parcela paga - Clique para ver histórico"
+                                          : "Acordo",
+                                      onPressed: () async {
+                                        final parcelaAtualizada = await Supabase.instance.client
+                                            .from("parcelas")
+                                            .select()
+                                            .eq("id", p['id'])
+                                            .single();
+
+                                        final resultado = await abrirAcordoDialog(
+                                            context, parcelaAtualizada, widget.emprestimo);
+
+                                        if (resultado == true && mounted) {
+                                          final state = context.findAncestorStateOfType<ParcelasPageState>();
+                                          if (state != null && state.mounted) {
+                                            await state.atualizarParcelas();
+                                          }
+                                          setState(() {});
                                         }
-                                        setState(() {});
-                                      }
-                                    },
-                                  );
+                                      },
+                                    );
+                                  }
+
                                 }
                               },
                             ),

@@ -71,10 +71,9 @@ class _RelatorioParcelasVencidasState
   }
 
   Future<void> _buscarParcelasVencidas() async {
-    
-    // ✅ VERIFICAÇÃO mounted ANTES de iniciar o loading
+    // ✅ Verifica se o widget ainda está montado antes de começar
     if (!mounted) return;
-    
+
     setState(() {
       carregando = true;
       relatorio = [];
@@ -84,6 +83,7 @@ class _RelatorioParcelasVencidasState
       final supabase = Supabase.instance.client;
       final hoje = DateTime.now();
 
+      // 🔹 Busca os dados da view atualizada
       final response = await supabase
           .from('vw_parcelas_detalhes')
           .select('''
@@ -99,40 +99,38 @@ class _RelatorioParcelasVencidasState
             ativo,
             capital_total,
             juros_total,
-            qtd_parcelas
+            qtd_parcelas,
+            tipo_mov
           ''')
-          .gt('residual', 0)
+          .gt('residual', 1.00) // ✅ Só considera parcelas com saldo > R$ 1,00
           .eq('ativo', 'sim')
-          // 🔹 Ordena primeiro por cliente, depois por vencimento (igual relatorio1)
           .order('cliente', ascending: true)
           .order('vencimento', ascending: true);
 
-      // ✅ VERIFICAÇÃO mounted após a requisição
       if (!mounted) return;
 
       final dataInicio = _parseDataFiltro(widget.dataInicioCtrl.text);
       final dataFim = _parseDataFiltro(widget.dataFimCtrl.text);
 
+      // 🔹 Filtra apenas parcelas vencidas e sem acordo (data_prevista nula)
       final filtradas = response.where((p) {
         final venc = DateTime.tryParse(p['vencimento'] ?? '');
         if (venc == null) return false;
 
-        // 🔹 Apenas vencidas
-        if (!venc.isBefore(DateTime(hoje.year, hoje.month, hoje.day))) {
-          return false;
-        }
+        // ✅ Só vencidas (antes de hoje)
+        if (!venc.isBefore(DateTime(hoje.year, hoje.month, hoje.day))) return false;
 
-        // 🔹 Apenas sem acordo (data_prevista NULL)
+        // ✅ Ignora parcelas com acordo
         if (p['data_prevista'] != null) return false;
 
-        // 🔹 Filtros opcionais de data
+        // ✅ Filtros de data do usuário (opcionais)
         if (dataInicio != null && venc.isBefore(dataInicio)) return false;
         if (dataFim != null && venc.isAfter(dataFim)) return false;
 
         return true;
       }).toList();
 
-      // 🔹 ORDENAÇÃO LOCAL - Primeiro por cliente (alfabético), depois por vencimento
+      // 🔹 Ordena por cliente e vencimento
       filtradas.sort((a, b) {
         final nomeA = (a['cliente'] ?? '').toString().toLowerCase();
         final nomeB = (b['cliente'] ?? '').toString().toLowerCase();
@@ -144,18 +142,34 @@ class _RelatorioParcelasVencidasState
         return da.compareTo(db);
       });
 
-      // ✅ VERIFICAÇÃO mounted antes de atualizar os dados
       if (!mounted) return;
-      
+
       setState(() {
         relatorio = filtradas.map<Map<String, dynamic>>((p) {
           final nomeCliente = p['cliente'] ?? 'Sem cliente';
-          final capitalTotal = (p['capital_total'] ?? 0).toDouble();
-          final jurosSupabase = (p['juros_total'] ?? 0).toDouble();
-          final qtdParcelas = (p['qtd_parcelas'] ?? 1).toDouble();
+          final tipoMov = (p['tipo_mov'] ?? 'parcelamento').toString();
 
-          final pgPrincipal = capitalTotal / qtdParcelas;
-          final pgJuros = jurosSupabase / qtdParcelas;
+          final capitalTotal = (p['capital_total'] ?? 0).toDouble();
+          final jurosTotal = (p['juros_total'] ?? 0).toDouble();
+          final qtdParcelas = (p['qtd_parcelas'] ?? 1).toDouble();
+          final numeroParcela = (p['numero'] ?? 1).toDouble();
+
+          double pgPrincipal = 0;
+          double pgJuros = 0;
+
+          if (tipoMov == 'parcelamento') {
+            // 🟢 Parcelamento: divide igualmente o capital e os juros
+            pgPrincipal = capitalTotal / qtdParcelas;
+            pgJuros = jurosTotal / qtdParcelas;
+          } else if (tipoMov == 'amortizacao') {
+            // 🟣 Amortização: juros sobre saldo devedor (simplificado)
+            final saldoDevedor =
+                capitalTotal - ((numeroParcela - 1) * (capitalTotal / qtdParcelas));
+            final taxaJuros = jurosTotal / capitalTotal; // taxa média aproximada
+            pgJuros = saldoDevedor * taxaJuros;
+            pgPrincipal = capitalTotal / qtdParcelas;
+          }
+
           final total = pgPrincipal + pgJuros;
 
           return {
@@ -170,9 +184,7 @@ class _RelatorioParcelasVencidasState
         }).toList();
       });
     } catch (e) {
-      // ✅ VERIFICAÇÃO mounted no catch também
       if (mounted) {
-        // Mostra snackbar de erro para o usuário
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Erro ao buscar parcelas vencidas: $e'),
@@ -181,7 +193,6 @@ class _RelatorioParcelasVencidasState
         );
       }
     } finally {
-      // ✅ VERIFICAÇÃO mounted no finally
       if (mounted) {
         setState(() {
           carregando = false;
@@ -189,6 +200,8 @@ class _RelatorioParcelasVencidasState
       }
     }
   }
+
+
 
   @override
   Widget build(BuildContext context) {
