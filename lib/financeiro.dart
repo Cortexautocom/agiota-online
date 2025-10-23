@@ -141,7 +141,7 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
       try {
         final parcelas = await Supabase.instance.client
             .from('parcelas')
-            .select('data_mov, pg')
+            .select('data_mov, pg, aporte')
             .eq('id_emprestimo', idEmprestimo)
             .order('data_mov');
 
@@ -150,14 +150,23 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
         DateTime? ultimaData;
         DateTime? proximaData;
         final agora = DateTime.now();
+        bool temAtraso = false;
 
         for (final parcela in parcelas) {
           final dataTxt = parcela['data_mov']?.toString() ?? "";
           if (dataTxt.isEmpty) continue;
+
           final data = DateTime.tryParse(dataTxt);
           if (data == null) continue;
 
-          final pg = parcela['pg'] ?? 0;
+          final pg = int.tryParse(parcela['pg']?.toString() ?? '0') ?? 0;
+          final aporteValor = double.tryParse(parcela['aporte']?.toString() ?? '0') ?? 0;
+
+          // Ignora linhas de aporte; considera atraso apenas se for parcela real e vencida
+          if (aporteValor == 0 && pg == 0 && data.isBefore(agora)) {
+            temAtraso = true;
+          }
+
           if (pg == 1) {
             pagas++;
           } else {
@@ -183,7 +192,7 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
               : DateFormat("dd/MM/yyyy").format(ultimaData),
           "situacao_linha1": "$pagas pagas",
           "situacao_linha2": "$abertas restando",
-          "acordo": "nao",
+          "acordo": temAtraso ? "sim" : "nao",
         };
       } catch (e) {
         return {
@@ -196,73 +205,77 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
       }
     }
 
-    final parcelas = await Supabase.instance.client
-        .from('parcelas')
-        .select(tipoMov == 'amortizacao'
-            ? 'data_mov, residual, data_prevista'
-            : 'vencimento, residual, data_prevista')
-        .eq('id_emprestimo', idEmprestimo);
+    // ======== PARCELAMENTO ========
+    try {
+      final parcelas = await Supabase.instance.client
+          .from('parcelas')
+          .select('vencimento, residual, data_prevista')
+          .eq('id_emprestimo', idEmprestimo);
 
-    DateTime? proxima;
-    DateTime? ultima;
-    int pagas = 0;
-    int abertas = 0;
+      DateTime? proxima;
+      DateTime? ultima;
+      int pagas = 0;
+      int abertas = 0;
 
-    for (final p in parcelas) {
-      final vencTxt = (tipoMov == 'amortizacao'
-          ? p['data_mov']
-          : p['vencimento'])?.toString() ?? "";
+      for (final p in parcelas) {
+        final vencTxt = p['vencimento']?.toString() ?? "";
+        if (vencTxt.isEmpty) continue;
 
-      if (vencTxt.isEmpty) continue;
+        final venc = DateTime.tryParse(vencTxt);
+        if (venc == null) continue;
 
-      final venc = DateTime.tryParse(vencTxt);
-      if (venc == null) continue;
+        final residual = num.tryParse("${p['residual']}") ?? 0;
 
-      final residual = num.tryParse("${p['residual']}") ?? 0;
+        if (residual.abs() < 0.01) {
+          pagas++;
+        } else {
+          abertas++;
+          if (proxima == null || venc.isBefore(proxima)) {
+            proxima = venc;
+          }
+        }
 
-      if (residual.abs() < 0.01) {
-        pagas++;
-      } else {
-        abertas++;
-        if (proxima == null || venc.isBefore(proxima)) {
-          proxima = venc;
+        if (ultima == null || venc.isAfter(ultima)) {
+          ultima = venc;
         }
       }
 
-      if (ultima == null || venc.isAfter(ultima)) {
-        ultima = venc;
-      }
+      final temAcordo = parcelas.any((p) {
+        final vencTxt = p['vencimento']?.toString() ?? "";
+        final venc = DateTime.tryParse(vencTxt);
+        final residual = num.tryParse("${p['residual']}") ?? 0;
+        final dataPrevista = p['data_prevista']?.toString().trim() ?? "";
+
+        return residual > 0.01 &&
+            venc != null &&
+            proxima != null &&
+            venc.isAtSameMomentAs(proxima) &&
+            dataPrevista.isNotEmpty;
+      });
+
+      return {
+        "proxima": proxima == null
+            ? "-"
+            : DateFormat("dd/MM/yyyy").format(proxima),
+        "ultima": ultima == null
+            ? "-"
+            : DateFormat("dd/MM/yyyy").format(ultima),
+        "situacao_linha1": "$pagas pagas",
+        "situacao_linha2": "$abertas restando",
+        "acordo": temAcordo ? "sim" : "nao",
+      };
+    } catch (e) {
+      return {
+        "proxima": "-",
+        "ultima": "-",
+        "situacao_linha1": "0 pagas",
+        "situacao_linha2": "0 restando",
+        "acordo": "nao",
+      };
     }
-
-    final temAcordo = parcelas.any((p) {
-      final vencTxt = (tipoMov == 'amortizacao'
-          ? p['data_mov']
-          : p['vencimento'])?.toString() ?? "";
-      if (vencTxt.isEmpty) return false;
-      final venc = DateTime.tryParse(vencTxt);
-      final residual = num.tryParse("${p['residual']}") ?? 0;
-      final dataPrevista = p['data_prevista']?.toString().trim() ?? "";
-
-      return residual > 0.01 &&
-          venc != null &&
-          proxima != null &&
-          venc.isAtSameMomentAs(proxima) &&
-          dataPrevista.isNotEmpty;
-    });
-
-    return {
-      "proxima": proxima == null
-          ? "-"
-          : DateFormat("dd/MM/yyyy").format(proxima),
-      "ultima": ultima == null
-          ? "-"
-          : DateFormat("dd/MM/yyyy").format(ultima),
-      "situacao_linha1": "$pagas pagas",
-      "situacao_linha2": "$abertas restando",
-      "acordo": temAcordo ? "sim" : "nao",
-    };
-
   }
+
+
 
   @override
   Widget build(BuildContext context) {
@@ -472,37 +485,32 @@ class _FinanceiroPageState extends State<FinanceiroPage> {
                                             builder: (context, snap) {
                                               if (!snap.hasData) return const Text("-");
                                               final txt = snap.data!['proxima'] ?? "-";
-                                              DateTime? data;
-                                              if (txt != "-" && txt.isNotEmpty) {
-                                                data = DateFormat("dd/MM/yyyy").tryParse(txt);
+
+                                              bool temAtraso = false;
+
+                                              // 🧩 Lógica para AMORTIZAÇÃO → pg == 0 e data_mov < hoje (já vem como 'acordo' == 'sim')
+                                              if (tipoMov == 'amortizacao') {
+                                                temAtraso = snap.data!['acordo'] == 'sim';
+                                              } 
+                                              // 🧩 Lógica para PARCELAMENTO → se a data de vencimento for anterior a hoje
+                                              else {
+                                                DateTime? data;
+                                                if (txt != "-" && txt.isNotEmpty) {
+                                                  data = DateFormat("dd/MM/yyyy").tryParse(txt);
+                                                }
+                                                if (data != null && data.isBefore(DateTime.now())) {
+                                                  temAtraso = true;
+                                                }
                                               }
-                                              final vencida = data != null && data.isBefore(DateTime.now());
-                                              final temAcordo = snap.data!['acordo'] == "sim";
+
                                               return Center(
-                                                child: Row(
-                                                  mainAxisAlignment: MainAxisAlignment.center,
-                                                  children: [
-                                                    Text(
-                                                      txt,
-                                                      style: TextStyle(
-                                                        fontSize: 13,
-                                                        color: temAcordo
-                                                            ? Colors.orange
-                                                            : (vencida
-                                                                ? Colors.red
-                                                                : Colors.black),
-                                                        fontWeight: temAcordo || vencida
-                                                            ? FontWeight.bold
-                                                            : FontWeight.normal,
-                                                      ),
-                                                    ),
-                                                    if (temAcordo)
-                                                      const Padding(
-                                                        padding: EdgeInsets.only(left: 4),
-                                                        child: Icon(Icons.warning,
-                                                            size: 16, color: Colors.orange),
-                                                      ),
-                                                  ],
+                                                child: Text(
+                                                  txt,
+                                                  style: TextStyle(
+                                                    fontSize: 13,
+                                                    color: temAtraso ? Colors.red : Colors.black,
+                                                    fontWeight: temAtraso ? FontWeight.bold : FontWeight.normal,
+                                                  ),
                                                 ),
                                               );
                                             },
