@@ -9,6 +9,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'relatorios_page.dart';
 import 'config/env.dart';
 import 'login_page.dart';
+import 'perfil_page.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -140,13 +141,29 @@ class _HomePageState extends State<HomePage> {
                   offset: const Offset(0, 40),
                   color: Colors.white,
                   shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10)),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
                   onSelected: (value) {
-                    if (value == 'logout') {
+                    if (value == 'perfil') {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const PerfilPage()),
+                      );
+                    } else if (value == 'logout') {
                       _logout();
                     }
                   },
                   itemBuilder: (context) => [
+                    const PopupMenuItem<String>(
+                      value: 'perfil',
+                      child: Row(
+                        children: [
+                          Icon(Icons.person_outline, color: Colors.black87),
+                          SizedBox(width: 8),
+                          Text('Perfil'),
+                        ],
+                      ),
+                    ),
                     const PopupMenuItem<String>(
                       value: 'logout',
                       child: Row(
