@@ -76,13 +76,42 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   int _selectedIndex = 0;
-  String? userEmail;
+  String userDisplayName = "Usuário";
 
   @override
   void initState() {
     super.initState();
+    _carregarNomeUsuario();
+  }
+
+  Future<void> _carregarNomeUsuario() async {
     final user = Supabase.instance.client.auth.currentUser;
-    userEmail = user?.email ?? "Usuário";
+    if (user == null) return;
+
+    try {
+      // Busca o nome na tabela 'usuarios'
+      final response = await Supabase.instance.client
+          .from('usuarios')
+          .select('nome')
+          .eq('id', user.id)
+          .maybeSingle();
+
+      if (response != null && response['nome'] != null && response['nome'].toString().isNotEmpty) {
+        final nomeCompleto = response['nome'] as String;
+        final primeiroNome = nomeCompleto.split(' ').first;
+        setState(() {
+          userDisplayName = primeiroNome;
+        });
+      } else {
+        // Se não houver nome na tabela, usa parte do e-mail
+        userDisplayName = user.email?.split('@').first ?? "Usuário";
+      }
+    } catch (e) {
+      debugPrint("Erro ao carregar nome do usuário: $e");
+      userDisplayName = user.email?.split('@').first ?? "Usuário";
+    }
+
+    if (mounted) setState(() {});
   }
 
   Future<void> _logout() async {
@@ -122,8 +151,7 @@ class _HomePageState extends State<HomePage> {
                 // 🔹 Logo e nome do sistema
                 Row(
                   children: const [
-                    Icon(Icons.local_atm,
-                        color: Colors.greenAccent, size: 28),
+                    Icon(Icons.local_atm, color: Colors.greenAccent, size: 28),
                     SizedBox(width: 10),
                     Text(
                       "AgioMestre",
@@ -148,7 +176,7 @@ class _HomePageState extends State<HomePage> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(builder: (_) => const PerfilPage()),
-                      );
+                      ).then((_) => _carregarNomeUsuario()); // 🔹 Recarrega nome após voltar
                     } else if (value == 'logout') {
                       _logout();
                     }
@@ -184,7 +212,7 @@ class _HomePageState extends State<HomePage> {
                       ),
                       const SizedBox(width: 8),
                       Text(
-                        userEmail ?? "Usuário",
+                        userDisplayName,
                         style: const TextStyle(color: Colors.white),
                       ),
                       const Icon(Icons.arrow_drop_down, color: Colors.white),
@@ -247,24 +275,19 @@ class _HomePageState extends State<HomePage> {
   Widget _buildPage(int index) {
     switch (index) {
       case 0:
-        return const Center(
-          child: Text("📊 Painel inicial"),
-        );
+        return const Center(child: Text("📊 Painel inicial"));
       case 1:
         return const ClientesPage();
       case 2:
         return const RelatoriosPage();
       case 3:
-        return const Center(
-          child: Text("⚙️ Funções extras"),
-        );
+        return const Center(child: Text("⚙️ Funções extras"));
       default:
-        return const Center(
-          child: Text("Página não encontrada"),
-        );
+        return const Center(child: Text("Página não encontrada"));
     }
   }
 }
+
 
 Future<Map<String, dynamic>?> open_client_form(BuildContext context) async {
   final nomeController = TextEditingController();

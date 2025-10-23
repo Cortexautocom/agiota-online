@@ -14,8 +14,10 @@ class _PerfilPageState extends State<PerfilPage> {
   final _nomeController = TextEditingController();
   final _emailController = TextEditingController();
   final _telefoneController = TextEditingController();
+
+  // Máscara de telefone (012) 9 9999-9999
   final telefoneFormatter = MaskTextInputFormatter(
-    mask: '(##) # ####-####',
+    mask: '(###) # ####-####',
     filter: {"#": RegExp(r'[0-9]')},
   );
 
@@ -31,18 +33,23 @@ class _PerfilPageState extends State<PerfilPage> {
     final user = Supabase.instance.client.auth.currentUser;
     if (user == null) return;
 
-    final response = await Supabase.instance.client
-        .from('usuarios')
-        .select()
-        .eq('id', user.id)
-        .maybeSingle();
+    try {
+      final response = await Supabase.instance.client
+          .from('usuarios')
+          .select()
+          .eq('id', user.id)
+          .maybeSingle();
 
-    if (response != null) {
-      setState(() {
+      if (response != null) {
         _nomeController.text = response['nome'] ?? '';
         _emailController.text = response['email'] ?? user.email ?? '';
         _telefoneController.text = response['telefone'] ?? '';
-      });
+      } else {
+        // Preenche o e-mail do Auth se ainda não tiver registro
+        _emailController.text = user.email ?? '';
+      }
+    } catch (e) {
+      debugPrint("Erro ao carregar dados do usuário: $e");
     }
   }
 
@@ -54,63 +61,112 @@ class _PerfilPageState extends State<PerfilPage> {
     final user = Supabase.instance.client.auth.currentUser;
     if (user == null) return;
 
-    await Supabase.instance.client.from('usuarios').update({
-      'nome': _nomeController.text,
-      'email': _emailController.text,
-      'telefone': _telefoneController.text,
-    }).eq('id', user.id);
+    try {
+      // Verifica se já existe registro na tabela
+      final existing = await Supabase.instance.client
+          .from('usuarios')
+          .select('id')
+          .eq('id', user.id)
+          .maybeSingle();
 
-    setState(() => _isLoading = false);
+      final dados = {
+        'id': user.id,
+        'nome': _nomeController.text.trim(),
+        'email': _emailController.text.trim(),
+        'telefone': _telefoneController.text.trim(),
+      };
 
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Perfil atualizado com sucesso!')),
-    );
-    Navigator.pop(context);
+      if (existing == null) {
+        // 🔹 Se não existe, cria um novo registro
+        await Supabase.instance.client.from('usuarios').insert(dados);
+      } else {
+        // 🔹 Se existe, apenas atualiza
+        await Supabase.instance.client
+            .from('usuarios')
+            .update(dados)
+            .eq('id', user.id);
+      }
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('✅ Perfil atualizado com sucesso!')),
+      );
+      Navigator.pop(context);
+    } catch (e) {
+      debugPrint("Erro ao salvar perfil: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('❌ Erro ao salvar perfil: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  String? _validarEmail(String? value) {
+    if (value == null || value.isEmpty) return 'Obrigatório';
+    final regex = RegExp(r'^[\w\.\-]+@([\w\-]+\.)+[a-zA-Z]{2,4}$');
+    if (!regex.hasMatch(value)) return 'E-mail inválido';
+    return null;
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text("Perfil do Usuário")),
-      body: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            children: [
-              TextFormField(
-                controller: _nomeController,
-                decoration: const InputDecoration(labelText: "Nome completo *"),
-                validator: (value) =>
-                    value == null || value.isEmpty ? "Obrigatório" : null,
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 600),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  TextFormField(
+                    controller: _nomeController,
+                    decoration: const InputDecoration(
+                      labelText: "Nome *",
+                      border: OutlineInputBorder(),
+                    ),
+                    validator: (value) =>
+                        value == null || value.isEmpty ? "Obrigatório" : null,
+                  ),
+                  const SizedBox(height: 20),
+                  TextFormField(
+                    controller: _emailController,
+                    decoration: const InputDecoration(
+                      labelText: "E-mail *",
+                      border: OutlineInputBorder(),
+                    ),
+                    keyboardType: TextInputType.emailAddress,
+                    validator: _validarEmail,
+                  ),
+                  const SizedBox(height: 20),
+                  TextFormField(
+                    controller: _telefoneController,
+                    decoration: const InputDecoration(
+                      labelText: "Telefone",
+                      border: OutlineInputBorder(),
+                    ),
+                    inputFormatters: [telefoneFormatter],
+                    keyboardType: TextInputType.phone,
+                  ),
+                  const SizedBox(height: 30),
+                  ElevatedButton.icon(
+                    onPressed: _isLoading ? null : _salvarPerfil,
+                    icon: const Icon(Icons.save),
+                    label: Text(_isLoading ? "Salvando..." : "Salvar"),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF1C2331),
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size(150, 48),
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _emailController,
-                decoration: const InputDecoration(labelText: "E-mail *"),
-                validator: (value) =>
-                    value == null || value.isEmpty ? "Obrigatório" : null,
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _telefoneController,
-                decoration: const InputDecoration(labelText: "Telefone"),
-                inputFormatters: [telefoneFormatter],
-                keyboardType: TextInputType.phone,
-              ),
-              const SizedBox(height: 24),
-              ElevatedButton.icon(
-                onPressed: _isLoading ? null : _salvarPerfil,
-                icon: const Icon(Icons.save),
-                label: Text(_isLoading ? "Salvando..." : "Salvar"),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF1C2331),
-                  foregroundColor: Colors.white,
-                  minimumSize: const Size(150, 45),
-                ),
-              ),
-            ],
+            ),
           ),
         ),
       ),
