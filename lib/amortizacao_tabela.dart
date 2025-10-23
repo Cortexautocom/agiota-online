@@ -561,6 +561,10 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
                                   child: Center(child: Text("Juros (atraso)")))),
                             DataColumn(
                                 label: SizedBox(
+                                    width: 100,
+                                    child: Center(child: Text("Data Pag.")))),
+                            DataColumn(
+                                label: SizedBox(
                                     width: 130,
                                     child: Center(child: Text("Saldo Final")))),
                             
@@ -611,6 +615,7 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
                                     _buildEditableCell(entry.key, 'pg_juros', cor: Colors.green),
                                     _buildJurosMesCell(entry.key),
                                     _buildEditableCell(entry.key, 'juros_atraso', cor: Colors.green),
+                                    _buildDataPagamentoCell(entry.key),
                                     _buildReadOnlyCell(_fmt.format(linha['saldo_final'] ?? 0.0)),
                                   
                                     DataCell(
@@ -700,6 +705,7 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
                                 DataCell(Center(
                                     child: Text(_controllers.fmtMoeda(totalJurosAtraso),
                                         style: TextStyle(fontWeight: FontWeight.bold)))),
+                                DataCell(Center(child: Text(""))),
                                 DataCell(Center(
                                     child: Text(_controllers.fmtMoeda(saldoFinal),
                                         style: TextStyle(fontWeight: FontWeight.bold)))),
@@ -1194,38 +1200,58 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
     }
   }
 
-
-
-
-  /*
-  bool _existeParcelaEmAtraso() {
-    final hoje = DateTime.now();
-    final formatador = DateFormat('dd/MM/yyyy');
-
-    for (int i = 1; i < _controllers.linhas.length; i++) { // ignora a 1ª linha (aporte)
-      final linha = _controllers.linhas[i];
-      final pg = linha['pg'] ?? 0;
-
-      if (pg == 1) continue; // ignora pagas
-
-      final dataTexto = linha['data'];
-      if (dataTexto == null || dataTexto.toString().length != 10) continue;
-
-      try {
-        final dataLinha = formatador.parse(dataTexto);
-
-        if (dataLinha.isBefore(hoje)) {
-          // encontrou uma parcela vencida e não paga
-          return true;
-        }
-      } catch (e) {
-        // ignora erros de data
-      }
+  // 🔹 CÉLULA PARA DATA DE PAGAMENTO (idêntica à tabela de parcelas)
+  DataCell _buildDataPagamentoCell(int index) {
+    final controller = _controllers.controllers[index]['data_pagamento']!;
+    final linha = _controllers.linhas[index];
+    
+    // 🔹 Aplica as mesmas cores da tabela de parcelas
+    final pgCapital = linha['pg_capital'] ?? 0.0;
+    final pgJuros = linha['pg_juros'] ?? 0.0;
+    final valorPago = pgCapital + pgJuros;
+    
+    Color? textColor = Colors.black87;
+    FontWeight fontWeight = FontWeight.normal;
+    
+    // 🔹 Se tem pagamento → texto verde e negrito (igual à tabela de parcelas)
+    if (valorPago > 0) {
+      textColor = Colors.green[800];
+      fontWeight = FontWeight.bold;
     }
-
-    return false;
+    
+    return DataCell(
+      Container(
+        decoration: BoxDecoration(
+          border: Border(
+            right: BorderSide(color: Colors.grey[300]!, width: 0.5),
+          ),
+        ),
+        child: TextField(
+          controller: controller,
+          inputFormatters: [_service.dateMaskFormatter()], // 🔹 Mesma máscara
+          style: TextStyle(
+            fontSize: 13, 
+            color: textColor, 
+            fontWeight: fontWeight,
+          ),
+          textAlign: TextAlign.center,
+          decoration: InputDecoration(
+            border: InputBorder.none,
+            isDense: true,
+            contentPadding: EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+            hintText: "dd/mm/aaaa",
+            hintStyle: TextStyle(
+              fontSize: 13,
+              color: textColor,
+              fontWeight: fontWeight,
+            ),
+          ),
+          onChanged: (value) {
+            // Atualiza o dado na linha quando o usuário digita
+            _controllers.linhas[index]['data_pagamento'] = value;
+          },
+        ),
+      ),
+    );
   }
-  */
-
-
 }

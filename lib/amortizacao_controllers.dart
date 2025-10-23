@@ -33,7 +33,8 @@ class AmortizacaoControllers {
       'pg_capital': 0.0,
       'pg_juros': 0.0,
       'juros_mes': 0.0,
-      'juros_atraso': 0.0, // 🆕 nova coluna
+      'juros_atraso': 0.0,
+      'data_pagamento': '',
       'saldo_final': 0.0,
       'pg': 0,
     });
@@ -65,8 +66,27 @@ class AmortizacaoControllers {
               ? ''
               : fmtMoeda(linha['juros_atraso']),
         ),
+
+        // 🔹 NOVO: Controller para data de pagamento (igual à tabela de parcelas)
+        'data_pagamento': TextEditingController(
+          text: _toBrDate(linha['data_pagamento']?.toString()),
+        ),
       });
     }
+  }
+
+  // 🔹 ADICIONE ESTE MÉTODO NA MESMA CLASSE (AmortizacaoControllers)
+  String? _toBrDate(String? isoDate) {
+    if (isoDate == null || isoDate.isEmpty) return '';
+    try {
+      final parts = isoDate.split('-');
+      if (parts.length == 3) {
+        return '${parts[2]}/${parts[1]}/${parts[0]}';
+      }
+    } catch (e) {
+      print('Erro ao converter data: $e');
+    }
+    return '';
   }
 
 
@@ -81,7 +101,7 @@ class AmortizacaoControllers {
     try {
       final parcelas = await supabase
           .from('parcelas')
-          .select('id, data_mov, aporte, pg_principal, pg_juros, juros_atraso, pg')
+          .select('id, data_mov, aporte, pg_principal, pg_juros, juros_atraso, pg, data_pagamento')
           .eq('id_emprestimo', idEmprestimo)
           .order('data_mov', ascending: true);
 
@@ -98,6 +118,7 @@ class AmortizacaoControllers {
           'juros_mes': 0.0,
           'juros_atraso': (p['juros_atraso'] as num?)?.toDouble() ?? 0.0,
           'pg': (p['pg'] as int?) ?? 0,
+          'data_pagamento': _service.toBrDate(p['data_pagamento']?.toString()) ?? '',
           'saldo_final': 0.0,
         });
       }
@@ -120,6 +141,7 @@ class AmortizacaoControllers {
       _linhas[i]['juros_mes'] = parseMoeda(controller['juros_mes']!.text);
       _linhas[i]['juros_atraso'] = parseMoeda(controller['juros_atraso']!.text); // 🆕
       _linhas[i]['data'] = controller['data']!.text;
+      _linhas[i]['data_pagamento'] = controller['data_pagamento']!.text;
     }
 
     final userId = _getUserId();
@@ -140,6 +162,11 @@ class AmortizacaoControllers {
 
         final dataISO = _service.toIsoDate(linha['data']);
 
+        final dataPagamentoBr = linha['data_pagamento']?.toString() ?? '';
+        final dataPagamentoISO = dataPagamentoBr.isNotEmpty 
+            ? _service.toIsoDate(dataPagamentoBr)
+            : null;
+
         final updateData = {
           'data_mov': dataISO,
           'aporte': linha['aporte'],
@@ -150,6 +177,8 @@ class AmortizacaoControllers {
           'pg': linha['pg'],
           'tipo_mov': 'amortizacao',
           'id_usuario': userId,
+          // 🔹 NOVO: Salva a data de pagamento no banco
+          'data_pagamento': dataPagamentoISO,
         };
 
         await supabase.from('parcelas').update(updateData).eq('id', idParcela);
@@ -184,7 +213,8 @@ class AmortizacaoControllers {
       'pg_capital': 0.0,
       'pg_juros': 0.0,
       'juros_mes': 0.0,
-      'juros_atraso': 0.0, // 🆕
+      'juros_atraso': 0.0,
+      'data_pagamento': '',
       'saldo_final': ultimoSaldoFinal,
       'pg': 0,
     });
@@ -196,6 +226,7 @@ class AmortizacaoControllers {
       'pg_juros': TextEditingController(),
       'juros_mes': TextEditingController(), 
       'juros_atraso': TextEditingController(),
+      'data_pagamento': TextEditingController(),
     });
 
     recalcularSaldos();
@@ -364,7 +395,8 @@ class AmortizacaoControllers {
       controllerMap['pg_capital']?.dispose();
       controllerMap['pg_juros']?.dispose();
       controllerMap['juros_mes']?.dispose();
-      controllerMap['juros_atraso']?.dispose(); // 🆕
+      controllerMap['juros_atraso']?.dispose();
+      controllerMap['data_pagamento']?.dispose();
     }
     taxaJurosCtrl.dispose();
   }

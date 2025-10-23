@@ -121,11 +121,11 @@ class _HomePageState extends State<HomePage> {
                 // 🔹 Logo e nome do sistema
                 Row(
                   children: const [
-                    Icon(Icons.attach_money,
+                    Icon(Icons.local_atm,
                         color: Colors.greenAccent, size: 28),
                     SizedBox(width: 10),
                     Text(
-                      "Agiota Online",
+                      "AgioMestre",
                       style: TextStyle(
                         color: Colors.white,
                         fontSize: 20,
