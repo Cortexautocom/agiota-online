@@ -111,25 +111,49 @@ class ParcelasTableState extends State<ParcelasTable> {
       return;
     }
 
+    // 🔹 Remove apenas da lista local (UI)
     setState(() {
       widget.parcelas.removeAt(index);
       _controllers.removeAt(index);
-      
-      // 🔹 Reorganiza os números das parcelas
-      for (int i = 0; i < widget.parcelas.length; i++) {
-        widget.parcelas[i]['numero'] = i + 1;
-      }
-    });
+    });    
   }
+
+
 
   /// 🔹 Coleta os valores editados e salva no Supabase (ATUALIZADO)
   Future<bool> salvarParcelas() async {
     try {
       final parcelasAtualizadas = <Map<String, dynamic>>[];
 
+      // 🔹 Antes do loop, identifica quais parcelas foram removidas na UI
+      final idEmprestimo = widget.emprestimo['id'] ?? widget.emprestimo['id_emprestimo'];
+
+      // 🔹 IDs que ainda estão visíveis na tela
+      final idsAtuais = widget.parcelas
+          .where((p) => p['id'] != null && p['id'].toString().isNotEmpty)
+          .map((p) => p['id'])
+          .toList();
+
+      // 🔹 Busca IDs existentes no banco
+      final existentesNoBanco = await Supabase.instance.client
+          .from('parcelas')
+          .select('id')
+          .eq('id_emprestimo', idEmprestimo);
+
+      final idsBanco = existentesNoBanco.map((e) => e['id']).toList();
+
+      // 🔹 Determina quais devem ser excluídas
+      final idsParaExcluir = idsBanco.where((id) => !idsAtuais.contains(id)).toList();
+
+      // 🔹 Loop principal — cria ou atualiza parcelas visíveis
       for (int i = 0; i < widget.parcelas.length; i++) {
         final p = widget.parcelas[i];
         final c = _controllers[i];
+
+        // 🔹 Usa número manual (sem auto incremento)
+        if (p['numero'] == null || p['numero'].toString().isEmpty) {
+          p['numero'] = null;
+        }
 
         final valor = service.parseMoeda(c['valor']!.text);
         final juros = service.parseMoeda(c['juros']!.text);
@@ -139,96 +163,38 @@ class ParcelasTableState extends State<ParcelasTable> {
         final valorPago = pgPrincipal + pgJuros;
         final residual = valor + juros - desconto - valorPago;
         final dataPag = c['data_pagamento']!.text.trim();
-
         final valorTotalOriginal = valor + juros - desconto;
 
-        
+        // 🔸 Validações de consistência
         if (residual < 1.00 && dataPag.isEmpty) {
           if (!mounted) return false;
-          await showDialog(
-            context: context,
-            builder: (ctx) => AlertDialog(
-              content: const Text(
-                "Inclua a data do pagamento antes de sair da página.",
-                textAlign: TextAlign.center,
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: const Text("OK"),
-                ),
-              ],
-            ),
-          );
+          await _alerta("Inclua a data do pagamento antes de sair da página.");
           return false;
         }
 
         if ((residual.abs() > 1.00) && (residual.abs() < (valorTotalOriginal - 1.00))) {
           if (!mounted) return false;
-          await showDialog(
-            context: context,
-            builder: (ctx) => AlertDialog(
-              content: const Text(
-                "Não é possível salvar com parcelas pagas parcialmente.\n\n"
-                "Faça os devidos ajustes antes de sair da página.",
-                textAlign: TextAlign.center,
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: const Text("OK"),
-                ),
-              ],
-            ),
-          );
+          await _alerta("Não é possível salvar com parcelas pagas parcialmente.\n\n"
+              "Faça os devidos ajustes antes de sair da página.");
           return false;
         }
 
         if (dataPag.isNotEmpty && valorPago == 0) {
           if (!mounted) return false;
-          await showDialog(
-            context: context,
-            builder: (ctx) => AlertDialog(
-              content: const Text(
-                "Existem parcelas com data lançada, mas sem o pagamento inserido.",
-                textAlign: TextAlign.center,
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: const Text("OK"),
-                ),
-              ],
-            ),
-          );
+          await _alerta("Existem parcelas com data lançada, mas sem o pagamento inserido.");
           return false;
         }
 
-        // 🔹 NOVA REGRA: Se há pagamento, mas sem data de pagamento, bloqueia
         if (valorPago > 0 && dataPag.isEmpty) {
           if (!mounted) return false;
-          await showDialog(
-            context: context,
-            builder: (ctx) => AlertDialog(
-              content: const Text(
-                "Há parcelas com pagamento inserido, mas sem data de pagamento.\n\n"
-                "Inclua a data antes de sair da página.",
-                textAlign: TextAlign.center,
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: const Text("OK"),
-                ),
-              ],
-            ),
-          );
+          await _alerta("Há parcelas com pagamento inserido, mas sem data de pagamento.\n\n"
+              "Inclua a data antes de sair da página.");
           return false;
         }
 
-        // 🔹 DADOS BASE PARA TODAS AS PARCELAS
+        // 🔹 Monta o objeto de dados
         final dadosParcela = {
-          'id_emprestimo': widget.emprestimo['id'] ?? widget.emprestimo['id_emprestimo'],
+          'id_emprestimo': idEmprestimo,
           'numero': p['numero'],
           'vencimento': _toIsoDate(c['vencimento']!.text),
           'valor': valor,
@@ -243,24 +209,25 @@ class ParcelasTableState extends State<ParcelasTable> {
           'data_prevista': p['data_prevista'], // Mantém acordo se existir
         };
 
-        // 🔹 DIFERENCIAR ENTRE ATUALIZAÇÃO E CRIAÇÃO
-        if (p['id'] != null && p['id'] != '') {
-          // 🔹 PARCELA EXISTENTE - inclui o ID
-          parcelasAtualizadas.add({
-            'id': p['id'],
-            ...dadosParcela
-          });
+        // 🔹 Define se atualiza ou insere
+        if (p['id'] != null && p['id'].toString().isNotEmpty) {
+          parcelasAtualizadas.add({'id': p['id'], ...dadosParcela});
         } else {
-          // 🔹 NOVA PARCELA - sem ID (será gerado pelo banco)
           parcelasAtualizadas.add(dadosParcela);
         }
       }
 
+      // 🔹 Salva alterações (criação/atualização)
       await service.salvarParcelasNoSupabase(
-        widget.emprestimo['id'] ?? widget.emprestimo['id_emprestimo'],
+        idEmprestimo,
         widget.emprestimo['id_usuario'],
         parcelasAtualizadas,
       );
+
+      // 🔹 Aplica exclusões pendentes (somente agora)
+      for (final id in idsParaExcluir) {
+        await Supabase.instance.client.from('parcelas').delete().eq('id', id);
+      }
 
       return true;
     } catch (e) {
@@ -284,6 +251,23 @@ class ParcelasTableState extends State<ParcelasTable> {
       return false;
     }
   }
+
+  // 🔹 Função auxiliar para simplificar os alertas
+  Future<void> _alerta(String mensagem) async {
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        content: Text(mensagem, textAlign: TextAlign.center),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text("OK"),
+          ),
+        ],
+      ),
+    );
+  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -394,16 +378,18 @@ class ParcelasTableState extends State<ParcelasTable> {
                       : estaEmAtraso
                           ? FontWeight.bold
                           : FontWeight.normal;
-
                   return DataRow(
                     color: rowColor != null ? MaterialStateProperty.all(rowColor) : null,
                     cells: [
                       DataCell(
                         SizedBox(
-                          width: 20, // Largura
+                          width: 20,
                           child: Center(
                             child: Text(
-                              "${p['numero'] ?? ''}",
+                              // 🔹 Usa o número real vindo do banco de dados
+                              (p['numero'] != null && p['numero'].toString().isNotEmpty)
+                                  ? p['numero'].toString()
+                                  : '${i + 1}', // fallback só se o número não vier do banco
                               style: TextStyle(
                                 fontSize: 13,
                                 color: textColor,
@@ -719,7 +705,48 @@ class ParcelasTableState extends State<ParcelasTable> {
                               tooltip: 'Ações',
                               onSelected: (value) async {
                                 if (value == 'excluir') {
-                                  _removerParcela(i);
+                                  final confirmar = await showDialog<bool>(
+                                    context: context,
+                                    builder: (ctx) => AlertDialog(
+                                      title: const Text(
+                                        "Excluir Parcela",
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.redAccent,
+                                        ),
+                                      ),
+                                      content: const Text(
+                                        "Tem certeza que deseja excluir a parcela?",
+                                        textAlign: TextAlign.center,
+                                      ),
+                                      actionsAlignment: MainAxisAlignment.center,
+                                      actions: [
+                                        TextButton(
+                                          onPressed: () => Navigator.pop(ctx, false),
+                                          style: TextButton.styleFrom(
+                                            backgroundColor: Colors.grey[300],
+                                            foregroundColor: Colors.black87,
+                                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                                          ),
+                                          child: const Text("Cancelar"),
+                                        ),
+                                        TextButton(
+                                          onPressed: () => Navigator.pop(ctx, true),
+                                          style: TextButton.styleFrom(
+                                            backgroundColor: Colors.redAccent,
+                                            foregroundColor: Colors.white,
+                                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                                          ),
+                                          child: const Text("Sim, excluir."),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+
+                                  if (confirmar == true) {
+                                    _removerParcela(i); // segue o fluxo normal
+                                  }
                                 } else if (value == 'calcular') {
                                   // 🔹 Lógica de cálculo automático
                                   final capital = num.tryParse("${widget.emprestimo["valor"]}") ?? 0;
