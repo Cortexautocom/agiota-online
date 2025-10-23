@@ -168,13 +168,62 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
     setState(() {});
   }
 
+  Future<void> _alerta(String mensagem) async {
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        content: Text(
+          mensagem,
+          textAlign: TextAlign.center,
+          style: const TextStyle(fontSize: 15),
+        ),
+        actionsAlignment: MainAxisAlignment.center,
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            style: TextButton.styleFrom(
+              backgroundColor: Colors.orange,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            ),
+            child: const Text("OK"),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _salvarNoBanco() async {
+
+    for (int i = 0; i < _controllers.linhas.length; i++) {
+      final linha = _controllers.linhas[i];
+      final pgJuros = (linha['pg_juros'] ?? 0.0) as double;
+      final dataPag = (linha['data_pagamento'] ?? '').toString().trim();
+
+      // 🔹 Caso 1: Pagamento inserido mas sem data
+      if (pgJuros > 0 && dataPag.isEmpty) {
+        await _alerta(
+          "Há parcelas com pagamento inserido, mas sem data de pagamento.\n\n"
+          "Inclua a data antes de sair da página."
+        );
+        return; // 🔸 Interrompe o salvamento
+      }
+
+      // 🔹 Caso 2: Data inserida mas sem pagamento
+      if (pgJuros == 0 && dataPag.isNotEmpty) {
+        await _alerta(
+          "Existem parcelas com data lançada, mas sem o pagamento inserido."
+        );
+        return; // 🔸 Interrompe o salvamento
+      }
+    }
+
+    // ✅ Só continua se todas as verificações foram aprovadas
     final sucesso = await _controllers.salvarParcelasNoBanco(widget.emprestimo['id']);
 
     if (!mounted) return;
 
     if (sucesso) {
-      // Mostra o diálogo e espera o usuário fechar
       await showDialog(
         context: context,
         barrierDismissible: false,
@@ -199,10 +248,8 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
         ),
       );
 
-      // ✅ Atualiza o Financeiro imediatamente (mesmo comportamento da ParcelasPage)
       widget.onSaved();
 
-      // ✅ Retorna ao Financeiro após o diálogo
       if (mounted && Navigator.of(context).canPop()) {
         print('🟩 [AmortizacaoTabela] Salvamento bem-sucedido! Retornando TRUE ao Financeiro...');
         Navigator.of(context).pop(true);
@@ -218,6 +265,7 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
       );
     }
   }
+
 
   // 🔹 Arquivar empréstimo
   Future<void> _arquivarEmprestimo() async {
@@ -552,15 +600,15 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
                                     child: Center(child: Text("Data")))),
                             DataColumn(
                                 label: SizedBox(
-                                    width: 130,
+                                    width: 90,
                                     child: Center(child: Text("Saldo Inicial")))),
                             DataColumn(
                                 label: SizedBox(
-                                    width: 105,
+                                    width: 90,
                                     child: Center(child: Text("Aporte")))),
                             DataColumn(
                                 label: SizedBox(
-                                    width: 115,
+                                    width: 80,
                                     child: Center(child: Text("Pag. Capital")))),
                             DataColumn(
                                 label: SizedBox(
@@ -583,7 +631,10 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
                                     width: 130,
                                     child: Center(child: Text("Saldo Final")))),
                             
-                            DataColumn(label: SizedBox(child: Center(child: Text("")))),
+                            DataColumn(
+                                label: SizedBox(
+                                    width: 25,
+                                    child: Center(child: Text("")))),
 
                           ],
                           rows: [
@@ -856,12 +907,6 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
               contentPadding: EdgeInsets.symmetric(vertical: 8, horizontal: 4),
               hintText: '0,00',
             ),
-            /*onChanged: (text) {
-              final valor = _controllers.parseMoeda(text);
-              _controllers.linhas[index]['juros_mes'] = valor;
-              _controllers.recalcularSaldos();
-              setState(() {});
-            },*/
             onTap: () {
               if (controller.text.isNotEmpty) {
                 controller.selection = TextSelection(
@@ -1075,52 +1120,6 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
     }
   }
 
-  /*
-  double _calcularJurosEmAtraso() {
-    double total = 0.0;
-    int linhasSomadas = 0;
-    final hoje = DateTime.now();
-    final formatador = DateFormat('dd/MM/yyyy');
-
-    for (int i = 0; i < _controllers.linhas.length; i++) {
-      final linha = _controllers.linhas[i];
-      final pg = linha['pg'] ?? 0;
-
-      // 🔹 Ignora linhas marcadas como pagas
-      if (pg == 1) continue;
-
-      // 🔹 Ignora a primeira linha (aporte inicial)
-      if (i == 0) continue;
-
-      final dataTexto = linha['data'];
-      if (dataTexto == null || dataTexto.toString().length != 10) continue;
-
-      try {
-        final dataLinha = formatador.parse(dataTexto);
-
-        // 🔹 Soma apenas juros das linhas válidas (não aporte)
-        total += (linha['juros_mes'] ?? 0.0) + (linha['juros_atraso'] ?? 0.0);
-        linhasSomadas++;
-
-        // 🔹 Se a data for maior que hoje → soma esta e para
-        if (dataLinha.isAfter(hoje)) {
-          break;
-        }
-
-      } catch (e) {
-        // ignora datas inválidas
-      }
-    }
-
-    // 🔹 Se não houver nenhuma linha válida além do aporte → retorna 0
-    if (linhasSomadas == 0) return 0.0;
-
-    return total;
-  }
-  */
-  // 🔹 Calcula juros para o próximo vencimento (nova lógica)
-  // 🔹 Calcula juros para o próximo vencimento (corrigido)
-  // 🔹 Calcula juros para o próximo vencimento (atualizado para incluir juros_atraso)
   double _calcularJurosProxVencimento() {
     double soma = 0.0;
 
