@@ -44,7 +44,7 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
     // 🔹 2. Busca parcelas no banco (com o campo ID incluído!)
     final parcelas = await supabase
       .from('parcelas')
-      .select('id, data_mov, aporte, pg_principal, pg_juros, juros_atraso, pg')
+      .select('id, data_mov, aporte, pg_principal, pg_juros, juros_atraso, pg, data_pagamento')
       .eq('id_emprestimo', widget.emprestimo['id'])
       .order('data_mov', ascending: true);
 
@@ -69,6 +69,8 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
           'juros_mes': 0.0,
           'juros_atraso': (p['juros_atraso'] as num?)?.toDouble() ?? 0.0,
           'pg': (p['pg'] as int?) ?? 0,
+          // 🔹 CORREÇÃO: Adiciona data_pagamento carregada do banco
+          'data_pagamento': _convertIsoToBr(p['data_pagamento']?.toString()) ?? '',
           'saldo_final': 0.0,
         });
       }
@@ -127,6 +129,19 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
     }
   }
 
+  // 🔹 Adicione este método na classe _AmortizacaoTabelaState
+  String? _convertIsoToBr(String? isoDate) {
+    if (isoDate == null || isoDate.isEmpty) return '';
+    try {
+      final parts = isoDate.split('-');
+      if (parts.length == 3) {
+        return '${parts[2]}/${parts[1]}/${parts[0]}';
+      }
+    } catch (e) {
+      print('Erro ao converter data ISO para BR: $e');
+    }
+    return '';
+  }
 
   void _adicionarLinha() {
     if (_controllers.haDataVazia()) {

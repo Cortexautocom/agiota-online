@@ -69,27 +69,11 @@ class AmortizacaoControllers {
 
         // 🔹 NOVO: Controller para data de pagamento (igual à tabela de parcelas)
         'data_pagamento': TextEditingController(
-          text: _toBrDate(linha['data_pagamento']?.toString()),
+          text: linha['data_pagamento']?.toString() ?? '',
         ),
       });
     }
   }
-
-  // 🔹 ADICIONE ESTE MÉTODO NA MESMA CLASSE (AmortizacaoControllers)
-  String? _toBrDate(String? isoDate) {
-    if (isoDate == null || isoDate.isEmpty) return '';
-    try {
-      final parts = isoDate.split('-');
-      if (parts.length == 3) {
-        return '${parts[2]}/${parts[1]}/${parts[0]}';
-      }
-    } catch (e) {
-      print('Erro ao converter data: $e');
-    }
-    return '';
-  }
-
-
   // 🔹 FORMATAÇÃO
   String fmtMoeda(double valor) => _service.fmtMoeda(valor);
   double parseMoeda(String texto) => _service.parseMoeda(texto);
@@ -118,7 +102,8 @@ class AmortizacaoControllers {
           'juros_mes': 0.0,
           'juros_atraso': (p['juros_atraso'] as num?)?.toDouble() ?? 0.0,
           'pg': (p['pg'] as int?) ?? 0,
-          'data_pagamento': _service.toBrDate(p['data_pagamento']?.toString()) ?? '',
+          // 🔹 CORREÇÃO: Converta manualmente de ISO para BR
+          'data_pagamento': _convertIsoToBr(p['data_pagamento']?.toString()) ?? '',
           'saldo_final': 0.0,
         });
       }
@@ -441,4 +426,18 @@ class AmortizacaoControllers {
           _linhas.isNotEmpty ? (_linhas.last['saldo_final'] ?? 0.0) : 0.0,
     };
   }
+
+  String? _convertIsoToBr(String? isoDate) {
+    if (isoDate == null || isoDate.isEmpty) return '';
+    try {
+      final parts = isoDate.split('-');
+      if (parts.length == 3) {
+        return '${parts[2]}/${parts[1]}/${parts[0]}';
+      }
+    } catch (e) {
+      print('Erro ao converter data ISO para BR: $e');
+    }
+    return '';
+  }
+
 }
