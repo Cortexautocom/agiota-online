@@ -51,9 +51,19 @@ class ParcelasTableState extends State<ParcelasTable> {
 
   // 🔹 MÉTODO PARA ADICIONAR NOVA PARCELA
   void adicionarNovaParcela() {
+    // 🔹 Obtém o maior número de parcela existente (ignorando nulos)
+    int novoNumero = 1;
+    if (widget.parcelas.isNotEmpty) {
+      final numerosValidos = widget.parcelas
+          .map((p) => int.tryParse(p['numero']?.toString() ?? '0') ?? 0)
+          .toList();
+      final maiorNumero = numerosValidos.isNotEmpty ? numerosValidos.reduce((a, b) => a > b ? a : b) : 0;
+      novoNumero = maiorNumero + 1;
+    }
+
     final novaParcela = {
-      'id': '', // Será gerado pelo banco
-      'numero': widget.parcelas.length + 1,
+      'id': '', // Será gerado pelo banco ao salvar
+      'numero': novoNumero, // 🔹 Agora segue o último número real, mesmo com lacunas
       'vencimento': '',
       'valor': 0.0,
       'juros': 0.0,
@@ -345,7 +355,8 @@ class ParcelasTableState extends State<ParcelasTable> {
                       vencimento.isBefore(DateTime(hoje.year, hoje.month, hoje.day));
 
                   // 🔹 NOVA REGRA: Se residual == 0 → formatação verde (prioridade máxima)
-                  final bool parcelaPaga = residualAtual <= 1.00;
+                  final valorParcela = service.parseMoeda(c['valor']!.text);
+                  final bool parcelaPaga = valorParcela > 0 && residualAtual <= 1.00;
 
                   // 🔹 Define cores com prioridade: Paga > Acordo > Atraso > Normal
                   // 🔹 Verifica se a próxima parcela tem um acordo ativo
