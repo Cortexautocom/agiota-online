@@ -1,18 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'parcelas_page.dart'; // ✅ Import para abrir a tela de parcelas
+import 'parcelas_page.dart';
 
 class RelatorioParcelasEmAberto extends StatefulWidget {
   final TextEditingController dataInicioCtrl;
   final TextEditingController dataFimCtrl;
-  final ValueNotifier<bool> refreshNotifier; // 🔹 Novo parâmetro
+  final ValueNotifier<bool> refreshNotifier;
 
   const RelatorioParcelasEmAberto({
     super.key,
     required this.dataInicioCtrl,
     required this.dataFimCtrl,
-    required this.refreshNotifier, // 🔹 Novo parâmetro obrigatório
+    required this.refreshNotifier,
   });
 
   @override
@@ -29,19 +29,15 @@ class _RelatorioParcelasEmAbertoState
   void initState() {
     super.initState();
     _buscarParcelasEmAberto();
-    
-    // 🔹 OUVINTE para atualizar quando o notificador mudar
     widget.refreshNotifier.addListener(_onRefreshRequested);
   }
 
   @override
   void dispose() {
-    // 🔹 IMPORTANTE: Remover o listener para evitar vazamentos de memória
     widget.refreshNotifier.removeListener(_onRefreshRequested);
     super.dispose();
   }
 
-  // 🔹 Método chamado quando o botão Buscar é pressionado
   void _onRefreshRequested() {
     _buscarParcelasEmAberto();
   }
@@ -71,19 +67,17 @@ class _RelatorioParcelasEmAbertoState
   }
 
   Future<void> _buscarParcelasEmAberto() async {
-    // ✅ Verifica se o widget ainda está montado antes de começar
     if (!mounted) return;
-
-    setState(() {
-      carregando = true;
-      // 🔹 Mantém os dados antigos na tela enquanto carrega
-    });
+    setState(() => carregando = true);
 
     try {
       final supabase = Supabase.instance.client;
 
-      // 🔹 Busca os dados da view
-      final response = await supabase
+      final dataInicio = _parseDataFiltro(widget.dataInicioCtrl.text);
+      final dataFim = _parseDataFiltro(widget.dataFimCtrl.text);
+
+      // 🟢 --- 1️⃣ Parcelamento (usa a view normalmente)
+      final viewResponse = await supabase
           .from('vw_parcelas_detalhes')
           .select('''
             id,
@@ -100,101 +94,150 @@ class _RelatorioParcelasEmAbertoState
             qtd_parcelas,
             tipo_mov
           ''')
-          .gt('residual', 1.00) // 🔹 Somente parcelas com valor residual acima de R$ 1,00
           .eq('ativo', 'sim')
           .order('cliente', ascending: true)
           .order('vencimento', ascending: true);
 
-      // ✅ Garante que o widget ainda existe
-      if (!mounted) return;
-
-      final dataInicio = _parseDataFiltro(widget.dataInicioCtrl.text);
-      final dataFim = _parseDataFiltro(widget.dataFimCtrl.text);
-
-      // 🔹 Filtra por intervalo de datas
-      final filtradas = response.where((p) {
+      final parcelasParcelamento = viewResponse.where((p) {
+        final tipo = (p['tipo_mov'] ?? '').toString().toLowerCase().trim();
         final venc = DateTime.tryParse(p['vencimento'] ?? '');
-        if (venc == null) return false;
+        if (tipo != 'parcelamento' || venc == null) return false;
         if (dataInicio != null && venc.isBefore(dataInicio)) return false;
         if (dataFim != null && venc.isAfter(dataFim)) return false;
-        return true;
+        return (p['residual'] ?? 0).toDouble() > 1.00;
+      }).map<Map<String, dynamic>>((p) {
+        final capitalTotal = (p['capital_total'] ?? 0).toDouble();
+        final jurosTotal = (p['juros_total'] ?? 0).toDouble();
+        final qtdParcelas = (p['qtd_parcelas'] ?? 1).toDouble();
+        final pgPrincipal = capitalTotal / qtdParcelas;
+        final pgJuros = jurosTotal / qtdParcelas;
+        final total = pgPrincipal + pgJuros;
+
+        return {
+          'id_emprestimo': p['id_emprestimo'],
+          'cliente': p['cliente'] ?? 'Sem cliente',
+          'numero': p['numero'],
+          'vencimento': formatarData(p['vencimento']),
+          'capital': pgPrincipal,
+          'juros': pgJuros,
+          'total': total,
+        };
       }).toList();
 
-      // 🔹 Ordena por cliente e depois por vencimento
-      filtradas.sort((a, b) {
+      // 🟣 --- 2️⃣ Amortização (busca direto na tabela parcelas)
+      final amortResponse = await supabase
+          .from('parcelas')
+          .select('''
+            id,
+            id_emprestimo,
+            data_mov,
+            pg,
+            pg_principal,
+            juros_periodo
+          ''')
+          .order('data_mov', ascending: true);
+
+      // Buscar info dos empréstimos de amortização
+      final emprestimosResponse = await supabase
+          .from('emprestimos')
+          .select('id, valor, tipo_mov, id_cliente')
+          .eq('tipo_mov', 'amortizacao');
+
+      // Buscar clientes
+      final clientesResponse =
+          await supabase.from('clientes').select('id_cliente, nome');
+
+      final List<Map<String, dynamic>> parcelasAmortizacao = [];
+
+      for (final emp in emprestimosResponse) {
+        final idEmp = emp['id'];
+        final tipo = (emp['tipo_mov'] ?? '').toString().toLowerCase().trim();
+        if (tipo != 'amortizacao') continue;
+
+        // 🔸 todas as parcelas vinculadas a esse empréstimo
+        final parcelasDoEmp = amortResponse
+            .where((p) => p['id_emprestimo'] == idEmp)
+            .toList();
+
+        if (parcelasDoEmp.isEmpty) continue;
+
+        // 🔸 parcelas restantes (pg == 0)
+        final parcelasRestantes =
+            parcelasDoEmp.where((p) => (p['pg'] ?? 0) == 0).toList();
+
+        if (parcelasRestantes.isEmpty) continue;
+
+        parcelasRestantes.sort((a, b) {
+          final da = DateTime.tryParse(a['data_mov'] ?? '') ?? DateTime(2100);
+          final db = DateTime.tryParse(b['data_mov'] ?? '') ?? DateTime(2100);
+          return da.compareTo(db);
+        });
+
+        // 🔸 cálculo do capital
+        final totalAporte = (emp['valor'] ?? 0).toDouble();
+
+        // soma de todos os pg_principal (inclusive pagos)
+        final totalPagoPrincipal = parcelasDoEmp.fold<double>(
+          0,
+          (sum, p) => sum + ((p['pg_principal'] ?? 0).toDouble()),
+        );
+
+        final restantes = parcelasRestantes.length;
+        final capitalRestante = totalAporte - totalPagoPrincipal;
+        final capitalPorParcela =
+            restantes > 0 ? capitalRestante / restantes : 0.0;
+
+        // 🔸 Nome do cliente
+        final cliente = clientesResponse.firstWhere(
+          (c) => c['id_cliente'] == emp['id_cliente'],
+          orElse: () => {'nome': 'Sem cliente'},
+        );
+
+        int contador = 1;
+        for (final p in parcelasRestantes) {
+          final dataMov = p['data_mov'];
+          final jurosPeriodo = (p['juros_periodo'] ?? 0).toDouble();
+          final total = capitalPorParcela + jurosPeriodo;
+
+          parcelasAmortizacao.add({
+            'id_emprestimo': idEmp,
+            'cliente': cliente['nome'],
+            'numero': contador++,
+            'vencimento': formatarData(dataMov),
+            'capital': capitalPorParcela,
+            'juros': jurosPeriodo,
+            'total': total,
+          });
+        }
+      }
+
+      // 🔹 Combina ambos os tipos
+      final todos = [...parcelasParcelamento, ...parcelasAmortizacao];
+
+      // 🔹 Ordena por cliente e data
+      todos.sort((a, b) {
         final nomeA = (a['cliente'] ?? '').toString().toLowerCase();
         final nomeB = (b['cliente'] ?? '').toString().toLowerCase();
         final compNome = nomeA.compareTo(nomeB);
         if (compNome != 0) return compNome;
 
-        final da = DateTime.tryParse(a['vencimento'] ?? '') ?? DateTime(2100);
-        final db = DateTime.tryParse(b['vencimento'] ?? '') ?? DateTime(2100);
+        final da = DateFormat('dd/MM/yyyy').parse(a['vencimento']);
+        final db = DateFormat('dd/MM/yyyy').parse(b['vencimento']);
         return da.compareTo(db);
       });
 
       if (!mounted) return;
-
-      setState(() {
-        relatorio = filtradas.map<Map<String, dynamic>>((p) {
-          final nomeCliente = p['cliente'] ?? 'Sem cliente';
-          final tipoMov = (p['tipo_mov'] ?? 'parcelamento').toString();
-
-          final capitalTotal = (p['capital_total'] ?? 0).toDouble();
-          final jurosTotal = (p['juros_total'] ?? 0).toDouble();
-          final qtdParcelas = (p['qtd_parcelas'] ?? 1).toDouble();
-          final numeroParcela = (p['numero'] ?? 1).toDouble();
-
-          double pgPrincipal = 0;
-          double pgJuros = 0;
-
-          if (tipoMov == 'parcelamento') {
-            // 🟢 Parcelamento: divide igualmente o capital e o juros
-            pgPrincipal = capitalTotal / qtdParcelas;
-            pgJuros = jurosTotal / qtdParcelas;
-          } else if (tipoMov == 'amortizacao') {
-            // 🟣 Amortização: juros sobre saldo devedor (simplificado)
-            final saldoDevedor =
-                capitalTotal - ((numeroParcela - 1) * (capitalTotal / qtdParcelas));
-            final taxaJuros = jurosTotal / capitalTotal; // taxa média
-            pgJuros = saldoDevedor * taxaJuros;
-            pgPrincipal = capitalTotal / qtdParcelas;
-          }
-
-          final total = pgPrincipal + pgJuros;
-
-          return {
-            'id_emprestimo': p['id_emprestimo'],
-            'cliente': nomeCliente,
-            'numero': p['numero'],
-            'vencimento': formatarData(p['vencimento']),
-            'capital': pgPrincipal,
-            'juros': pgJuros,
-            'total': total,
-          };
-        }).toList();
-      });
+      setState(() => relatorio = todos);
     } catch (e) {
-      // ✅ Se der erro, limpa o relatório
-      if (mounted) {
-        setState(() {
-          relatorio = [];
-        });
-      }
+      if (mounted) setState(() => relatorio = []);
     } finally {
-      // ✅ Finaliza o carregamento
-      if (mounted) {
-        setState(() {
-          carregando = false;
-        });
-      }
+      if (mounted) setState(() => carregando = false);
     }
   }
-
 
   @override
   Widget build(BuildContext context) {
     final formatador = NumberFormat.currency(locale: "pt_BR", symbol: "R\$");
-
     double totalCapital = relatorio.fold(0, (s, e) => s + e['capital']);
     double totalJuros = relatorio.fold(0, (s, e) => s + e['juros']);
     double totalGeral = relatorio.fold(0, (s, e) => s + e['total']);
@@ -203,12 +246,9 @@ class _RelatorioParcelasEmAbertoState
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const SizedBox(height: 10),
-        const Text(
-          "📄 Parcelas em aberto",
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-        ),
+        const Text("📄 Parcelas em aberto",
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
         const SizedBox(height: 10),
-
         Container(
           color: Colors.grey[300],
           padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
@@ -223,7 +263,6 @@ class _RelatorioParcelasEmAbertoState
             ],
           ),
         ),
-
         Expanded(
           child: carregando
               ? const Center(child: CircularProgressIndicator())
@@ -274,48 +313,21 @@ class _RelatorioParcelasEmAbertoState
                       },
                     ),
         ),
-
         if (relatorio.isNotEmpty)
           Container(
             color: Colors.grey[200],
             padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
             child: Row(
               children: [
-                const Expanded(
-                  flex: 3,
-                  child: Text(
-                    "Totais:",
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ),
+                const Expanded(flex: 3, child: Text("Totais:", style: TextStyle(fontWeight: FontWeight.bold))),
                 const Expanded(flex: 1, child: SizedBox()),
                 const Expanded(flex: 2, child: SizedBox()),
-                Expanded(
-                  flex: 2,
-                  child: Text(
-                    formatador.format(totalCapital),
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ),
-                Expanded(
-                  flex: 2,
-                  child: Text(
-                    formatador.format(totalJuros),
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ),
-                Expanded(
-                  flex: 2,
-                  child: Text(
-                    formatador.format(totalGeral),
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ),
+                Expanded(flex: 2, child: Text(formatador.format(totalCapital), style: const TextStyle(fontWeight: FontWeight.bold))),
+                Expanded(flex: 2, child: Text(formatador.format(totalJuros), style: const TextStyle(fontWeight: FontWeight.bold))),
+                Expanded(flex: 2, child: Text(formatador.format(totalGeral), style: const TextStyle(fontWeight: FontWeight.bold))),
               ],
             ),
           ),
-
-        // ✅ LEGENDA PADRONIZADA (igual aos outros relatórios)
         if (relatorio.isNotEmpty)
           Container(
             color: Colors.blue[50],
@@ -323,14 +335,10 @@ class _RelatorioParcelasEmAbertoState
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  "Total de parcelas: ${relatorio.length}",
-                  style: const TextStyle(fontSize: 12, color: Colors.blue),
-                ),
-                Text(
-                  "Atualizado: ${DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now())}",
-                  style: const TextStyle(fontSize: 12, color: Colors.blue),
-                ),
+                Text("Total de parcelas: ${relatorio.length}",
+                    style: const TextStyle(fontSize: 12, color: Colors.blue)),
+                Text("Atualizado: ${DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now())}",
+                    style: const TextStyle(fontSize: 12, color: Colors.blue)),
               ],
             ),
           ),
