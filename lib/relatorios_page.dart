@@ -16,6 +16,8 @@ class RelatoriosPage extends StatefulWidget {
 
 class _RelatoriosPageState extends State<RelatoriosPage> {
   String tipoRelatorio = 'Parcelas em aberto';
+  bool filtroParcelamento = false;
+  bool filtroAmortizacao = false;
   
   // 🔹 NOTIFICADOR GLOBAL para atualizar todos os relatórios
   final _refreshRelatorios = ValueNotifier<bool>(false);
@@ -257,13 +259,18 @@ class _RelatoriosPageState extends State<RelatoriosPage> {
         return RelatorioParcelasEmAberto(
           dataInicioCtrl: dataInicioCtrl,
           dataFimCtrl: dataFimCtrl,
-          refreshNotifier: _refreshRelatorios, // 🔹 Passe o notificador
+          refreshNotifier: _refreshRelatorios,
+          filtroParcelamento: filtroParcelamento,
+          filtroAmortizacao: filtroAmortizacao,
         );
+
       case 'Parcelas em atraso':
         return RelatorioParcelasVencidas(
           dataInicioCtrl: dataInicioCtrl,
           dataFimCtrl: dataFimCtrl,
-          refreshNotifier: _refreshRelatorios, // 🔹 Passe o notificador
+          refreshNotifier: _refreshRelatorios,
+          filtroParcelamento: filtroParcelamento,
+          filtroAmortizacao: filtroAmortizacao, // 🔹 Passe o notificador
         );
       case 'Parcelas com acordo vigente':
         return RelatorioParcelasComAcordo(
@@ -410,26 +417,52 @@ class _RelatoriosPageState extends State<RelatoriosPage> {
           const SizedBox(height: 16),
 
           // Linha de botões - Limpar Datas e Buscar
+          // Linha de filtros e botões
           Row(
-            mainAxisAlignment: MainAxisAlignment.end,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              // Botão Limpar Datas
-              OutlinedButton.icon(
-                onPressed: _limparDatas,
-                icon: const Icon(Icons.cleaning_services, size: 18),
-                label: const Text("Limpar Datas"),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.grey[700],
-                  side: BorderSide(color: Colors.grey[400]!),
-                ),
+              // 🔹 Filtros de tipo (lado esquerdo)
+              Row(
+                children: [
+                  Checkbox(
+                    value: filtroParcelamento,
+                    onChanged: (val) {
+                      setState(() => filtroParcelamento = val ?? false);
+                      _executarBusca();
+                    },
+                  ),
+                  const Text("Parcelamento"),
+                  const SizedBox(width: 16),
+                  Checkbox(
+                    value: filtroAmortizacao,
+                    onChanged: (val) {
+                      setState(() => filtroAmortizacao = val ?? false);
+                      _executarBusca();
+                    },
+                  ),
+                  const Text("Amortização"),
+                ],
               ),
-              const SizedBox(width: 12),
-              
-              // 🔹 Botão Buscar AGORA FUNCIONAL
-              ElevatedButton.icon(
-                onPressed: _executarBusca,
-                icon: const Icon(Icons.search, size: 18),
-                label: const Text("Buscar"),
+
+              // 🔹 Botões de ação (lado direito)
+              Row(
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: _limparDatas,
+                    icon: const Icon(Icons.cleaning_services, size: 18),
+                    label: const Text("Limpar Datas"),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.grey[700],
+                      side: BorderSide(color: Colors.grey[400]!),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  ElevatedButton.icon(
+                    onPressed: _executarBusca,
+                    icon: const Icon(Icons.search, size: 18),
+                    label: const Text("Buscar"),
+                  ),
+                ],
               ),
             ],
           ),

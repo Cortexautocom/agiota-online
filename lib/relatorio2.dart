@@ -6,13 +6,19 @@ import 'parcelas_page.dart'; // ✅ Import para abrir a tela de parcelas
 class RelatorioParcelasVencidas extends StatefulWidget {
   final TextEditingController dataInicioCtrl;
   final TextEditingController dataFimCtrl;
-  final ValueNotifier<bool> refreshNotifier; // 🔹 Novo parâmetro padronizado
+  final ValueNotifier<bool> refreshNotifier;
+
+  // 🔹 Novos filtros adicionados
+  final bool filtroParcelamento;
+  final bool filtroAmortizacao;
 
   const RelatorioParcelasVencidas({
     super.key,
     required this.dataInicioCtrl,
     required this.dataFimCtrl,
-    required this.refreshNotifier, // 🔹 Novo parâmetro obrigatório
+    required this.refreshNotifier,
+    required this.filtroParcelamento,
+    required this.filtroAmortizacao,
   });
 
   @override
@@ -29,19 +35,17 @@ class _RelatorioParcelasVencidasState
   void initState() {
     super.initState();
     _buscarParcelasVencidas();
-    
-    // 🔹 OUVINTE para atualizar quando o notificador mudar
+
+    // 🔹 Atualiza quando o botão "Buscar" é pressionado
     widget.refreshNotifier.addListener(_onRefreshRequested);
   }
 
   @override
   void dispose() {
-    // 🔹 IMPORTANTE: Remover o listener para evitar vazamentos de memória
     widget.refreshNotifier.removeListener(_onRefreshRequested);
     super.dispose();
   }
 
-  // 🔹 Método chamado quando o botão Buscar é pressionado
   void _onRefreshRequested() {
     _buscarParcelasVencidas();
   }
@@ -71,9 +75,7 @@ class _RelatorioParcelasVencidasState
   }
 
   Future<void> _buscarParcelasVencidas() async {
-    // ✅ Verifica se o widget ainda está montado antes de começar
     if (!mounted) return;
-
     setState(() {
       carregando = true;
       relatorio = [];
@@ -83,7 +85,10 @@ class _RelatorioParcelasVencidasState
       final supabase = Supabase.instance.client;
       final hoje = DateTime.now();
 
-      // 🔹 Busca os dados da view atualizada
+      final dataInicio = _parseDataFiltro(widget.dataInicioCtrl.text);
+      final dataFim = _parseDataFiltro(widget.dataFimCtrl.text);
+
+      // 🔹 Busca parcelas da view (parcelamento e amortização)
       final response = await supabase
           .from('vw_parcelas_detalhes')
           .select('''
@@ -102,48 +107,53 @@ class _RelatorioParcelasVencidasState
             qtd_parcelas,
             tipo_mov
           ''')
-          .gt('residual', 1.00) // ✅ Só considera parcelas com saldo > R$ 1,00
+          .gt('residual', 1.00)
           .eq('ativo', 'sim')
           .order('cliente', ascending: true)
           .order('vencimento', ascending: true);
 
-      if (!mounted) return;
-
-      final dataInicio = _parseDataFiltro(widget.dataInicioCtrl.text);
-      final dataFim = _parseDataFiltro(widget.dataFimCtrl.text);
-
-      // 🔹 Filtra apenas parcelas vencidas e sem acordo (data_prevista nula)
+      // 🔹 Filtro e processamento
       final filtradas = response.where((p) {
         final venc = DateTime.tryParse(p['vencimento'] ?? '');
         if (venc == null) return false;
 
-        // ✅ Só vencidas (antes de hoje)
-        if (!venc.isBefore(DateTime(hoje.year, hoje.month, hoje.day))) return false;
+        // apenas vencidas
+        if (!venc.isBefore(DateTime(hoje.year, hoje.month, hoje.day))) {
+          return false;
+        }
 
-        // ✅ Ignora parcelas com acordo
+        // ignora parcelas com acordo
         if (p['data_prevista'] != null) return false;
 
-        // ✅ Filtros de data do usuário (opcionais)
+        // aplica filtros de data
         if (dataInicio != null && venc.isBefore(dataInicio)) return false;
         if (dataFim != null && venc.isAfter(dataFim)) return false;
 
-        return true;
+        // aplica filtro de tipo_mov
+        final tipo = (p['tipo_mov'] ?? '').toString().toLowerCase().trim();
+        if (widget.filtroParcelamento && !widget.filtroAmortizacao) {
+          return tipo == 'parcelamento';
+        } else if (!widget.filtroParcelamento && widget.filtroAmortizacao) {
+          return tipo == 'amortizacao';
+        } else {
+          // se ambos marcados ou nenhum, mostra todos
+          return true;
+        }
       }).toList();
 
-      // 🔹 Ordena por cliente e vencimento
+      // 🔹 Ordena
       filtradas.sort((a, b) {
         final nomeA = (a['cliente'] ?? '').toString().toLowerCase();
         final nomeB = (b['cliente'] ?? '').toString().toLowerCase();
         final compNome = nomeA.compareTo(nomeB);
         if (compNome != 0) return compNome;
-
         final da = DateTime.tryParse(a['vencimento'] ?? '') ?? DateTime(2100);
         final db = DateTime.tryParse(b['vencimento'] ?? '') ?? DateTime(2100);
         return da.compareTo(db);
       });
 
+      // 🔹 Monta o relatório
       if (!mounted) return;
-
       setState(() {
         relatorio = filtradas.map<Map<String, dynamic>>((p) {
           final nomeCliente = p['cliente'] ?? 'Sem cliente';
@@ -158,14 +168,12 @@ class _RelatorioParcelasVencidasState
           double pgJuros = 0;
 
           if (tipoMov == 'parcelamento') {
-            // 🟢 Parcelamento: divide igualmente o capital e os juros
             pgPrincipal = capitalTotal / qtdParcelas;
             pgJuros = jurosTotal / qtdParcelas;
           } else if (tipoMov == 'amortizacao') {
-            // 🟣 Amortização: juros sobre saldo devedor (simplificado)
             final saldoDevedor =
                 capitalTotal - ((numeroParcela - 1) * (capitalTotal / qtdParcelas));
-            final taxaJuros = jurosTotal / capitalTotal; // taxa média aproximada
+            final taxaJuros = jurosTotal / capitalTotal;
             pgJuros = saldoDevedor * taxaJuros;
             pgPrincipal = capitalTotal / qtdParcelas;
           }
@@ -194,14 +202,10 @@ class _RelatorioParcelasVencidasState
       }
     } finally {
       if (mounted) {
-        setState(() {
-          carregando = false;
-        });
+        setState(() => carregando = false);
       }
     }
   }
-
-
 
   @override
   Widget build(BuildContext context) {
@@ -276,10 +280,10 @@ class _RelatorioParcelasVencidasState
                                     'juros': item['juros'] ?? 0,
                                     'prestacao': item['total'] ?? 0,
                                     'data_inicio': item['vencimento'],
-                                    'id_usuario': Supabase.instance.client.auth.currentUser?.id ?? '',
+                                    'id_usuario':
+                                        Supabase.instance.client.auth.currentUser?.id ?? '',
                                   },
                                   onSaved: () {
-                                    // ✅ Recarrega os dados quando volta da tela de parcelas
                                     _buscarParcelasVencidas();
                                   },
                                 ),
@@ -324,7 +328,6 @@ class _RelatorioParcelasVencidasState
             ),
           ),
 
-        // ✅ LEGENDA PADRONIZADA (igual ao relatorio1)
         if (relatorio.isNotEmpty)
           Container(
             color: Colors.orange[50],

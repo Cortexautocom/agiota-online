@@ -7,12 +7,16 @@ class RelatorioParcelasEmAberto extends StatefulWidget {
   final TextEditingController dataInicioCtrl;
   final TextEditingController dataFimCtrl;
   final ValueNotifier<bool> refreshNotifier;
+  final bool filtroParcelamento;
+  final bool filtroAmortizacao;
 
   const RelatorioParcelasEmAberto({
     super.key,
     required this.dataInicioCtrl,
     required this.dataFimCtrl,
     required this.refreshNotifier,
+    required this.filtroParcelamento,
+    required this.filtroAmortizacao,
   });
 
   @override
@@ -212,7 +216,18 @@ class _RelatorioParcelasEmAbertoState
       }
 
       // 🔹 Combina ambos os tipos
-      final todos = [...parcelasParcelamento, ...parcelasAmortizacao];
+      List<Map<String, dynamic>> todos = [];
+
+      if (widget.filtroParcelamento && !widget.filtroAmortizacao) {
+        todos = [...parcelasParcelamento];
+      } else if (!widget.filtroParcelamento && widget.filtroAmortizacao) {
+        todos = [...parcelasAmortizacao];
+      } else if (widget.filtroParcelamento && widget.filtroAmortizacao) {
+        todos = [...parcelasParcelamento, ...parcelasAmortizacao];
+      } else {
+        // se nenhum filtro estiver marcado, mostra tudo
+        todos = [...parcelasParcelamento, ...parcelasAmortizacao];
+      }
 
       // 🔹 Ordena por cliente e data
       todos.sort((a, b) {
