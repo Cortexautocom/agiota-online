@@ -89,21 +89,21 @@ class _HomePageState extends State<HomePage> {
     if (user == null) return;
 
     try {
-      // Busca o nome na tabela 'usuarios'
       final response = await Supabase.instance.client
           .from('usuarios')
           .select('nome')
           .eq('id', user.id)
           .maybeSingle();
 
-      if (response != null && response['nome'] != null && response['nome'].toString().isNotEmpty) {
+      if (response != null &&
+          response['nome'] != null &&
+          response['nome'].toString().isNotEmpty) {
         final nomeCompleto = response['nome'] as String;
         final primeiroNome = nomeCompleto.split(' ').first;
         setState(() {
           userDisplayName = primeiroNome;
         });
       } else {
-        // Se não houver nome na tabela, usa parte do e-mail
         userDisplayName = user.email?.split('@').first ?? "Usuário";
       }
     } catch (e) {
@@ -176,7 +176,7 @@ class _HomePageState extends State<HomePage> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(builder: (_) => const PerfilPage()),
-                      ).then((_) => _carregarNomeUsuario()); // 🔹 Recarrega nome após voltar
+                      ).then((_) => _carregarNomeUsuario());
                     } else if (value == 'logout') {
                       _logout();
                     }
@@ -238,10 +238,13 @@ class _HomePageState extends State<HomePage> {
                   },
                   labelType: NavigationRailLabelType.all,
                   destinations: const [
+                    /*
+                    // 🔸 PAINEL (comentado)
                     NavigationRailDestination(
                       icon: Icon(Icons.dashboard),
                       label: Text('Painel'),
                     ),
+                    */
                     NavigationRailDestination(
                       icon: Icon(Icons.people),
                       label: Text('Clientes'),
@@ -273,21 +276,23 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildPage(int index) {
+    /*
+    // 🔸 Sessão PAINEL (comentada)
+    case 0:
+      return const Center(child: Text("📊 Painel inicial"));
+    */
     switch (index) {
       case 0:
-        return const Center(child: Text("📊 Painel inicial"));
-      case 1:
         return const ClientesPage();
-      case 2:
+      case 1:
         return const RelatoriosPage();
-      case 3:
+      case 2:
         return const Center(child: Text("⚙️ Funções extras"));
       default:
         return const Center(child: Text("Página não encontrada"));
     }
   }
 }
-
 
 Future<Map<String, dynamic>?> open_client_form(BuildContext context) async {
   final nomeController = TextEditingController();

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'main.dart';
+import 'reset_password_page.dart'; // ✅ agora importa a nova página externa
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -85,7 +86,14 @@ class _LoginPageState extends State<LoginPage> {
                   Align(
                     alignment: Alignment.centerRight,
                     child: TextButton(
-                      onPressed: () {},
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const ResetPasswordPage(),
+                          ),
+                        );
+                      },
                       child: const Text(
                         "Esqueci minha senha",
                         style: TextStyle(color: Colors.blueGrey),
@@ -118,7 +126,7 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                   const SizedBox(height: 12),
 
-                  // Criar conta
+                  // Criar conta (ainda não implementado)
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
@@ -193,7 +201,6 @@ class _LoginPageState extends State<LoginPage> {
       final supabase = Supabase.instance.client;
       final hojeISO = DateTime.now().toIso8601String().split('T').first;
 
-      // 🔹 Busca parcelas com acordo vencido
       final parcelasComAcordo = await supabase
           .from('parcelas')
           .select('id, comentario, juros_acordo')
@@ -205,7 +212,6 @@ class _LoginPageState extends State<LoginPage> {
         final comentarioAtual = (parcela['comentario'] ?? '').toString();
         final jurosAcordo = (parcela['juros_acordo'] ?? 0).toDouble();
 
-        // 🔹 Monta novo comentário sem duplicar
         String novoComentario = comentarioAtual;
         if (jurosAcordo > 0 &&
             !comentarioAtual.contains('Acordo vencido de R\$')) {
@@ -215,7 +221,6 @@ class _LoginPageState extends State<LoginPage> {
               : '$comentarioAtual | Acordo vencido de R\$ $valorFmt';
         }
 
-        // 🔹 Atualiza apenas os campos necessários
         await supabase.from('parcelas').update({
           'data_prevista': null,
           'juros_acordo': null,
@@ -228,5 +233,4 @@ class _LoginPageState extends State<LoginPage> {
       debugPrint("Erro ao verificar acordos vencidos: $e");
     }
   }
-
 }
