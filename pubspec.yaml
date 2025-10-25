@@ -19,6 +19,8 @@ dependencies:
   flutter_dotenv: ^5.1.0  # ADICIONE ESTA LINHA
   flutter_localizations:
     sdk: flutter
+  excel: ^2.0.5
+  path_provider: ^2.1.1
   
 dev_dependencies:
   flutter_test:

@@ -16,6 +16,10 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
+    final alturaTela = MediaQuery.of(context).size.height;
+    const alturaRodape = 150.0; // Altura reservada p/ imagem + textos do rodapé
+    final alturaDisponivel = alturaTela - alturaRodape;
+
     return Scaffold(
       body: Stack(
         children: [
@@ -25,112 +29,119 @@ class _LoginPageState extends State<LoginPage> {
             height: double.infinity,
             decoration: const BoxDecoration(
               gradient: LinearGradient(
-                colors: [Color.fromARGB(255, 93, 134, 223), Color.fromARGB(255, 214, 214, 214)],
+                colors: [
+                  Color.fromARGB(255, 109, 160, 255),
+                  Color.fromARGB(255, 214, 214, 214)
+                ],
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
               ),
             ),
           ),
 
-          // 🔹 Conteúdo principal (formulário de login)
-          Center(
-            child: SingleChildScrollView(
-              child: Container(
-                width: 500,
-                margin: const EdgeInsets.symmetric(horizontal: 24),
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Colors.black26,
-                      blurRadius: 12,
-                      offset: Offset(0, 6),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const SizedBox(height: 12),
-                    Image.asset(
-                      'assets/logo_agiomestre.png',
-                      width: 300,
-                    ),
-                    const SizedBox(height: 24),
-
-                    // Campo de e-mail
-                    TextField(
-                      controller: emailController,
-                      keyboardType: TextInputType.emailAddress,
-                      decoration: InputDecoration(
-                        prefixIcon: const Icon(Icons.email_outlined),
-                        labelText: "E-mail",
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
+          // 🔹 Container que ocupa o espaço acima do rodapé
+          SizedBox(
+            height: alturaDisponivel,
+            width: double.infinity,
+            child: Center(
+              child: SingleChildScrollView(
+                child: Container(
+                  width: 500,
+                  margin: const EdgeInsets.symmetric(horizontal: 24),
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Colors.black26,
+                        blurRadius: 12,
+                        offset: Offset(0, 6),
                       ),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Campo de senha
-                    TextField(
-                      controller: senhaController,
-                      obscureText: true,
-                      decoration: InputDecoration(
-                        prefixIcon: const Icon(Icons.lock_outline),
-                        labelText: "Senha",
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
+                    ],
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const SizedBox(height: 12),
+                      Image.asset(
+                        'assets/logo_agiomestre.png',
+                        width: 300,
                       ),
-                    ),
-                    const SizedBox(height: 12),
+                      const SizedBox(height: 24),
 
-                    // Link Esqueci minha senha
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: TextButton(
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const ResetPasswordPage(),
-                            ),
-                          );
-                        },
-                        child: const Text(
-                          "Esqueci minha senha",
-                          style: TextStyle(color: Colors.blueGrey),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-
-                    // Botão de login
-                    SizedBox(
-                      width: 200,
-                      child: ElevatedButton(
-                        onPressed: _fazerLogin,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF28A745),
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
+                      // Campo de e-mail
+                      TextField(
+                        controller: emailController,
+                        keyboardType: TextInputType.emailAddress,
+                        decoration: InputDecoration(
+                          prefixIcon: const Icon(Icons.email_outlined),
+                          labelText: "E-mail",
+                          border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(10),
                           ),
                         ),
-                        child: const Text(
-                          "Entrar",
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Campo de senha
+                      TextField(
+                        controller: senhaController,
+                        obscureText: true,
+                        decoration: InputDecoration(
+                          prefixIcon: const Icon(Icons.lock_outline),
+                          labelText: "Senha",
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
                           ),
                         ),
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 12),
+
+                      // Link Esqueci minha senha
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const ResetPasswordPage(),
+                              ),
+                            );
+                          },
+                          child: const Text(
+                            "Esqueci minha senha",
+                            style: TextStyle(color: Colors.blueGrey),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+
+                      // Botão de login
+                      SizedBox(
+                        width: 200,
+                        child: ElevatedButton(
+                          onPressed: _fazerLogin,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF28A745),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                          child: const Text(
+                            "Entrar",
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -145,7 +156,7 @@ class _LoginPageState extends State<LoginPage> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Image.asset(
-                  'assets/logo_empresa.png', // ajuste conforme o nome do arquivo
+                  'assets/logo_empresa.png',
                   width: 150,
                   height: 96,
                   fit: BoxFit.contain,
@@ -191,6 +202,7 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
+  // 🔹 Função de login
   Future<void> _fazerLogin() async {
     final email = emailController.text.trim();
     final senha = senhaController.text.trim();
@@ -230,6 +242,7 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
+  // 🔹 Verifica acordos vencidos
   Future<void> verificarAcordosVencidosAoLogin(String idUsuario) async {
     try {
       final supabase = Supabase.instance.client;

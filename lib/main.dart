@@ -10,6 +10,7 @@ import 'relatorios_page.dart';
 import 'config/env.dart';
 import 'login_page.dart';
 import 'perfil_page.dart';
+import 'funcoes_extras_page.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -136,7 +137,7 @@ class _HomePageState extends State<HomePage> {
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 20),
             decoration: const BoxDecoration(
-              color: Color(0xFF1C2331),
+              color: Color.fromARGB(255, 109, 160, 255),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black26,
@@ -150,20 +151,14 @@ class _HomePageState extends State<HomePage> {
               children: [
                 // 🔹 Logo e nome do sistema
                 Row(
-                  children: const [
-                    Icon(Icons.local_atm, color: Colors.greenAccent, size: 28),
-                    SizedBox(width: 10),
-                    Text(
-                      "AgioMestre",
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
+                  children: [
+                    Image.asset(
+                      'assets/logo_agiomestre.png',
+                      height: 40, // ajuste conforme o tamanho desejado
+                      fit: BoxFit.contain,
                     ),
                   ],
                 ),
-
                 // 🔹 Menu de usuário no canto superior direito
                 PopupMenuButton<String>(
                   offset: const Offset(0, 40),
@@ -287,7 +282,7 @@ class _HomePageState extends State<HomePage> {
       case 1:
         return const RelatoriosPage();
       case 2:
-        return const Center(child: Text("⚙️ Funções extras"));
+        return const FuncoesExtrasPage();
       default:
         return const Center(child: Text("Página não encontrada"));
     }
