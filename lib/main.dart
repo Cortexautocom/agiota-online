@@ -26,25 +26,47 @@ Future<void> main() async {
   );
 
   final client = Supabase.instance.client;
-  final response = await client.from('clientes').select().limit(1);
-  print('Teste de conexão Supabase: $response');
+
+  // ✅ Detecta se o Supabase está sendo aberto com ?code=... (link de redefinição)
+  final uri = Uri.base;
+  if (uri.queryParameters.containsKey('code')) {
+    final code = uri.queryParameters['code']!;
+    try {
+      // ⚙️ Verifica o código de redefinição recebido
+      await client.auth.exchangeCodeForSession(code);
+
+      debugPrint('✅ Link de recuperação verificado com sucesso');
+    } catch (e) {
+      debugPrint('❌ Erro ao verificar link de recuperação: $e');
+    }
+  }
+
+// Apenas teste de conexão (mantido)
+final response = await client.from('clientes').select().limit(1);
+print('Teste de conexão Supabase: $response');
+
 
   await initializeDateFormatting("pt_BR", null);
 
   final auth = Supabase.instance.client.auth;
   final session = auth.currentSession;
+
+  // 🔹 Página padrão (login)
   Widget startPage = const LoginPage();
 
+  // 🔹 Se já houver sessão ativa (login normal)
   if (session != null) {
-    // ⚙️ Verifica se foi uma sessão criada via link de redefinição
-    final recoveryFlag = session.user.userMetadata?['recovery'] ?? false;
-    if (recoveryFlag == true) {
-      startPage = const ResetPasswordPage();
-    } else {
-      startPage = const HomePage();
-    }
+    startPage = const HomePage();
   }
 
+  // ✅ Listener para detectar link de redefinição de senha
+  auth.onAuthStateChange.listen((data) {
+    final AuthChangeEvent event = data.event;
+    if (event == AuthChangeEvent.passwordRecovery) {
+      debugPrint("🟢 Evento detectado: passwordRecovery → abrindo ResetPasswordPage");
+      runApp(const MyApp(initialPage: ResetPasswordPage()));
+    }
+  });
 
   runApp(MyApp(initialPage: startPage));
 }
@@ -167,12 +189,12 @@ class _HomePageState extends State<HomePage> {
                   children: [
                     Image.asset(
                       'assets/logo_agiomestre.png',
-                      height: 40, // ajuste conforme o tamanho desejado
+                      height: 40,
                       fit: BoxFit.contain,
                     ),
                   ],
                 ),
-                // 🔹 Menu de usuário no canto superior direito
+                // 🔹 Menu de usuário
                 PopupMenuButton<String>(
                   offset: const Offset(0, 40),
                   color: Colors.white,
@@ -231,11 +253,10 @@ class _HomePageState extends State<HomePage> {
             ),
           ),
 
-          // 🔹 Conteúdo: menu lateral + páginas
+          // 🔹 Conteúdo
           Expanded(
             child: Row(
               children: [
-                // Menu lateral
                 NavigationRail(
                   backgroundColor: Colors.grey[200],
                   selectedIndex: _selectedIndex,
@@ -246,13 +267,6 @@ class _HomePageState extends State<HomePage> {
                   },
                   labelType: NavigationRailLabelType.all,
                   destinations: const [
-                    /*
-                    // 🔸 PAINEL (comentado)
-                    NavigationRailDestination(
-                      icon: Icon(Icons.dashboard),
-                      label: Text('Painel'),
-                    ),
-                    */
                     NavigationRailDestination(
                       icon: Icon(Icons.people),
                       label: Text('Clientes'),
@@ -267,8 +281,6 @@ class _HomePageState extends State<HomePage> {
                     ),
                   ],
                 ),
-
-                // Conteúdo central
                 Expanded(
                   child: Container(
                     color: Colors.white,
@@ -284,11 +296,6 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildPage(int index) {
-    /*
-    // 🔸 Sessão PAINEL (comentada)
-    case 0:
-      return const Center(child: Text("📊 Painel inicial"));
-    */
     switch (index) {
       case 0:
         return const ClientesPage();
@@ -301,6 +308,7 @@ class _HomePageState extends State<HomePage> {
     }
   }
 }
+
 
 Future<Map<String, dynamic>?> open_client_form(BuildContext context) async {
   final nomeController = TextEditingController();

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'login_page.dart';
 
 class ResetPasswordPage extends StatefulWidget {
   const ResetPasswordPage({super.key});
@@ -72,23 +73,46 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
     }
 
     setState(() => carregando = true);
+
     try {
+      // 🔹 Atualiza a senha do usuário
       await Supabase.instance.client.auth.updateUser(
         UserAttributes(password: senha),
       );
 
+      // 🔹 Mensagem de sucesso
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Senha redefinida com sucesso!')),
+        const SnackBar(
+          content: Text('Senha redefinida com sucesso! Faça login novamente.'),
+          backgroundColor: Colors.green,
+        ),
       );
-      Navigator.pop(context);
+
+      // 🔹 Aguarda brevemente para exibir a mensagem
+      await Future.delayed(const Duration(seconds: 1));
+
+      // 🔹 Encerra a sessão temporária
+      await Supabase.instance.client.auth.signOut();
+
+      // 🔹 Retorna ao login
+      if (!mounted) return;
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => const LoginPage()),
+        (route) => false,
+      );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erro ao redefinir senha: $e')),
+        SnackBar(
+          content: Text('Erro ao redefinir senha: $e'),
+          backgroundColor: Colors.redAccent,
+        ),
       );
     } finally {
       setState(() => carregando = false);
     }
   }
+
 
   @override
   Widget build(BuildContext context) {
