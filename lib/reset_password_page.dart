@@ -18,6 +18,18 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
   @override
   void initState() {
     super.initState();
+
+    // ✅ Detecta o fluxo "password recovery" quando o link do e-mail é aberto
+    Supabase.instance.client.auth.onAuthStateChange.listen((data) {
+      final AuthChangeEvent event = data.event;
+      if (event == AuthChangeEvent.passwordRecovery) {
+        setState(() {
+          redefinirSenha = true;
+        });
+      }
+    });
+
+    // Se já houver sessão válida, já permite redefinir
     final session = Supabase.instance.client.auth.currentSession;
     if (session != null) {
       redefinirSenha = true;
@@ -25,12 +37,21 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
   }
 
   Future<void> _enviarEmailReset() async {
+    final email = emailController.text.trim();
+    if (email.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Digite o e-mail cadastrado.')),
+      );
+      return;
+    }
+
     setState(() => carregando = true);
     try {
       await Supabase.instance.client.auth.resetPasswordForEmail(
-        emailController.text.trim(),
-        redirectTo: 'https://seudominio.com/reset', // ajuste conforme sua URL
+        email,
+        redirectTo: 'https://agiota-online.web.app/reset', // ✅ seu domínio público
       );
+
       setState(() => solicitacaoEnviada = true);
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -42,11 +63,20 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
   }
 
   Future<void> _redefinirSenha() async {
+    final senha = senhaController.text.trim();
+    if (senha.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Digite a nova senha.')),
+      );
+      return;
+    }
+
     setState(() => carregando = true);
     try {
       await Supabase.instance.client.auth.updateUser(
-        UserAttributes(password: senhaController.text.trim()),
+        UserAttributes(password: senha),
       );
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Senha redefinida com sucesso!')),
       );
@@ -63,6 +93,7 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       body: Container(
         width: double.infinity,
         height: double.infinity,
@@ -100,9 +131,7 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    redefinirSenha
-                        ? 'Redefinir Senha'
-                        : 'Recuperar Acesso',
+                    redefinirSenha ? 'Redefinir Senha' : 'Recuperar Acesso',
                     style: const TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.bold,
@@ -119,7 +148,7 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
                   ),
                   const SizedBox(height: 24),
 
-                  // Campo de entrada
+                  // 🔹 Etapa 1 — Solicitar link
                   if (!redefinirSenha) ...[
                     ConstrainedBox(
                       constraints: const BoxConstraints(maxWidth: 300),
@@ -169,7 +198,10 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
                           style: TextStyle(color: Colors.green),
                         ),
                       ),
-                  ] else ...[
+                  ],
+
+                  // 🔹 Etapa 2 — Redefinir senha
+                  if (redefinirSenha) ...[
                     ConstrainedBox(
                       constraints: const BoxConstraints(maxWidth: 300),
                       child: TextField(
@@ -211,9 +243,8 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
                       ),
                     ),
                   ],
-                  const SizedBox(height: 20),
 
-                  // Voltar ao login
+                  const SizedBox(height: 20),
                   TextButton(
                     onPressed: () => Navigator.pop(context),
                     child: const Text(

@@ -11,6 +11,7 @@ import 'config/env.dart';
 import 'login_page.dart';
 import 'perfil_page.dart';
 import 'funcoes_extras_page.dart';
+import 'reset_password_page.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -30,8 +31,20 @@ Future<void> main() async {
 
   await initializeDateFormatting("pt_BR", null);
 
-  final user = Supabase.instance.client.auth.currentUser;
-  final Widget startPage = user != null ? const HomePage() : const LoginPage();
+  final auth = Supabase.instance.client.auth;
+  final session = auth.currentSession;
+  Widget startPage = const LoginPage();
+
+  if (session != null) {
+    // ⚙️ Verifica se foi uma sessão criada via link de redefinição
+    final recoveryFlag = session.user.userMetadata?['recovery'] ?? false;
+    if (recoveryFlag == true) {
+      startPage = const ResetPasswordPage();
+    } else {
+      startPage = const HomePage();
+    }
+  }
+
 
   runApp(MyApp(initialPage: startPage));
 }
