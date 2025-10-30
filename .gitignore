@@ -35,7 +35,7 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 
-# ADICIONE ESTAS LINHAS PARA PROTEÇÃO DAS CREDENCIAIS:
+
 .env
 *.env
 .env.*

@@ -7,7 +7,6 @@ import 'clientes_page.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'relatorios_page.dart';
-import 'config/env.dart';
 import 'login_page.dart';
 import 'perfil_page.dart';
 import 'funcoes_extras_page.dart';
@@ -16,50 +15,45 @@ import 'reset_password_page.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  if (!kIsWeb) {
-    await dotenv.load(fileName: '.env');
-  }
+  // 🧩 Carrega o arquivo .env
+  await dotenv.load(fileName: ".env");
 
+  // 🔐 Lê as credenciais do Supabase
+  final supabaseUrl = dotenv.env['SUPABASE_URL'] ?? '';
+  final supabaseAnonKey = dotenv.env['SUPABASE_ANON_KEY'] ?? '';
+
+  // 🔗 Inicializa o Supabase
   await Supabase.initialize(
-    url: Env.supabaseUrl,
-    anonKey: Env.supabaseAnonKey,
+    url: supabaseUrl,
+    anonKey: supabaseAnonKey,
   );
 
   final client = Supabase.instance.client;
 
-  // ✅ Detecta se o Supabase está sendo aberto com ?code=... (link de redefinição)
+  // ✅ Detecta link de redefinição de senha (Supabase Magic Link)
   final uri = Uri.base;
   if (uri.queryParameters.containsKey('code')) {
     final code = uri.queryParameters['code']!;
     try {
-      // ⚙️ Verifica o código de redefinição recebido
       await client.auth.exchangeCodeForSession(code);
-
       debugPrint('✅ Link de recuperação verificado com sucesso');
     } catch (e) {
       debugPrint('❌ Erro ao verificar link de recuperação: $e');
     }
   }
 
-// Apenas teste de conexão (mantido)
-final response = await client.from('clientes').select().limit(1);
-print('Teste de conexão Supabase: $response');
-
-
   await initializeDateFormatting("pt_BR", null);
 
   final auth = Supabase.instance.client.auth;
   final session = auth.currentSession;
 
-  // 🔹 Página padrão (login)
+  // 🔹 Página inicial (login ou home)
   Widget startPage = const LoginPage();
-
-  // 🔹 Se já houver sessão ativa (login normal)
   if (session != null) {
     startPage = const HomePage();
   }
 
-  // ✅ Listener para detectar link de redefinição de senha
+  // ✅ Listener para detectar evento de redefinição de senha
   auth.onAuthStateChange.listen((data) {
     final AuthChangeEvent event = data.event;
     if (event == AuthChangeEvent.passwordRecovery) {
@@ -103,6 +97,7 @@ class MyApp extends StatelessWidget {
   }
 }
 
+// ... (o resto do código HomePage e open_client_form permanecem EXATAMENTE IGUAIS)
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
 
@@ -184,7 +179,7 @@ class _HomePageState extends State<HomePage> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                // 🔹 Logo e nome do sistema
+                // 🔹 Logo
                 Row(
                   children: [
                     Image.asset(
@@ -194,7 +189,7 @@ class _HomePageState extends State<HomePage> {
                     ),
                   ],
                 ),
-                // 🔹 Menu de usuário
+                // 🔹 Menu do usuário
                 PopupMenuButton<String>(
                   offset: const Offset(0, 40),
                   color: Colors.white,
@@ -253,7 +248,7 @@ class _HomePageState extends State<HomePage> {
             ),
           ),
 
-          // 🔹 Conteúdo
+          // 🔹 Conteúdo principal
           Expanded(
             child: Row(
               children: [
@@ -308,7 +303,6 @@ class _HomePageState extends State<HomePage> {
     }
   }
 }
-
 
 Future<Map<String, dynamic>?> open_client_form(BuildContext context) async {
   final nomeController = TextEditingController();

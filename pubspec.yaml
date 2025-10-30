@@ -16,7 +16,7 @@ dependencies:
   flutter_multi_formatter: ^2.12.0
   uuid: ^4.4.0
   cupertino_icons: ^1.0.8
-  flutter_dotenv: ^5.1.0  # ADICIONE ESTA LINHA
+  flutter_dotenv: ^5.1.0  # ADICIONADO
   flutter_localizations:
     sdk: flutter
   excel: ^2.0.5
@@ -33,4 +33,4 @@ flutter:
   assets:
     - assets/logo_agiomestre.png
     - assets/logo_empresa.png
- 
+    - .env
