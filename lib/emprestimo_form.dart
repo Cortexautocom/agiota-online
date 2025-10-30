@@ -25,6 +25,7 @@ class EmprestimoForm extends StatefulWidget {
 class _EmprestimoFormState extends State<EmprestimoForm> {
   final _formKey = GlobalKey<FormState>();
 
+  final dataInicioCtrl = TextEditingController();
   final capitalCtrl = TextEditingController();
   final mesesCtrl = TextEditingController();
   final taxaCtrl = TextEditingController();
@@ -41,12 +42,15 @@ class _EmprestimoFormState extends State<EmprestimoForm> {
   double? capital;
   double? totalComJuros;
 
-  DateTime dataEmprestimo = DateTime.now();
-
   @override
   void initState() {
     super.initState();
     _carregarNomeCliente();
+
+    // 🔹 Preenche com data atual
+    final hoje = DateTime.now();
+    dataInicioCtrl.text =
+        '${hoje.day.toString().padLeft(2, '0')}/${hoje.month.toString().padLeft(2, '0')}/${hoje.year}';
 
     // 🔹 Limpa campo oposto ao digitar
     taxaCtrl.addListener(() {
@@ -59,6 +63,7 @@ class _EmprestimoFormState extends State<EmprestimoForm> {
 
   @override
   void dispose() {
+    dataInicioCtrl.dispose();
     capitalCtrl.dispose();
     mesesCtrl.dispose();
     taxaCtrl.dispose();
@@ -79,6 +84,38 @@ class _EmprestimoFormState extends State<EmprestimoForm> {
     setState(() {
       nomeCliente = resp?['nome'] ?? 'Cliente';
     });
+  }
+
+  // 🔹 Máscara de data
+  TextInputFormatter _dateMaskFormatter() {
+    return TextInputFormatter.withFunction((oldValue, newValue) {
+      var text = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
+      if (text.length >= 3) text = '${text.substring(0, 2)}/${text.substring(2)}';
+      if (text.length >= 6) text = '${text.substring(0, 5)}/${text.substring(5)}';
+      if (text.length > 10) text = text.substring(0, 10);
+      return TextEditingValue(
+        text: text,
+        selection: TextSelection.collapsed(offset: text.length),
+      );
+    });
+  }
+
+  bool _validarData(String data) {
+    if (data.isEmpty) return false;
+    final parts = data.split('/');
+    if (parts.length != 3) return false;
+    try {
+      final dia = int.parse(parts[0]);
+      final mes = int.parse(parts[1]);
+      final ano = int.parse(parts[2]);
+      if (dia < 1 || dia > 31) return false;
+      if (mes < 1 || mes > 12) return false;
+      if (ano < 1900 || ano > 2100) return false;
+      final date = DateTime(ano, mes, dia);
+      return date.day == dia && date.month == mes && date.year == ano;
+    } catch (e) {
+      return false;
+    }
   }
 
   TextInputFormatter _moedaFormatter() {
@@ -144,7 +181,6 @@ class _EmprestimoFormState extends State<EmprestimoForm> {
       return;
     }
 
-    // 🔹 Se taxa e parcela preenchidas → prioriza taxa
     if (taxaDigitada > 0 && parcelaDigitada > 0) {
       parcelaCtrl.text = '';
     }
@@ -185,11 +221,24 @@ class _EmprestimoFormState extends State<EmprestimoForm> {
   Future<void> salvar() async {
     if (prestacao == null || totalJuros == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text("Preencha os campos e simule antes de salvar!")),
+        const SnackBar(content: Text("Preencha os campos e simule antes de salvar!")),
       );
       return;
     }
+
+    if (!_validarData(dataInicioCtrl.text)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Data inicial inválida!")),
+      );
+      return;
+    }
+
+    final partes = dataInicioCtrl.text.split('/');
+    final dataEmprestimo = DateTime(
+      int.parse(partes[2]),
+      int.parse(partes[1]),
+      int.parse(partes[0]),
+    );
 
     final supabase = Supabase.instance.client;
     final uuid = Uuid();
@@ -205,9 +254,6 @@ class _EmprestimoFormState extends State<EmprestimoForm> {
     final prestacaoFinal = double.parse((prestacao ?? 0).toStringAsFixed(2));
     final taxaMensal = double.parse((taxaFinal ?? 0).toStringAsFixed(4));
 
-    // 🔹 Inserir o empréstimo e retornar o número gerado pelo banco
-    print('DEBUG: Enviando tipo_mov = parcelamento');
-
     final insertResp = await supabase
         .from('emprestimos')
         .insert({
@@ -221,16 +267,13 @@ class _EmprestimoFormState extends State<EmprestimoForm> {
           'taxa': taxaMensal,
           'id_usuario': userId,
           'ativo': 'sim',
-          'tipo_mov': 'parcelamento', // ✅ valor explícito
+          'tipo_mov': 'parcelamento',
         })
         .select()
-        .maybeSingle(); // ✅ retorna o registro completo
+        .maybeSingle();
 
-    // ✅ Captura o número do empréstimo gerado pelo trigger
     final numeroEmprestimo = insertResp?['numero'] ?? 0;
 
-
-    // ✅ 🔹 GERAR PARCELAS AUTOMATICAMENTE (compatível com schema)
     final List<Map<String, dynamic>> parcelas = [];
     for (int i = 1; i <= meses; i++) {
       final vencimento = DateTime(
@@ -258,7 +301,6 @@ class _EmprestimoFormState extends State<EmprestimoForm> {
 
     await supabase.from('parcelas').insert(parcelas);
 
-    // 🔹 Abre a tela de parcelas
     Navigator.pop(context);
     Navigator.push(
       context,
@@ -276,7 +318,7 @@ class _EmprestimoFormState extends State<EmprestimoForm> {
             "id_usuario": userId,
             "ativo": "sim",
             "cliente": nomeCliente ?? 'Cliente',
-            "numero": numeroEmprestimo, // ✅ agora o número vai para a tela de parcelas
+            "numero": numeroEmprestimo,
           },
           onSaved: widget.onSaved,
         ),
@@ -298,7 +340,6 @@ class _EmprestimoFormState extends State<EmprestimoForm> {
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 🔹 FORMULÁRIO
             Container(
               width: 300,
               height: 600,
@@ -308,30 +349,53 @@ class _EmprestimoFormState extends State<EmprestimoForm> {
                 child: SingleChildScrollView(
                   child: Column(
                     children: [
+                      // 🔹 Campo Data Inicial
+                      TextFormField(
+                        controller: dataInicioCtrl,
+                        decoration: const InputDecoration(
+                          labelText: "Data inicial do empréstimo",
+                          hintText: "dd/mm/aaaa",
+                        ),
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [_dateMaskFormatter()],
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return "Informe a data inicial";
+                          }
+                          if (!_validarData(value)) return "Data inválida";
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 12),
+
                       TextFormField(
                         controller: capitalCtrl,
-                        decoration: const InputDecoration(labelText: "Valor financiado"),
+                        decoration:
+                            const InputDecoration(labelText: "Valor financiado"),
                         keyboardType: TextInputType.number,
                         inputFormatters: [_moedaFormatter()],
                       ),
                       const SizedBox(height: 12),
                       TextFormField(
                         controller: mesesCtrl,
-                        decoration: const InputDecoration(labelText: "Qtd. de parcelas"),
+                        decoration:
+                            const InputDecoration(labelText: "Qtd. de parcelas"),
                         keyboardType: TextInputType.number,
                       ),
                       const SizedBox(height: 12),
                       TextFormField(
                         focusNode: taxaFocus,
                         controller: taxaCtrl,
-                        decoration: const InputDecoration(labelText: "Taxa mensal (% a.m)"),
+                        decoration: const InputDecoration(
+                            labelText: "Taxa mensal (% a.m)"),
                         keyboardType: TextInputType.number,
                       ),
                       const SizedBox(height: 12),
                       TextFormField(
                         focusNode: parcelaFocus,
                         controller: parcelaCtrl,
-                        decoration: const InputDecoration(labelText: "Valor da parcela"),
+                        decoration:
+                            const InputDecoration(labelText: "Valor da parcela"),
                         keyboardType: TextInputType.number,
                         inputFormatters: [_moedaFormatter()],
                       ),
@@ -343,7 +407,8 @@ class _EmprestimoFormState extends State<EmprestimoForm> {
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.blue,
                             foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            padding:
+                                const EdgeInsets.symmetric(vertical: 14),
                           ),
                           child: const Text("📊 Simular Empréstimo"),
                         ),
@@ -358,9 +423,10 @@ class _EmprestimoFormState extends State<EmprestimoForm> {
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.green,
                             foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            padding:
+                                const EdgeInsets.symmetric(vertical: 14),
                             textStyle: const TextStyle(
-                              fontSize: 16, fontWeight: FontWeight.bold),
+                                fontSize: 16, fontWeight: FontWeight.bold),
                           ),
                         ),
                       ),
@@ -369,18 +435,12 @@ class _EmprestimoFormState extends State<EmprestimoForm> {
                 ),
               ),
             ),
-
             const SizedBox(width: 40),
-
-            // 🔹 CARD DE INFORMAÇÕES
-            // 🔹 CARD DE INFORMAÇÕES (altura flexível)
             Flexible(
               child: Container(
                 width: 260,
-                constraints: const BoxConstraints(
-                  minHeight: 200, // altura mínima opcional
-                  maxWidth: 260,
-                ),
+                constraints:
+                    const BoxConstraints(minHeight: 200, maxWidth: 260),
                 padding: const EdgeInsets.all(16),
                 child: Container(
                   width: double.infinity,
@@ -391,12 +451,13 @@ class _EmprestimoFormState extends State<EmprestimoForm> {
                     border: Border.all(color: Colors.green.shade200),
                   ),
                   child: Column(
-                    mainAxisSize: MainAxisSize.min, // ✅ faz a altura se ajustar ao conteúdo
+                    mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
                         "Novo empréstimo",
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                        style: TextStyle(
+                            fontWeight: FontWeight.bold, fontSize: 14),
                       ),
                       const SizedBox(height: 6),
                       Text(
@@ -406,18 +467,30 @@ class _EmprestimoFormState extends State<EmprestimoForm> {
                         overflow: TextOverflow.ellipsis,
                       ),
                       const Divider(),
-                      Text("Valor financiado: ${fmtMoeda(totalComJuros ?? 0)}",
-                          style: const TextStyle(fontSize: 12)),
-                      Text("Taxa aplicada: ${(taxaFinal ?? 0).toStringAsFixed(2)}% a.m",
-                          style: const TextStyle(fontSize: 12)),
-                      Text("Qtd. de parcelas: ${qtdParcelas ?? '--'}",
-                          style: const TextStyle(fontSize: 12)),
-                      Text("Valor de cada parcela: ${fmtMoeda(prestacao ?? 0)}",
-                          style: const TextStyle(fontSize: 12)),
-                      Text("Capital em risco: ${fmtMoeda(capital ?? 0)}",
-                          style: const TextStyle(fontSize: 12)),
-                      Text("Juros totais: ${fmtMoeda(totalJuros ?? 0)}",
-                          style: const TextStyle(fontSize: 12)),
+                      Text(
+                        "Valor financiado: ${fmtMoeda(totalComJuros ?? 0)}",
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                      Text(
+                        "Taxa aplicada: ${(taxaFinal ?? 0).toStringAsFixed(2)}% a.m",
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                      Text(
+                        "Qtd. de parcelas: ${qtdParcelas ?? '--'}",
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                      Text(
+                        "Valor de cada parcela: ${fmtMoeda(prestacao ?? 0)}",
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                      Text(
+                        "Capital em risco: ${fmtMoeda(capital ?? 0)}",
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                      Text(
+                        "Juros totais: ${fmtMoeda(totalJuros ?? 0)}",
+                        style: const TextStyle(fontSize: 12),
+                      ),
                     ],
                   ),
                 ),
