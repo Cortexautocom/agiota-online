@@ -330,173 +330,429 @@ class _EmprestimoFormState extends State<EmprestimoForm> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text("Novo empréstimo - ${nomeCliente ?? ''}"),
-        centerTitle: true,
+        title: const Text("Novo Empréstimo - Parcelamento"),
+        backgroundColor: Colors.blue,
+        foregroundColor: Colors.white,
+        elevation: 0,
       ),
       body: Container(
-        color: Colors.grey[100],
-        alignment: Alignment.center,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: 300,
-              height: 600,
-              padding: const EdgeInsets.all(16),
-              child: Form(
-                key: _formKey,
-                child: SingleChildScrollView(
-                  child: Column(
-                    children: [
-                      // 🔹 Campo Data Inicial
-                      TextFormField(
-                        controller: dataInicioCtrl,
-                        decoration: const InputDecoration(
-                          labelText: "Data inicial do empréstimo",
-                          hintText: "dd/mm/aaaa",
-                        ),
-                        keyboardType: TextInputType.number,
-                        inputFormatters: [_dateMaskFormatter()],
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return "Informe a data inicial";
-                          }
-                          if (!_validarData(value)) return "Data inválida";
-                          return null;
-                        },
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Colors.blue.shade50,
+              Colors.blue.shade100,
+            ],
+          ),
+        ),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 500),
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Card(
+                elevation: 6,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Form(
+                    key: _formKey,
+                    child: SingleChildScrollView(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Cabeçalho
+                          _buildHeader(),
+                          const SizedBox(height: 20),
+                          
+                          // Valor financiado
+                          _buildCapitalField(),
+                          const SizedBox(height: 16),
+                          
+                          // Quantidade de parcelas
+                          _buildParcelasField(),
+                          const SizedBox(height: 16),
+                          
+                          // Data inicial
+                          _buildDataField(),
+                          const SizedBox(height: 16),
+                          
+                          // Taxa ou Parcela
+                          _buildCalculoSection(),
+                          const SizedBox(height: 20),
+                          
+                          // Botão Simular
+                          _buildSimularButton(),
+                          const SizedBox(height: 16),
+                          
+                          // Resumo da simulação
+                          if (prestacao != null) _buildResumoSection(),
+                          const SizedBox(height: 16),
+                          
+                          // Botão Criar
+                          _buildActionButton(),
+                        ],
                       ),
-                      const SizedBox(height: 12),
-
-                      TextFormField(
-                        controller: capitalCtrl,
-                        decoration:
-                            const InputDecoration(labelText: "Valor financiado"),
-                        keyboardType: TextInputType.number,
-                        inputFormatters: [_moedaFormatter()],
-                      ),
-                      const SizedBox(height: 12),
-                      TextFormField(
-                        controller: mesesCtrl,
-                        decoration:
-                            const InputDecoration(labelText: "Qtd. de parcelas"),
-                        keyboardType: TextInputType.number,
-                      ),
-                      const SizedBox(height: 12),
-                      TextFormField(
-                        focusNode: taxaFocus,
-                        controller: taxaCtrl,
-                        decoration: const InputDecoration(
-                            labelText: "Taxa mensal (% a.m)"),
-                        keyboardType: TextInputType.number,
-                      ),
-                      const SizedBox(height: 12),
-                      TextFormField(
-                        focusNode: parcelaFocus,
-                        controller: parcelaCtrl,
-                        decoration:
-                            const InputDecoration(labelText: "Valor da parcela"),
-                        keyboardType: TextInputType.number,
-                        inputFormatters: [_moedaFormatter()],
-                      ),
-                      const SizedBox(height: 20),
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton(
-                          onPressed: _simular,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.blue,
-                            foregroundColor: Colors.white,
-                            padding:
-                                const EdgeInsets.symmetric(vertical: 14),
-                          ),
-                          child: const Text("📊 Simular Empréstimo"),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton.icon(
-                          onPressed: salvar,
-                          icon: const Icon(Icons.save),
-                          label: const Text("Criar Empréstimo"),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.green,
-                            foregroundColor: Colors.white,
-                            padding:
-                                const EdgeInsets.symmetric(vertical: 14),
-                            textStyle: const TextStyle(
-                                fontSize: 16, fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
                 ),
               ),
             ),
-            const SizedBox(width: 40),
-            Flexible(
-              child: Container(
-                width: 260,
-                constraints:
-                    const BoxConstraints(minHeight: 200, maxWidth: 260),
-                padding: const EdgeInsets.all(16),
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.green[50],
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.green.shade200),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeader() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          "Novo Empréstimo - Parcelamento",
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: Colors.blue.shade800,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          "Preencha os dados do financiamento",
+          style: TextStyle(
+            fontSize: 13,
+            color: Colors.grey.shade600,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCapitalField() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          "Valor Financiado",
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: Colors.grey.shade700,
+          ),
+        ),
+        const SizedBox(height: 6),
+        TextFormField(
+          controller: capitalCtrl,
+          style: const TextStyle(fontSize: 15),
+          decoration: InputDecoration(
+            hintText: "R\$ 0,00",
+            hintStyle: const TextStyle(fontSize: 15),
+            prefixIcon: Icon(Icons.attach_money, size: 20, color: Colors.blue.shade600),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(color: Colors.grey.shade300),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(color: Colors.blue.shade600, width: 1.5),
+            ),
+            filled: true,
+            fillColor: Colors.white,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          ),
+          keyboardType: TextInputType.number,
+          inputFormatters: [_moedaFormatter()],
+          validator: (value) {
+            final valor = _parseMoeda(value ?? '');
+            if (valor <= 0) return "Informe um valor válido";
+            return null;
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildParcelasField() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          "Quantidade de Parcelas",
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: Colors.grey.shade700,
+          ),
+        ),
+        const SizedBox(height: 6),
+        TextFormField(
+          controller: mesesCtrl,
+          style: const TextStyle(fontSize: 15),
+          keyboardType: TextInputType.number,
+          decoration: InputDecoration(
+            hintText: "",
+            hintStyle: const TextStyle(fontSize: 15),
+            prefixIcon: Icon(Icons.format_list_numbered, size: 20, color: Colors.blue.shade600),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(color: Colors.grey.shade300),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(color: Colors.blue.shade600, width: 1.5),
+            ),
+            filled: true,
+            fillColor: Colors.white,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          ),
+          validator: (value) {
+            if (value == null || value.isEmpty) return "Informe a quantidade";
+            final n = int.tryParse(value);
+            if (n == null || n <= 0) return "Número inválido";
+            return null;
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDataField() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          "Data Inicial",
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: Colors.grey.shade700,
+          ),
+        ),
+        const SizedBox(height: 6),
+        TextFormField(
+          controller: dataInicioCtrl,
+          style: const TextStyle(fontSize: 15),
+          decoration: InputDecoration(
+            hintText: "dd/mm/aaaa",
+            hintStyle: const TextStyle(fontSize: 15),
+            prefixIcon: Icon(Icons.calendar_today, size: 20, color: Colors.blue.shade600),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(color: Colors.grey.shade300),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(color: Colors.blue.shade600, width: 1.5),
+            ),
+            filled: true,
+            fillColor: Colors.white,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          ),
+          keyboardType: TextInputType.number,
+          inputFormatters: [_dateMaskFormatter()],
+          validator: (value) {
+            if (value == null || value.isEmpty) return "Informe a data inicial";
+            if (!_validarData(value)) return "Data inválida";
+            return null;
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCalculoSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          "Cálculo do Financiamento",
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: Colors.grey.shade700,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          "Informe apenas um dos campos abaixo:",
+          style: TextStyle(
+            fontSize: 12,
+            color: Colors.grey.shade600,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "Taxa Mensal (%)",
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.grey.shade600,
+                    ),
                   ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        "Novo empréstimo",
-                        style: TextStyle(
-                            fontWeight: FontWeight.bold, fontSize: 14),
+                  const SizedBox(height: 6),
+                  TextFormField(
+                    focusNode: taxaFocus,
+                    controller: taxaCtrl,
+                    style: const TextStyle(fontSize: 14),
+                    decoration: InputDecoration(
+                      hintText: "0,00%",
+                      hintStyle: const TextStyle(fontSize: 14),
+                      prefixIcon: Icon(Icons.percent, size: 18, color: Colors.blue.shade600),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
                       ),
-                      const SizedBox(height: 6),
-                      Text(
-                        nomeCliente ?? "Cliente",
-                        style: const TextStyle(fontSize: 12),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const Divider(),
-                      Text(
-                        "Valor financiado: ${fmtMoeda(totalComJuros ?? 0)}",
-                        style: const TextStyle(fontSize: 12),
-                      ),
-                      Text(
-                        "Taxa aplicada: ${(taxaFinal ?? 0).toStringAsFixed(2)}% a.m",
-                        style: const TextStyle(fontSize: 12),
-                      ),
-                      Text(
-                        "Qtd. de parcelas: ${qtdParcelas ?? '--'}",
-                        style: const TextStyle(fontSize: 12),
-                      ),
-                      Text(
-                        "Valor de cada parcela: ${fmtMoeda(prestacao ?? 0)}",
-                        style: const TextStyle(fontSize: 12),
-                      ),
-                      Text(
-                        "Capital em risco: ${fmtMoeda(capital ?? 0)}",
-                        style: const TextStyle(fontSize: 12),
-                      ),
-                      Text(
-                        "Juros totais: ${fmtMoeda(totalJuros ?? 0)}",
-                        style: const TextStyle(fontSize: 12),
-                      ),
-                    ],
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    ),
+                    keyboardType: TextInputType.number,
                   ),
-                ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "Valor da Parcela",
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.grey.shade600,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  TextFormField(
+                    focusNode: parcelaFocus,
+                    controller: parcelaCtrl,
+                    style: const TextStyle(fontSize: 14),
+                    decoration: InputDecoration(
+                      hintText: "R\$ 0,00",
+                      hintStyle: const TextStyle(fontSize: 14),
+                      prefixIcon: Icon(Icons.payment, size: 18, color: Colors.blue.shade600),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    ),
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [_moedaFormatter()],
+                  ),
+                ],
               ),
             ),
           ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSimularButton() {
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton.icon(
+        onPressed: _simular,
+        icon: const Icon(Icons.calculate, size: 20),
+        label: const Text(
+          "Simular Empréstimo",
+          style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+        ),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.blue.shade600,
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+          elevation: 2,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildResumoSection() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.blue.shade50,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.blue.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            "Resumo do Financiamento",
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: Colors.blue.shade800,
+            ),
+          ),
+          const SizedBox(height: 12),
+          _buildResumoItem("Valor financiado:", fmtMoeda(capital ?? 0)),
+          _buildResumoItem("Taxa mensal:", "${taxaFinal?.toStringAsFixed(2)}%"),
+          _buildResumoItem("Quantidade de parcelas:", "${qtdParcelas ?? '--'}"),
+          _buildResumoItem("Valor da parcela:", fmtMoeda(prestacao ?? 0)),
+          _buildResumoItem("Total com juros:", fmtMoeda(totalComJuros ?? 0)),
+          _buildResumoItem("Juros totais:", fmtMoeda(totalJuros ?? 0)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildResumoItem(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 13,
+                color: Colors.grey.shade700,
+              ),
+            ),
+          ),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: Colors.blue.shade800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionButton() {
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton.icon(
+        onPressed: salvar,
+        icon: const Icon(Icons.check_circle, size: 20),
+        label: const Text(
+          "Criar Empréstimo",
+          style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+        ),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.green.shade600,
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+          elevation: 2,
         ),
       ),
     );
