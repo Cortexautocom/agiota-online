@@ -27,6 +27,7 @@ class ParcelasPageState extends State<ParcelasPage> {
   double aporteTotal = 0.0;
   double capitalPago = 0.0;
   double taxaJuros = 0.0;
+  String dataInicio = "";
   double totalEmAtraso = 0.0;
   bool mostrarInfo = true; // controla a largura do painel lateral
 
@@ -43,18 +44,120 @@ class ParcelasPageState extends State<ParcelasPage> {
     try {
       final response = await Supabase.instance.client
           .from('emprestimos')
-          .select('taxa')
+          .select('taxa, data_inicio') // 👈 buscamos os dois campos
           .eq('id', widget.emprestimo['id'])
           .single();
 
       setState(() {
         taxaJuros = (response['taxa'] as num?)?.toDouble() ?? 0.0;
+
+        // 👇 formata a data do banco (YYYY-MM-DD) para DD/MM/YYYY
+        final dataBanco = response['data_inicio']?.toString();
+        if (dataBanco != null && dataBanco.isNotEmpty) {
+          final partes = dataBanco.split('-');
+          if (partes.length == 3) {
+            dataInicio = "${partes[2]}/${partes[1]}/${partes[0]}";
+          }
+        }
       });
     } catch (e) {
-      print("Erro ao carregar taxa do banco: $e");
+      print("Erro ao carregar dados do banco: $e");
       taxaJuros = 0.0;
+      dataInicio = "";
     }
   }
+
+  Future<void> _excluirEmprestimo() async {
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Excluir Empréstimo"),
+        content: const Text(
+          "Tem certeza que deseja EXCLUIR este empréstimo?\n\n"
+          "Todas as parcelas associadas também serão removidas permanentemente.",
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text("Cancelar"),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.redAccent,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text("Excluir"),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmar != true) return; // ❌ cancelou
+
+    try {
+      final idEmprestimo = widget.emprestimo['id'];
+
+      // 🔹 1º passo: excluir parcelas
+      await Supabase.instance.client
+          .from('parcelas')
+          .delete()
+          .eq('id_emprestimo', idEmprestimo);
+
+      // 🔹 2º passo: excluir o empréstimo
+      await Supabase.instance.client
+          .from('emprestimos')
+          .delete()
+          .eq('id', idEmprestimo);
+
+      if (!mounted) return;
+
+      // 🔹 Mostra mensagem de sucesso
+      await showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => AlertDialog(
+          content: const Text(
+            "Empréstimo e parcelas excluídos com sucesso!",
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 15),
+          ),
+          actionsAlignment: MainAxisAlignment.center,
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(ctx); // fecha o diálogo
+                Navigator.pop(context, true); // volta pro financeiro
+              },
+              style: TextButton.styleFrom(
+                backgroundColor: Colors.redAccent,
+                foregroundColor: Colors.white,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              ),
+              child: const Text("OK"),
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      await showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text("Erro ao excluir"),
+          content: Text("$e"),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text("OK"),
+            ),
+          ],
+        ),
+      );
+    }
+  }
+
+
 
   Future<void> atualizarParcelas() async {
     setState(() {
@@ -238,6 +341,14 @@ class ParcelasPageState extends State<ParcelasPage> {
                                     Divider(height: 10, color: Colors.green),
                                     const SizedBox(height: 8),
                                     Text(
+                                      "Data de início: $dataInicio",
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.black87,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Text(
                                       "Taxa de Juros: ${taxaJuros.toStringAsFixed(2)}% a.m.",
                                       style: const TextStyle(
                                         fontSize: 12,
@@ -398,89 +509,106 @@ class ParcelasPageState extends State<ParcelasPage> {
           );
         },
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () async {
-          final confirmar = await showDialog<bool>(
-            context: context,
-            builder: (ctx) => AlertDialog(
-              title: const Text("Arquivar Empréstimo"),
-              content: const Text(
-                "Tem certeza que deseja arquivar este empréstimo?\n\n"
-                "O empréstimo será movido para a aba de arquivados.",
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx, false),
-                  child: const Text("Cancelar"),
-                ),
-                ElevatedButton(
-                  onPressed: () => Navigator.pop(ctx, true),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.orange,
-                    foregroundColor: Colors.white,
-                  ),
-                  child: const Text("Arquivar"),
-                ),
-              ],
-            ),
-          );
-
-          if (confirmar == true) {
-            try {
-              await Supabase.instance.client
-                  .from('emprestimos')
-                  .update({'ativo': 'nao'})
-                  .eq('id', widget.emprestimo['id']);
-
-              if (!mounted) return;
-
-              // 🔹 Mostra diálogo de sucesso com botão OK
-              await showDialog(
+      floatingActionButton: Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          // 🔸 Botão Arquivar (já existente)
+          FloatingActionButton.extended(
+            onPressed: () async {
+              final confirmar = await showDialog<bool>(
                 context: context,
-                barrierDismissible: false,
                 builder: (ctx) => AlertDialog(
+                  title: const Text("Arquivar Empréstimo"),
                   content: const Text(
-                    "Empréstimo arquivado com sucesso!",
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 15),
+                    "Tem certeza que deseja arquivar este empréstimo?\n\n"
+                    "O empréstimo será movido para a aba de arquivados.",
                   ),
-                  actionsAlignment: MainAxisAlignment.center,
                   actions: [
                     TextButton(
-                      onPressed: () {
-                        Navigator.pop(ctx); // fecha o diálogo
-                        Navigator.pop(context, true); // volta ao financeiro com atualização
-                      },
-                      style: TextButton.styleFrom(
+                      onPressed: () => Navigator.pop(ctx, false),
+                      child: const Text("Cancelar"),
+                    ),
+                    ElevatedButton(
+                      onPressed: () => Navigator.pop(ctx, true),
+                      style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.orange,
                         foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                       ),
-                      child: const Text("OK"),
+                      child: const Text("Arquivar"),
                     ),
                   ],
                 ),
               );
-            } catch (e) {
-              if (!mounted) return;
-              await showDialog(
-                context: context,
-                builder: (ctx) => AlertDialog(
-                  content: Text("Erro ao arquivar: $e", textAlign: TextAlign.center),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(ctx),
-                      child: const Text("OK"),
+
+              if (confirmar == true) {
+                try {
+                  await Supabase.instance.client
+                      .from('emprestimos')
+                      .update({'ativo': 'nao'})
+                      .eq('id', widget.emprestimo['id']);
+
+                  if (!mounted) return;
+
+                  await showDialog(
+                    context: context,
+                    barrierDismissible: false,
+                    builder: (ctx) => AlertDialog(
+                      content: const Text(
+                        "Empréstimo arquivado com sucesso!",
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 15),
+                      ),
+                      actionsAlignment: MainAxisAlignment.center,
+                      actions: [
+                        TextButton(
+                          onPressed: () {
+                            Navigator.pop(ctx);
+                            Navigator.pop(context, true);
+                          },
+                          style: TextButton.styleFrom(
+                            backgroundColor: Colors.orange,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 20, vertical: 10),
+                          ),
+                          child: const Text("OK"),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-              );
-            }
-          }
-        },
-        icon: const Icon(Icons.archive),
-        label: const Text("Arquivar"),
-        backgroundColor: Colors.orange,
+                  );
+                } catch (e) {
+                  if (!mounted) return;
+                  await showDialog(
+                    context: context,
+                    builder: (ctx) => AlertDialog(
+                      content: Text("Erro ao arquivar: $e",
+                          textAlign: TextAlign.center),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(ctx),
+                          child: const Text("OK"),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+              }
+            },
+            icon: const Icon(Icons.archive),
+            label: const Text("Arquivar"),
+            backgroundColor: Colors.orange,
+          ),
+
+          const SizedBox(width: 12),
+
+          // 🔸 Novo botão EXCLUIR
+          FloatingActionButton.extended(
+            onPressed: _excluirEmprestimo, // 👈 chama o método criado
+            icon: const Icon(Icons.delete_forever),
+            label: const Text("Excluir"),
+            backgroundColor: Colors.redAccent,
+          ),
+        ],
       ),
     );
   }
