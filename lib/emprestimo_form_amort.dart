@@ -47,7 +47,6 @@ class _EmprestimoFormAmortState extends State<EmprestimoFormAmort> {
     });
   }
 
-
   TextInputFormatter _moedaFormatter() {
     return TextInputFormatter.withFunction((oldValue, newValue) {
       var text = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
@@ -296,213 +295,68 @@ class _EmprestimoFormAmortState extends State<EmprestimoFormAmort> {
       appBar: AppBar(
         title: const Text("Novo Empréstimo - Amortização"),
         backgroundColor: Colors.green,
+        foregroundColor: Colors.white,
+        elevation: 0,
       ),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 420),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Form(
-              key: _formKey,
-              child: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    TextFormField(
-                      controller: valorCtrl,
-                      decoration: const InputDecoration(
-                        labelText: "Valor emprestado",
-                        hintText: "R\$ 0,00",
-                      ),
-                      keyboardType: TextInputType.number,
-                      inputFormatters: [_moedaFormatter()],
-                      validator: (value) {
-                        final valor = _parseMoeda(value ?? '');
-                        if (valor <= 0) return "Informe um valor válido";
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 16),                  
-
-                    // 🔹 Campo Qtd. parcelas + Indefinido
-                    ValueListenableBuilder<bool>(
-                      valueListenable: indefinido,
-                      builder: (context, indef, _) {
-                        return Row(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            // Campo de quantidade de parcelas
-                            Expanded(
-                              child: TextFormField(
-                                controller: qtdParcelasCtrl,
-                                focusNode: parcelasFocus, // 🔹 adiciona o focus node
-                                keyboardType: TextInputType.number,
-                                enabled: !indef,
-                                onEditingComplete: _atualizarDataFinal, // 🔹 calcula ao sair do campo
-                                decoration: InputDecoration(
-                                  labelText: 'Qtd. parcelas',                                  
-                                ),
-                                validator: (v) {
-                                  if (!indef) {
-                                    if (v == null || v.isEmpty) return "Informe a quantidade";
-                                    final n = int.tryParse(v);
-                                    if (n == null || n <= 0) return "Número inválido";
-                                  }
-                                  return null;
-                                },
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            // Caixa de seleção "Indefinido"
-                            Row(
-                              children: [
-                                Checkbox(
-                                  value: indef,
-                                  onChanged: (novoValor) {
-                                    if (novoValor != null) {
-                                      indefinido.value = novoValor;
-                                      if (novoValor) {
-                                        qtdParcelasCtrl.text = '0';
-                                        frequencia.value = null;
-                                      }
-                                    }
-                                  },
-                                ),
-                                const Text('Indefinido'),
-                              ],
-                            ),
-                          ],
-                        );
-                      },
-                    ),
-
-                    // 🔹 Campo Frequência de pagamentos
-                    ValueListenableBuilder<bool>(
-                      valueListenable: indefinido,
-                      builder: (context, indef, _) {
-                        final desativado = indef;
-                        return InputDecorator(
-                          decoration: const InputDecoration(
-                            labelText: 'Frequência de pagamentos',
-                            border: UnderlineInputBorder(),
-                          ),
-                          child: AbsorbPointer(
-                            absorbing: desativado, // bloqueia interação se indefinido
-                            child: Opacity(
-                              opacity: desativado ? 0.5 : 1.0, // efeito esmaecido
-                              child: ValueListenableBuilder<String?>(
-                                valueListenable: frequencia,
-                                builder: (context, valorAtual, _) {
-                                  return Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                                    children: [
-                                      Row(
-                                        children: [
-                                          Checkbox(
-                                            value: valorAtual == 'Semanal',
-                                            onChanged: (checked) {
-                                              if (checked == true) {
-                                                frequencia.value = 'Semanal';
-                                                _atualizarDataFinal(); // 🔹 calcula data final automaticamente
-                                              } else {
-                                                frequencia.value = null;
-                                              }
-                                            },
-                                          ),
-                                          const Text('Semanal'),
-                                        ],
-                                      ),
-                                      Row(
-                                        children: [
-                                          Checkbox(
-                                            value: valorAtual == 'Mensal',
-                                            onChanged: (checked) {
-                                              if (checked == true) {
-                                                frequencia.value = 'Mensal';
-                                                _atualizarDataFinal(); // 🔹 calcula data final automaticamente
-                                              } else {
-                                                frequencia.value = null;
-                                              }
-                                            },
-                                          ),
-                                          const Text('Mensal'),
-                                        ],
-                                      ),
-                                    ],
-                                  );
-                                },
-                              ),
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 16),
-
-                    TextFormField(
-                      controller: dataInicioCtrl,
-                      decoration: const InputDecoration(
-                        labelText: "Data inicial",
-                        hintText: "dd/mm/aaaa",
-                      ),
-                      keyboardType: TextInputType.number,
-                      inputFormatters: [_dateMaskFormatter()],
-                      validator: (value) {
-                        if (value == null || value.isEmpty) return "Informe a data inicial";
-                        if (!_validarData(value)) return "Data inválida";
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    ValueListenableBuilder<bool>(
-                      valueListenable: indefinido,
-                      builder: (context, indef, _) {
-                        return TextFormField(
-                          controller: dataFimCtrl,
-                          decoration: const InputDecoration(
-                            labelText: "Data final",
-                            hintText: "dd/mm/aaaa",
-                          ),
-                          enabled: !indef, // 🔹 bloqueia se indefinido
-                          keyboardType: TextInputType.number,
-                          inputFormatters: [_dateMaskFormatter()],
-                          validator: (value) {
-                            if (indef) return null; // 🔹 ignora validação se indefinido
-                            if (value == null || value.isEmpty) return "Informe a data final";
-                            if (!_validarData(value)) return "Data inválida";
-                            return null;
-                          },
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: taxaCtrl,
-                      decoration: const InputDecoration(
-                        labelText: "Taxa de juros mensal (%)",
-                        hintText: "0,00",
-                      ),
-                      keyboardType: TextInputType.number,
-                      validator: (value) {
-                        if (value == null || value.isEmpty) return "Informe a taxa de juros";
-                        final taxa = double.tryParse(value.replaceAll(',', '.'));
-                        if (taxa == null || taxa < 0) return "Taxa inválida";
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 32),
-                    ElevatedButton.icon(
-                      onPressed: _criarEmprestimo,
-                      icon: const Icon(Icons.check),
-                      label: const Text("Criar Empréstimo"),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
-                        textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Colors.green.shade50,
+              Colors.green.shade100,
+            ],
+          ),
+        ),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 500),
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Card(
+                elevation: 6,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Form(
+                    key: _formKey,
+                    child: SingleChildScrollView(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Cabeçalho
+                          _buildHeader(),
+                          const SizedBox(height: 20),
+                          
+                          // Valor do empréstimo
+                          _buildValorField(),
+                          const SizedBox(height: 16),
+                          
+                          // Configuração de parcelas
+                          _buildParcelasSection(),
+                          const SizedBox(height: 16),
+                          
+                          // Frequência de pagamentos
+                          _buildFrequenciaSection(),
+                          const SizedBox(height: 16),
+                          
+                          // Datas
+                          _buildDatasSection(),
+                          const SizedBox(height: 16),
+                          
+                          // Taxa de juros
+                          _buildTaxaField(),
+                          const SizedBox(height: 24),
+                          
+                          // Botão de ação
+                          _buildActionButton(),
+                        ],
                       ),
                     ),
-                  ],
+                  ),
                 ),
               ),
             ),
@@ -512,9 +366,457 @@ class _EmprestimoFormAmortState extends State<EmprestimoFormAmort> {
     );
   }
 
+  Widget _buildHeader() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          "Novo Empréstimo - Amortização",
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: Colors.green.shade800,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          "Preencha os dados do empréstimo",
+          style: TextStyle(
+            fontSize: 13,
+            color: Colors.grey.shade600,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildValorField() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          "Valor do Empréstimo",
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: Colors.grey.shade700,
+          ),
+        ),
+        const SizedBox(height: 6),
+        TextFormField(
+          controller: valorCtrl,
+          style: const TextStyle(fontSize: 15),
+          decoration: InputDecoration(
+            hintText: "R\$ 0,00",
+            hintStyle: const TextStyle(fontSize: 15),
+            prefixIcon: Icon(Icons.attach_money, size: 20, color: Colors.green.shade600),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(color: Colors.grey.shade300),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(color: Colors.green.shade600, width: 1.5),
+            ),
+            filled: true,
+            fillColor: Colors.white,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          ),
+          keyboardType: TextInputType.number,
+          inputFormatters: [_moedaFormatter()],
+          validator: (value) {
+            final valor = _parseMoeda(value ?? '');
+            if (valor <= 0) return "Informe um valor válido";
+            return null;
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildParcelasSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [        
+        ValueListenableBuilder<bool>(
+          valueListenable: indefinido,
+          builder: (context, indef, _) {
+            return Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.grey.shade200),
+              ),
+              child: Column(
+                children: [
+                  // Campo de quantidade de parcelas
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              "Quantidade de Parcelas",
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.grey.shade700,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            TextFormField(
+                              controller: qtdParcelasCtrl,
+                              focusNode: parcelasFocus,
+                              style: const TextStyle(fontSize: 14),
+                              keyboardType: TextInputType.number,
+                              enabled: !indef,
+                              onEditingComplete: _atualizarDataFinal,
+                              decoration: InputDecoration(
+                                hintText: "Ex: 12",
+                                hintStyle: const TextStyle(fontSize: 14),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                filled: true,
+                                fillColor: indef ? Colors.grey.shade100 : Colors.white,
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                              ),
+                              validator: (v) {
+                                if (!indef) {
+                                  if (v == null || v.isEmpty) return "Informe a quantidade";
+                                  final n = int.tryParse(v);
+                                  if (n == null || n <= 0) return "Número inválido";
+                                }
+                                return null;
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      // Checkbox Indefinido
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Checkbox(
+                            value: indef,
+                            onChanged: (novoValor) {
+                              if (novoValor != null) {
+                                indefinido.value = novoValor;
+                                if (novoValor) {
+                                  qtdParcelasCtrl.text = '0';
+                                  frequencia.value = null;
+                                }
+                              }
+                            },
+                          ),
+                          Text(
+                            'Indefinido',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                              color: Colors.grey.shade700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    "Marque 'Indefinido' para empréstimos sem prazo determinado",
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Colors.grey.shade600,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFrequenciaSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [        
+        ValueListenableBuilder<bool>(
+          valueListenable: indefinido,
+          builder: (context, indef, _) {
+            return AbsorbPointer(
+              absorbing: indef,
+              child: Opacity(
+                opacity: indef ? 0.5 : 1.0,
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade50,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.grey.shade200),
+                  ),
+                  child: ValueListenableBuilder<String?>(
+                    valueListenable: frequencia,
+                    builder: (context, valorAtual, _) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            "Selecione a periodicidade dos pagamentos:",
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.grey.shade600,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _buildFrequenciaOption(
+                                  value: 'Semanal',
+                                  label: 'Semanal',
+                                  icon: Icons.calendar_view_week,
+                                  isSelected: valorAtual == 'Semanal',
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: _buildFrequenciaOption(
+                                  value: 'Mensal',
+                                  label: 'Mensal',
+                                  icon: Icons.calendar_today,
+                                  isSelected: valorAtual == 'Mensal',
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFrequenciaOption({
+    required String value,
+    required String label,
+    required IconData icon,
+    required bool isSelected,
+  }) {
+    return GestureDetector(
+      onTap: () {
+        frequencia.value = isSelected ? null : value;
+        _atualizarDataFinal();
+      },
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: isSelected ? Colors.green.shade50 : Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: isSelected ? Colors.green.shade300 : Colors.grey.shade300,
+            width: isSelected ? 1.5 : 1,
+          ),
+        ),
+        child: Column(
+          children: [
+            Icon(
+              icon,
+              size: 20,
+              color: isSelected ? Colors.green.shade700 : Colors.grey.shade600,
+            ),
+            const SizedBox(height: 6),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                color: isSelected ? Colors.green.shade700 : Colors.grey.shade700,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDatasSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [        
+        Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "Data Inicial",
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.grey.shade600,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  TextFormField(
+                    controller: dataInicioCtrl,
+                    style: const TextStyle(fontSize: 14),
+                    decoration: InputDecoration(
+                      hintText: "dd/mm/aaaa",
+                      hintStyle: const TextStyle(fontSize: 14),
+                      prefixIcon: Icon(Icons.calendar_today, size: 20, color: Colors.green.shade600),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    ),
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [_dateMaskFormatter()],
+                    validator: (value) {
+                      if (value == null || value.isEmpty) return "Informe a data inicial";
+                      if (!_validarData(value)) return "Data inválida";
+                      return null;
+                    },
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: ValueListenableBuilder<bool>(
+                valueListenable: indefinido,
+                builder: (context, indef, _) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        "Data Final",
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      TextFormField(
+                        controller: dataFimCtrl,
+                        style: const TextStyle(fontSize: 14),
+                        enabled: !indef,
+                        decoration: InputDecoration(
+                          hintText: indef ? "Indefinido" : "dd/mm/aaaa",
+                          hintStyle: TextStyle(
+                            fontSize: 14,
+                            color: indef ? Colors.grey.shade400 : null,
+                          ),
+                          prefixIcon: Icon(Icons.event, size: 20,
+                              color: indef ? Colors.grey.shade400 : Colors.green.shade600),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          filled: true,
+                          fillColor: indef ? Colors.grey.shade100 : Colors.white,
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        ),
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [_dateMaskFormatter()],
+                        validator: (value) {
+                          if (indef) return null;
+                          if (value == null || value.isEmpty) return "Informe a data final";
+                          if (!_validarData(value)) return "Data inválida";
+                          return null;
+                        },
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTaxaField() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          "Taxa de Juros Mensal",
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: Colors.grey.shade700,
+          ),
+        ),
+        const SizedBox(height: 6),
+        TextFormField(
+          controller: taxaCtrl,
+          style: const TextStyle(fontSize: 15),
+          decoration: InputDecoration(
+            hintText: "0,00%",
+            hintStyle: const TextStyle(fontSize: 15),
+            prefixIcon: Icon(Icons.percent, size: 20, color: Colors.green.shade600),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(color: Colors.grey.shade300),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(color: Colors.green.shade600, width: 1.5),
+            ),
+            filled: true,
+            fillColor: Colors.white,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          ),
+          keyboardType: TextInputType.number,
+          validator: (value) {
+            if (value == null || value.isEmpty) return "Informe a taxa de juros";
+            final taxa = double.tryParse(value.replaceAll(',', '.'));
+            if (taxa == null || taxa < 0) return "Taxa inválida";
+            return null;
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildActionButton() {
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton.icon(
+        onPressed: _criarEmprestimo,
+        icon: const Icon(Icons.check_circle, size: 20),
+        label: const Text(
+          "Criar Empréstimo",
+          style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+        ),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.green.shade600,
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+          elevation: 2,
+        ),
+      ),
+    );
+  }
+
   @override
   void dispose() {
-    parcelasFocus.dispose(); // 🔹 libera o focus node
+    parcelasFocus.dispose();
     dataInicioCtrl.dispose();
     valorCtrl.dispose();
     dataFimCtrl.dispose();
@@ -560,7 +862,4 @@ class _EmprestimoFormAmortState extends State<EmprestimoFormAmort> {
     final ano = data.year.toString();
     dataFimCtrl.text = "$dia/$mes/$ano";
   }
-
-
-
 }
