@@ -338,6 +338,82 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
     }
   }
 
+  // 🔹 EXCLUIR EMPRÉSTIMO (igual ao parcelamento)
+  Future<void> _excluirEmprestimo() async {
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Excluir Empréstimo"),
+        content: const Text(
+          "Tem certeza que deseja excluir este empréstimo?\n\n"
+          "⚠️ Esta ação é permanente e também excluirá todas as parcelas vinculadas!",
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text("Cancelar"),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.redAccent,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text("Excluir"),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmar == true) {
+      try {
+        final supabase = Supabase.instance.client;
+        final idEmprestimo = widget.emprestimo['id'];
+
+        // 🔸 Exclui parcelas primeiro
+        await supabase.from('parcelas').delete().eq('id_emprestimo', idEmprestimo);
+
+        // 🔸 Depois exclui o empréstimo
+        await supabase.from('emprestimos').delete().eq('id', idEmprestimo);
+
+        if (!mounted) return;
+
+        await showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            content: const Text(
+              "Empréstimo excluído com sucesso!",
+              textAlign: TextAlign.center,
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: const Text("OK"),
+              ),
+            ],
+          ),
+        );
+
+        Navigator.pop(context, true); // 🔹 Volta ao Financeiro
+      } catch (e) {
+        if (!mounted) return;
+        await showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            content: Text("Erro ao excluir: $e", textAlign: TextAlign.center),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text("OK"),
+              ),
+            ],
+          ),
+        );
+      }
+    }
+  }
+
+
   // 🔹 Função auxiliar para excluir uma linha com segurança
   void _removerLinha(int index) {
     setState(() {
@@ -789,18 +865,36 @@ class _AmortizacaoTabelaState extends State<AmortizacaoTabela> {
           ),
                     
           // 🔹 BOTÃO ARQUIVAR FIXADO NO RODAPÉ DIREITO
+          // 🔹 BOTÕES FIXADOS NO CANTO INFERIOR DIREITO (lado a lado)
+          // 🔹 BOTÕES FIXADOS NO CANTO INFERIOR DIREITO (lado a lado)
           Positioned(
             bottom: 20,
             right: 20,
-            child: ElevatedButton.icon(
-              onPressed: _arquivarEmprestimo,
-              icon: const Icon(Icons.archive, size: 18),
-              label: const Text("Arquivar Empréstimo"),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.orange,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
-              ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ElevatedButton.icon(
+                  onPressed: _arquivarEmprestimo,
+                  icon: const Icon(Icons.archive, size: 18),
+                  label: const Text("Arquivar Empréstimo"),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.orange,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                ElevatedButton.icon(
+                  onPressed: _excluirEmprestimo,
+                  icon: const Icon(Icons.delete_forever, size: 18),
+                  label: const Text("Excluir Empréstimo"),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.redAccent,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
+                  ),
+                ),
+              ],
             ),
           ),
         ],
