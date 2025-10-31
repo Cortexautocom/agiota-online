@@ -15,12 +15,18 @@ import 'reset_password_page.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 🧩 Carrega o arquivo .env
+  // 🧩 Carrega o arquivo .env (se existir)
   await dotenv.load(fileName: ".env");
 
-  // 🔐 Lê as credenciais do Supabase
-  final supabaseUrl = dotenv.env['SUPABASE_URL'] ?? '';
-  final supabaseAnonKey = dotenv.env['SUPABASE_ANON_KEY'] ?? '';
+  // 🔐 Lê as credenciais — primeiro tenta .env, depois dart-define
+  final supabaseUrl = dotenv.env['SUPABASE_URL']?.isNotEmpty == true
+      ? dotenv.env['SUPABASE_URL']!
+      : const String.fromEnvironment('SUPABASE_URL');
+
+  final supabaseAnonKey = dotenv.env['SUPABASE_ANON_KEY']?.isNotEmpty == true
+      ? dotenv.env['SUPABASE_ANON_KEY']!
+      : const String.fromEnvironment('SUPABASE_ANON_KEY');
+
 
   // 🔗 Inicializa o Supabase
   await Supabase.initialize(
