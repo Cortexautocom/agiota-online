@@ -475,7 +475,7 @@ class _EmprestimoFormAmortState extends State<EmprestimoFormAmort> {
                               enabled: !indef,
                               onEditingComplete: _atualizarDataFinal,
                               decoration: InputDecoration(
-                                hintText: "Ex: 12",
+                                hintText: "",
                                 hintStyle: const TextStyle(fontSize: 14),
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(8),

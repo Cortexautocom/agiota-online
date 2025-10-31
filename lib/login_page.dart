@@ -180,7 +180,7 @@ class _LoginPageState extends State<LoginPage> {
                 ),
                 const SizedBox(height: 4),
                 const Text(
-                  "Todos os direitos reservados",
+                  "AgioMestre © 2025 v. 1.1 - Todos os direitos reservados",
                   style: TextStyle(
                     fontSize: 12,
                     color: Color.fromARGB(255, 119, 119, 119),
