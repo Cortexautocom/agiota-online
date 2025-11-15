@@ -13,6 +13,7 @@ class LoginPage extends StatefulWidget {
 class _LoginPageState extends State<LoginPage> {
   final emailController = TextEditingController();
   final senhaController = TextEditingController();
+  final FocusNode _senhaFocusNode = FocusNode();
 
   @override
   Widget build(BuildContext context) {
@@ -74,6 +75,7 @@ class _LoginPageState extends State<LoginPage> {
                       TextField(
                         controller: emailController,
                         keyboardType: TextInputType.emailAddress,
+                        textInputAction: TextInputAction.next,
                         decoration: InputDecoration(
                           prefixIcon: const Icon(Icons.email_outlined),
                           labelText: "E-mail",
@@ -81,13 +83,19 @@ class _LoginPageState extends State<LoginPage> {
                             borderRadius: BorderRadius.circular(10),
                           ),
                         ),
+                        onSubmitted: (_) {
+                          // Quando pressionar Enter no campo de email, vai para a senha
+                          FocusScope.of(context).requestFocus(_senhaFocusNode);
+                        },
                       ),
                       const SizedBox(height: 16),
 
                       // Campo de senha
                       TextField(
                         controller: senhaController,
+                        focusNode: _senhaFocusNode,
                         obscureText: true,
+                        textInputAction: TextInputAction.go,
                         decoration: InputDecoration(
                           prefixIcon: const Icon(Icons.lock_outline),
                           labelText: "Senha",
@@ -95,6 +103,10 @@ class _LoginPageState extends State<LoginPage> {
                             borderRadius: BorderRadius.circular(10),
                           ),
                         ),
+                        onSubmitted: (_) {
+                          // Quando pressionar Enter no campo de senha, faz login
+                          _fazerLogin();
+                        },
                       ),
                       const SizedBox(height: 12),
 

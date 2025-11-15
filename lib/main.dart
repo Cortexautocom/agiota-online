@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:mask_text_input_formatter/mask_text_input_formatter.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter/foundation.dart';
 import 'clientes_page.dart';
 import 'package:intl/date_symbol_data_local.dart';
@@ -11,22 +10,14 @@ import 'login_page.dart';
 import 'perfil_page.dart';
 import 'funcoes_extras_page.dart';
 import 'reset_password_page.dart';
+import 'visao_geral.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 🧩 Carrega o arquivo .env (se existir)
-  await dotenv.load(fileName: ".env");
-
-  // 🔐 Lê as credenciais — primeiro tenta .env, depois dart-define
-  final supabaseUrl = dotenv.env['SUPABASE_URL']?.isNotEmpty == true
-      ? dotenv.env['SUPABASE_URL']!
-      : const String.fromEnvironment('SUPABASE_URL');
-
-  final supabaseAnonKey = dotenv.env['SUPABASE_ANON_KEY']?.isNotEmpty == true
-      ? dotenv.env['SUPABASE_ANON_KEY']!
-      : const String.fromEnvironment('SUPABASE_ANON_KEY');
-
+  // 🔐 Configuração direta do Supabase com ANON KEY
+  const supabaseUrl = 'https://mngwbikqaxlmbjzyvxii.supabase.co';
+  const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1uZ3diaWtxYXhsbWJqenl2eGlpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk3NzcyNDMsImV4cCI6MjA3NTM1MzI0M30.DPd8pcBZ-f20XhCsrsmG3Yls5KLn4wBCGFKYAcZlQRI';
 
   // 🔗 Inicializa o Supabase
   await Supabase.initialize(
@@ -103,7 +94,6 @@ class MyApp extends StatelessWidget {
   }
 }
 
-// ... (o resto do código HomePage e open_client_form permanecem EXATAMENTE IGUAIS)
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
 
@@ -268,6 +258,10 @@ class _HomePageState extends State<HomePage> {
                   },
                   labelType: NavigationRailLabelType.all,
                   destinations: const [
+                    NavigationRailDestination( // 🔹 NOVO ITEM
+                      icon: Icon(Icons.dashboard),
+                      label: Text('Visão geral'),
+                    ),
                     NavigationRailDestination(
                       icon: Icon(Icons.people),
                       label: Text('Clientes'),
@@ -299,10 +293,12 @@ class _HomePageState extends State<HomePage> {
   Widget _buildPage(int index) {
     switch (index) {
       case 0:
-        return const ClientesPage();
+        return const VisaoGeralPage(); // 🔹 NOVA PÁGINA
       case 1:
-        return const RelatoriosPage();
+        return const ClientesPage();
       case 2:
+        return const RelatoriosPage();
+      case 3:
         return const FuncoesExtrasPage();
       default:
         return const Center(child: Text("Página não encontrada"));
