@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:mask_text_input_formatter/mask_text_input_formatter.dart';
+import 'alterar_senha.dart';
 
 class PerfilPage extends StatefulWidget {
   const PerfilPage({super.key});
@@ -161,6 +162,21 @@ class _PerfilPageState extends State<PerfilPage> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF1C2331),
                       foregroundColor: Colors.white,
+                      minimumSize: const Size(150, 48),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  // BOTÃO ALTERAR SENHA ADICIONADO AQUI
+                  OutlinedButton.icon(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const AlterarSenhaPage()),
+                      );
+                    },
+                    icon: const Icon(Icons.lock),
+                    label: const Text("Alterar Senha"),
+                    style: OutlinedButton.styleFrom(
                       minimumSize: const Size(150, 48),
                     ),
                   ),
